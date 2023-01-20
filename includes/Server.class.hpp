@@ -32,12 +32,9 @@ class Server
 
 		// Configuration File Operation
 
-		void	openFile(const char* filename);
-		void	defineConfig(std::ifstream & configFile);
-		void	parseLine(std::string line, bool serverMatched, bool inBlock, t_config n_conf);
-		void	findServerBlock(std::string line, bool serverMatched, bool inBlock);
-		void	findOpeningOfBlock(std::string line, bool inBlock);
-		void	searchRule(std::string line, t_config n_conf);
+		void					openFile(const char* filename);
+		void					defineConfig(std::ifstream & configFile);
+		std::string::iterator	saveServerConfig(std::string::iterator & iter, std::string line);
 
 	public:
 		Server(const char* filename);

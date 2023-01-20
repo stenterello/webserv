@@ -24,93 +24,46 @@ void	Server::openFile(const char* filename)
 	configFile.close();
 }
 
+void	skipSpaces(std::string::iterator iter, std::string line)
+{
+	while (iter != line.end() && (*iter == ' ' || *iter == '\t'))
+		iter++;
+}
+
+void	skipComment(std::string::iterator iter, std::string line)
+{
+	while (iter != line.end() && *iter != '\n')
+		iter++;
+}
+
 void	Server::defineConfig(std::ifstream & configFile)
 {
-	std::string	line;
-	bool		serverMatched = false;
-	bool		inBlock = false;
-	t_config	n_conf;
+	std::string				line;
+	std::stringstream		buffer;
+	std::string::iterator	iter;
 
-	while (configFile.good())
+	buffer << configFile.rdbuf();
+	line = buffer.str();
+
+	iter = line.begin();
+	if (iter == line.end())
+		die("Configuration file: format error");
+	skipSpaces(iter, line);
+	if (iter != line.end() && *iter == '#')
+		skipComment(iter, line);
+	else if (iter != line.end() && !std::strncmp(&(*iter), "server", 6))
 	{
-		configFile >> line;
-		parseLine(line, serverMatched, inBlock, n_conf);
+		while (iter != line.end() && *iter != '{')
+			iter++;
+		if (iter == line.end())
+			die("Configuration file: format error");
+		saveServerConfig(iter, line);
 	}
-}
-
-std::string	trim(std::string line)
-{
-	const std::string	whitespace = " \t";
-	size_t				start;
-	size_t				end;
-
-	start = line.find_first_not_of(whitespace);
-	if (start == std::string::npos)
-		return ("");
-	end = line.find_last_not_of(whitespace);
-	return (line.substr(start, end - start + 1));
-}
-
-void	Server::findServerBlock(std::string line, bool serverMatched, bool inBlock)
-{
-	char	*ptr;
-
-	if (line.at(0) == '#') // Comment handling
-		return ;
-	else if (!isalpha(line.at(0))) // First character is not alpha
-		die("\"" + line + "\" is not a valid line in configuration file. Aborting");
-	else if (line.compare("server") && !inBlock) // First word outside block is not server
-		die("Configuration must start with a server block ('server'). Aborting");
-	else if (!line.compare("server") && !serverMatched && !inBlock) // server is mentioned, entering block
-	{
-		serverMatched = true;
-		// Search for '{'
-		strncpy(ptr, line.c_str(), 100);
-		ptr += strlen("server");
-		while (*ptr && (*ptr == ' ' || *ptr == '\t'))
-			ptr++;
-		if (*ptr && *ptr != '{')
-			die("Server blocks must start with '{'. Aborting");
-		else if (*ptr && *ptr == '{')
-			inBlock = true;
-	}
-	else if (!line.compare("server") && inBlock) // server rule is nested inside another server block
-		die("Server block can't be nested. Aborting");
-}
-
-void	Server::findOpeningOfBlock(std::string line, bool inBlock)
-{
-	char	*ptr;
-
-	strncpy(ptr, line.c_str(), 100);
-	if (ptr[0] != '{')
-		die("Server blocks must start with '{'. Aborting");
-	while (*ptr && (*ptr == ' ' || *ptr == '\t'))
-		ptr++;
-	if (*ptr)
-		die("After '{' there must be a return character. Aborting");
 	else
-		inBlock = true;
+		die("Configuration file: format error");
 }
 
-void	Server::searchRule(std::string line, t_config n_conf)
+std::string::iterator	Server::saveServerConfig(std::string::iterator & iter, std::string line)
 {
-	std::string::difference_type	count = std::count(line.begin(), line.end(), '{');
-	if (count)
-		die();
-}
-
-void	Server::parseLine(std::string line, bool serverMatched, bool inBlock, t_config n_conf)
-{
-	// Delete whitespaces at start and end
-	line = trim(line);
-	if (line == "")
-		return ;
-
-	if (!serverMatched)
-		findServerBlock(line, serverMatched, inBlock);
-	else if (serverMatched && !inBlock)
-		findOpeningOfBlock(line, inBlock);
-	if (inBlock)
-		searchRule(line, n_conf);
+	
 }

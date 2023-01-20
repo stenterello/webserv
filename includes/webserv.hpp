@@ -1,9 +1,10 @@
 #pragma once
 
 # include <iostream>
+# include <sstream>
 # include <vector>
 # include <fstream>
-# include <string>
+# include <cstring>
 # include <algorithm>
 
 void	die(std::string const err);
