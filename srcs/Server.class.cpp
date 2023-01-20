@@ -85,6 +85,10 @@ void	Server::findOpeningOfBlock(std::string line, bool inBlock)
 	strncpy(ptr, line.c_str(), 100);
 	if (ptr[0] != '{')
 		die("Server blocks must start with '{'. Aborting");
+	while (*ptr && (*ptr == ' ' || *ptr == '\t'))
+		ptr++;
+	if (*ptr)
+		die("After '{' there must be a return character. Aborting");
 	else
 		inBlock = true;
 }
@@ -92,12 +96,12 @@ void	Server::findOpeningOfBlock(std::string line, bool inBlock)
 void	Server::searchRule(std::string line, t_config n_conf)
 {
 	std::string::difference_type	count = std::count(line.begin(), line.end(), '{');
-	if (count > 1)
+	if (count)
+		die();
 }
 
 void	Server::parseLine(std::string line, bool serverMatched, bool inBlock, t_config n_conf)
 {
-	
 	// Delete whitespaces at start and end
 	line = trim(line);
 	if (line == "")
