@@ -36,7 +36,7 @@ void	skipComment(std::string::iterator iter, std::string line)
 		iter++;
 }
 
-std::string	deleteComments(std::string text)
+std::string	Server::deleteComments(std::string text)
 {
 	std::string	temp;
 	size_t		pos;
@@ -58,16 +58,58 @@ std::string	deleteComments(std::string text)
 	return (temp);
 }
 
+bool	curlyBrace(std::string text, size_t pos)
+{
+	std::string::iterator	iter = text.begin();
+
+	for (size_t i = 0; i < pos + 5; i++)
+		iter++;
+	
+	while (*iter && *iter != '{')
+	{
+		if (*iter != ' ' && *iter != '\t')
+			return (false);
+		iter++;
+	}
+	return (true);
+}
+
+void	divideAndCheck(std::string text, std::vector<std::string> serverBlocks)
+{
+	size_t	start;
+	size_t	end;
+
+	while (text.find("server") != std::string::npos)
+	{
+		start = text.find("server");
+		if (!curlyBrace(text, start))
+			die("Each server block must be inside curly braces. Aborting");
+		end = text.find('}', start);
+		if (end == std::string::npos)
+			die("Each server block must end, at a certain point. With a '}'. Aborting");
+		serverBlocks.push_back(text.substr(start, end));
+		text = text.substr(0, start) + text.substr(end);
+	}
+
+	if (text.find_first_not_of(" \t") != std::string::npos)
+		die("All configuration must be inside server blocks. Aborting");
+}
+
 void	Server::defineConfig(std::ifstream & configFile)
 {
-	std::string				text;
-	std::stringstream		buffer;
-	std::string::iterator	iter;
+	std::string					text;
+	std::stringstream			buffer;
+	std::string::iterator		iter;
+	std::vector<std::string>	serverBlocks;
 
+	// Save file in one string
 	buffer << configFile.rdbuf();
 	text = buffer.str();
 
+	// Delete all comments
 	iter = text.begin();
 	text = deleteComments(text);
-	std::cout << text << std::endl;
+	
+	// Divide text in location blocks string and check that nothing is outside
+	divideAndCheck(text, serverBlocks);
 }

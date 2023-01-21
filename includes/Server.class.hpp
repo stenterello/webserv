@@ -35,6 +35,7 @@ class Server
 
 		void					openFile(const char* filename);
 		void					defineConfig(std::ifstream & configFile);
+		std::string				deleteComments(std::string text);
 
 	public:
 		Server(const char* filename);
