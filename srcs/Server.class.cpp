@@ -121,6 +121,7 @@ void		Server::divideAndCheck(std::string text, std::vector<std::string> & server
 bool		Server::takeRule(std::string & text, t_config & conf)
 {
 	std::string	line;
+	size_t		start;
 	size_t		end;
 	std::string	key;
 	std::string	value;
@@ -137,7 +138,7 @@ bool		Server::takeRule(std::string & text, t_config & conf)
 		die("Rules must can't be splitted on more lines. Aborting");
 	
 	// Split line and insert in conf
-
+	
 
 	return (false);
 }
