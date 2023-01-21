@@ -23,7 +23,6 @@ typedef struct	s_config
 class Server
 {
 	private:
-		Server();
 		Server(Server const & src);
 		Server&	operator=(Server const & rhs);
 
@@ -36,8 +35,11 @@ class Server
 		void					openFile(const char* filename);
 		void					defineConfig(std::ifstream & configFile);
 		std::string				deleteComments(std::string text);
+		bool					curlyBrace(std::string text, size_t pos);
+		void					divideAndCheck(std::string text, std::vector<std::string> serverBlocks);
 
 	public:
+		Server();
 		Server(const char* filename);
 		~Server();
 };

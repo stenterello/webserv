@@ -2,6 +2,11 @@
 
 //////// Constructors & Destructor //////////////////////////////
 
+Server::Server() : _filename("default.conf")
+{
+	openFile(_filename);
+}
+
 Server::Server(const char* filename) : _filename(filename)
 {
 	openFile(filename);
@@ -22,18 +27,6 @@ void	Server::openFile(const char* filename)
 		die("Error opening file. Aborting");
 
 	configFile.close();
-}
-
-void	skipSpaces(std::string::iterator iter, std::string line)
-{
-	while (iter != line.end() && (*iter == ' ' || *iter == '\t'))
-		iter++;
-}
-
-void	skipComment(std::string::iterator iter, std::string line)
-{
-	while (iter != line.end() && *iter != '\n')
-		iter++;
 }
 
 std::string	Server::deleteComments(std::string text)
@@ -58,23 +51,23 @@ std::string	Server::deleteComments(std::string text)
 	return (temp);
 }
 
-bool	curlyBrace(std::string text, size_t pos)
+bool	Server::curlyBrace(std::string text, size_t pos)
 {
 	std::string::iterator	iter = text.begin();
 
-	for (size_t i = 0; i < pos + 5; i++)
+	for (size_t i = 0; i < pos + 6; i++)
 		iter++;
 	
 	while (*iter && *iter != '{')
 	{
-		if (*iter != ' ' && *iter != '\t')
+		if (*iter != ' ' && *iter != '\t' && *iter != '\n')
 			return (false);
 		iter++;
 	}
 	return (true);
 }
 
-void	divideAndCheck(std::string text, std::vector<std::string> serverBlocks)
+void	Server::divideAndCheck(std::string text, std::vector<std::string> serverBlocks)
 {
 	size_t	start;
 	size_t	end;
@@ -88,10 +81,10 @@ void	divideAndCheck(std::string text, std::vector<std::string> serverBlocks)
 		if (end == std::string::npos)
 			die("Each server block must end, at a certain point. With a '}'. Aborting");
 		serverBlocks.push_back(text.substr(start, end));
-		text = text.substr(0, start) + text.substr(end);
+		text = text.substr(0, start) + text.substr(end + 1);
 	}
 
-	if (text.find_first_not_of(" \t") != std::string::npos)
+	if (text.find_first_not_of(" \t\n") != std::string::npos)
 		die("All configuration must be inside server blocks. Aborting");
 }
 
@@ -109,7 +102,16 @@ void	Server::defineConfig(std::ifstream & configFile)
 	// Delete all comments
 	iter = text.begin();
 	text = deleteComments(text);
+
+	std::cout << "Test output [ after deleting comments ]" << std::endl;
+	std::cout << text << std::endl;
 	
 	// Divide text in location blocks string and check that nothing is outside
 	divideAndCheck(text, serverBlocks);
+
+	// Elaborate each server block
+	std::vector<std::string>::iterator	iter = serverBlocks.begin();
+
+	while (iter != serverBlocks.end())
+		
 }
