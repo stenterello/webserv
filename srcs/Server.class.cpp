@@ -7,9 +7,9 @@ Server::Server() : _filename("default.conf")
 	openFile(_filename);
 }
 
-Server::Server(const char* filename) : _filename(filename)
+Server::Server(const char* filename) : _filename(filename == NULL ? "default.conf" : filename)
 {
-	openFile(filename);
+	openFile(_filename);
 }
 
 Server::~Server() {}
@@ -118,7 +118,110 @@ void		Server::divideAndCheck(std::string text, std::vector<std::string> & server
 		die("All configuration must be inside server blocks. Aborting");
 }
 
-bool		Server::takeRule(std::string & text, t_config & conf)
+void		Server::checkValidIP(std::string value)
+{
+	std::string::iterator	iter = value.begin();
+	int						dots = 0;
+	int						numbers;
+
+	if (!std::isdigit(*iter))
+		die("IP must be of valid form. Aborting");
+	numbers = 1;
+	while (*iter && std::isdigit(*iter))
+		iter++;
+	while (iter != value.end())
+	{
+		if (*iter && std::isdigit(*iter))
+		{
+			numbers++;
+			while (*iter && std::isdigit(*iter))
+				iter++;
+		}
+		if (*iter && *iter == '.')
+			dots++;
+		if (*iter && *iter == ':')
+			break ;
+		iter++;
+	}
+	if (dots == 3 && numbers == 4)
+		return ;
+	die("IP must be of valid form. Aborting");
+}
+
+void		Server::checkHostPort(std::string value, t_config & conf)
+{
+	std::string::iterator	iter = value.begin();
+	long					port;
+	long					ip;
+	
+	if (value.find_first_of(" \t") != std::string::npos)
+		die("There can't be spaces in host:port declaration. Aborting");
+	while (iter != value.end())
+	{
+		if (!std::isdigit(*iter) && *iter != '.' && *iter != ':')
+			die("Listen directive must contains only accepted client address (IPv4) and port numbers. Aborting");
+		iter++;
+	}
+	if (value.find_first_of('.') != std::string::npos)
+	{
+		checkValidIP(value);
+		for (int i = 0; i < 4; i++)
+		{
+			ip = strtoul(value.c_str(), NULL, 0);
+			if (ip > 255 || ip < 0)
+				die("IP must be of valid form. Aborting");
+			conf.host[i] = (unsigned char)ip;
+			value = value.substr(value.find_first_of('.') + 1);
+		}
+		iter = value.begin();
+		while (*iter && std::isdigit(*iter))
+			iter++;
+		if (*iter != ':')
+			die("IP must be of valid form. Aborting");
+		if (iter++ == value.end())
+			die("'listen' directive must specify a port. Aborting");
+		if (!std::isdigit(*iter))
+			die("IP must be of valid form. Aborting");
+		value = value.substr(value.find_first_of(':') + 1);
+	}
+	port = strtoul(value.c_str(), NULL, 0);
+	if (port > 65535 || ip < 0)
+		die("Port number must be unsigned short. Aborting");
+	conf.port = (unsigned short) port;
+}
+
+void		Server::fillConf(std::string key, std::string value, t_config & conf)
+{
+	int i;
+
+	for (i = 0; i < 7; i++)
+		if (!_cases.c[i].compare(key))
+			break ;
+
+	switch (i)
+	{
+		case 0: // listen
+			checkHostPort(value, conf); break ;
+		case 1: // server_name
+			break ;
+		case 2: // root
+			break ;
+		case 3: // auto_index
+			break ;
+		case 4: // index
+			break ;
+		case 5: // error_pages 
+			break ;
+		case 6: // client_body_max_size
+			break ;
+	}
+
+	std::cout << "Debug host:port info" << std::endl;
+	std::cout << conf.port << std::endl;
+	std::cout << static_cast<int>(conf.host[0]) << "." << static_cast<int>(conf.host[1]) << "." << static_cast<int>(conf.host[2]) << "." << static_cast<int>(conf.host[3]) << std::endl << std::endl;
+}
+
+bool		Server::prepareRule(std::string & text, t_config & conf)
 {
 	std::string	line;
 	size_t		start;
@@ -132,14 +235,29 @@ bool		Server::takeRule(std::string & text, t_config & conf)
 		die("Rules must end with semicolon. Aborting");
 	line = text.substr(0, end);
 	text = text.substr(end + 1);
-	std::cout << "LINE : " << line << std::endl;
-	std::cout << "TEXT : " << text << std::endl;
 	if (line.find('\n') != std::string::npos)
 		die("Rules must can't be splitted on more lines. Aborting");
 	
 	// Split line and insert in conf
-	
+	// (Trim)
+	start = line.find_first_not_of(" \t\n");
+	end = line.find_last_not_of(" \t\n");
+	line = line.substr(start, end + 1);
 
+	// (Check whitespace between key and value)
+	if (line.find_first_of(" \t") == std::string::npos)
+		die("Rules key and values must be separated by a whitespace. Aborting");
+
+	// (Divide into key and value)
+	key = line.substr(0, line.find_first_of(" \t"));
+	value = line.substr(key.length());
+	value = value.substr(value.find_first_not_of(" \t"));
+
+	std::cout << std::endl << "Debug key value splitting" << std::endl;
+	std::cout << "|" << key << "|" << std::endl;
+	std::cout << "|" << value << "|" << std::endl << std::endl;
+
+	fillConf(key, value, conf);
 	return (false);
 }
 
@@ -163,7 +281,7 @@ void		Server::elaborateServerBlock(std::string serverBlock)
 
 	// Parse each line while there is one and no error encountered
 	tmpString = serverBlock.substr(start, end);
-	while (takeRule(tmpString, tmp))
+	while (prepareRule(tmpString, tmp))
 		;
 }
 

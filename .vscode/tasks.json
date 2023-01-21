@@ -1,22 +1,40 @@
 {
-    "tasks": [
-        {
-            "type": "cppbuild",
-            "label": "C/C++: gcc compila il file attivo",
-            "command": "/usr/bin/make",
-            "args": [],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "problemMatcher": [
-                "$gcc"
-            ],
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            },
-            "detail": "Attività generata dal debugger."
-        }
-    ],
-    "version": "2.0.0"
+  "tasks": [
+    {
+      "type": "cppbuild",
+      "label": "C/C++: gcc compila il file attivo",
+      "command": "/usr/bin/make",
+      "args": [],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [
+        "$gcc"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "detail": "Attività generata dal debugger."
+    },
+    {
+      "type": "process",
+      "command": "/usr/bin/env",
+      "args": [
+        "CC=clang",
+        "CFLAGS=-g -Wall",
+        "make",
+        "${fileBasenameNoExtension}"
+      ],
+      "options": {
+        "cwd": "${fileDirname}"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "label": "makelldb: selected file"
+    }
+  ],
+  "version": "2.0.0"
 }
