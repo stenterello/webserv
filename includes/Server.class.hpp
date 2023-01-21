@@ -28,13 +28,13 @@ class Server
 		Server&	operator=(Server const & rhs);
 
 		std::vector<t_config>	_config;
+		const char*				_filename;
 		
 
 		// Configuration File Operation
 
 		void					openFile(const char* filename);
 		void					defineConfig(std::ifstream & configFile);
-		std::string::iterator	saveServerConfig(std::string::iterator & iter, std::string line);
 
 	public:
 		Server(const char* filename);

@@ -1,0 +1,17 @@
+make --dry-run --keep-going --print-directory
+make: Entering directory '/home/davide/Documenti/Codici/42/minishell'
+gcc    -c -o src/special_childs.o src/special_childs.c
+gcc    -c -o src/execute.o src/execute.c
+gcc    -c -o src/execute2.o src/execute2.c
+gcc    -c -o src/init_utils3.o src/init_utils3.c
+gcc    -c -o src/parse3.o src/parse3.c
+gcc    -c -o src/parse4.o src/parse4.c
+gcc    -c -o src/bools2.o src/bools2.c
+gcc    -c -o src/count.o src/count.c
+gcc    -c -o src/redirections.o src/redirections.c
+gcc    -c -o src/redirections_utils.o src/redirections_utils.c
+gcc    -c -o src/heredoc2.o src/heredoc2.c
+gcc    -c -o src/chain2.o src/chain2.c
+gcc -Wall -Werror -Wextra -L/home/davide/.brew/opt/readline/lib -I/home/davide/.brew/opt/readline/include -g -ffunction-sections -Wl,--gc-sections -Wl,--print-gc-sections src/main.c src/special_run.c src/special_childs.c src/utils.c src/utils2.c src/utils3.c src/dict_utils.c src/execute.c src/execute2.c src/find_script.c src/init_utils.c src/init_utils2.c src/init_utils3.c src/set_var.c src/set_var2.c src/term.c src/parse.c src/parse2.c src/parse3.c src/parse4.c src/bools.c src/bools2.c src/bools3.c src/bools4.c src/count.c src/memory.c src/memory2.c src/redirections.c src/redirections_utils.c src/heredoc.c src/heredoc2.c src/split_fields.c src/split_fields2.c src/signal.c src/signal2.c src/error_handling.c src/chain.c src/chain2.c src/chain3.c src/wildcards.c src/wildcards2.c src/wildcards_bools.c src/wildcards_bools2.c src/wildcards_count.c src/wildcards_count2.c src/wildcards_utils.c src/wildcards_utils2.c src/wildcards_utils3.c src/child_process.c src/child_process2.c src/builtin/pwd.c src/builtin/cd.c src/builtin/cd2.c src/builtin/echo.c src/builtin/exit.c src/builtin/env.c src/builtin/export.c src/builtin/export_utils.c src/builtin/unset.c ./include/libft/libft.a -lreadline -lncurses -o minishell 
+make: Leaving directory '/home/davide/Documenti/Codici/42/minishell'
+ 
