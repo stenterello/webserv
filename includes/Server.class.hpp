@@ -2,6 +2,12 @@
 
 #include <webserv.hpp>
 
+typedef	struct	s_location
+{
+	bool		regex;
+	std::string	location;
+}				t_location;
+
 typedef struct	s_config
 {
 	unsigned short				port;
@@ -11,7 +17,7 @@ typedef struct	s_config
 	char*						root;
 	bool						autoindex;
 	char*						index;
-	std::vector<char*>			locationRules;
+	std::vector<t_location>		locationRules;
 
 	s_config() : port(0)
 	{
@@ -36,7 +42,10 @@ class Server
 		void					defineConfig(std::ifstream & configFile);
 		std::string				deleteComments(std::string text);
 		bool					curlyBrace(std::string text, size_t pos);
-		void					divideAndCheck(std::string text, std::vector<std::string> serverBlocks);
+		size_t					searchEndingCurlyBrace(std::string text, size_t pos);
+		void					divideAndCheck(std::string text, std::vector<std::string> & serverBlocks);
+		void					elaborateServerBlock(std::string serverBlock);
+		bool					takeRule(std::string & text, t_config & conf);
 
 	public:
 		Server();
