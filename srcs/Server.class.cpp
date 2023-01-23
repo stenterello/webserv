@@ -90,11 +90,42 @@ size_t		Server::searchEndingCurlyBrace(std::string text, size_t pos)
 			return (pos);
 		else if (text.at(pos) == '}')
 			count--;
+		else if (text.at(pos) == '{')
+			count++;
 		pos++;
 	}
 	if (pos == len)
 		return (std::string::npos);
 	return (pos);
+}
+
+size_t	checkBlockStart(std::string text)
+{
+	size_t	i = 6 + text.find("server");
+	while (text.at(i) == ' ' || text.at(i) == '\n' || text.at(i) == '\t')
+		i++;
+	if (text.at(i) != '{')
+		die("Server block must start with 'server {'. Aborting");
+	return (i + 1);
+}
+
+size_t	checkBlockEnd(std::string text)
+{
+	std::string::iterator	iter = text.begin();
+	int						count = 0;
+
+	while (iter != text.end())
+	{
+		if (*iter == '{')
+			count++;
+		else if (*iter == '}')
+			count--;
+		if (count == 0 && *iter == '}')
+			return (std::distance(text.begin(), iter) - 1);
+		iter++;
+	}
+	die("Server blocks must end with '}'. Aborting.");
+	return (0);
 }
 
 void		Server::divideAndCheck(std::string text, std::vector<std::string> & serverBlocks)
@@ -104,14 +135,10 @@ void		Server::divideAndCheck(std::string text, std::vector<std::string> & server
 
 	while (text.find("server") != std::string::npos)
 	{
-		start = text.find("server");
-		if (!curlyBrace(text, start))
-			die("Each server block must be inside curly braces. Aborting");
-		end = searchEndingCurlyBrace(text, start + 6);
-		if (end == std::string::npos)
-			die("Each server block must end, at a certain point. With a '}'. Aborting");
-		serverBlocks.push_back(text.substr(start, end));
-		text = text.substr(0, start) + text.substr(end + 1);
+		start = checkBlockStart(text);
+		end = checkBlockEnd(text);
+		serverBlocks.push_back(text.substr(start, end - start));
+		text = text.substr(0, text.find("server")) + text.substr(text.find("}", end + 1) + 1);
 	}
 
 	if (text.find_first_not_of(" \t\n") != std::string::npos)
@@ -167,7 +194,7 @@ void		Server::checkHostPort(std::string value, t_config & conf)
 		checkValidIP(value);
 		for (int i = 0; i < 4; i++)
 		{
-			ip = strtoul(value.c_str(), NULL, 0);
+			ip = strtol(value.c_str(), NULL, 0);
 			if (ip > 255 || ip < 0)
 				die("IP must be of valid form. Aborting");
 			conf.host[i] = (unsigned char)ip;
@@ -184,65 +211,203 @@ void		Server::checkHostPort(std::string value, t_config & conf)
 			die("IP must be of valid form. Aborting");
 		value = value.substr(value.find_first_of(':') + 1);
 	}
-	port = strtoul(value.c_str(), NULL, 0);
+	port = strtol(value.c_str(), NULL, 0);
 	if (port > 65535 || ip < 0)
 		die("Port number must be unsigned short. Aborting");
 	conf.port = (unsigned short) port;
+	std::cout << "Debug host:port info" << std::endl;
+	std::cout << conf.port << std::endl;
+	std::cout << static_cast<int>(conf.host[0]) << "." << static_cast<int>(conf.host[1]) << "." << static_cast<int>(conf.host[2]) << "." << static_cast<int>(conf.host[3]) << std::endl << std::endl;
 }
 
-void		Server::fillConf(std::string key, std::string value, t_config & conf)
+void		Server::checkServerName(std::string value, t_config & conf)
+{
+	std::string	tmp;
+	size_t		idx;
+
+	idx = value.find_first_of(" \t");
+	if (idx == std::string::npos)
+		tmp = value;
+	else
+	{
+		while (idx != std::string::npos)
+		{
+			tmp = value.substr(0, idx);
+			value = value.substr(idx);
+			value = value.substr(value.find_first_not_of(" \t"));
+			conf.server_name.push_back(tmp);
+			idx = value.find_first_of(" \t");
+		}
+		tmp = value.substr(0, idx);
+	}
+	conf.server_name.push_back(tmp);
+
+	std::vector<std::string>::iterator	iter = conf.server_name.begin();
+	while (iter != conf.server_name.end())
+	{
+		if ((*iter).find_first_of(".") == std::string::npos)
+			die("Each domain must have at least one dot. Aborting");
+		tmp = *iter;
+		while (tmp.find_first_of(".") != std::string::npos)
+		{
+			tmp = tmp.substr(tmp.find_first_of("."));
+			if (tmp.at(1) == '\0' || tmp.at(1) == '.')
+				die("Server name is of invalid format. Aborting");
+			tmp = tmp.substr(1);
+		}
+		iter++;
+	}
+
+	std::cout << "Debug server_name info" << std::endl;
+	iter = conf.server_name.begin();
+	while (iter != conf.server_name.end())
+	{
+		std::cout << "|" << *iter << "|" << std::endl;
+		iter++;
+	}
+}
+
+void		Server::checkRoot(std::string value, t_config & conf)
+{
+	DIR*	d;
+
+	if (!access(value.c_str(), X_OK))
+	{
+		d = opendir(value.c_str());
+		if (!d)
+			die("Root is not a directory. Aborting.");
+		closedir(d);
+	}
+	else
+		die("No access to root path. Aborting.");
+	conf.root = value;
+}
+
+void	Server::checkAutoIndex(std::string value, t_config & conf)
+{
+	if (value.compare("on") && value.compare("off"))
+		die("Valid values for autoindex are on|off. Aborting");
+	if (!value.compare("on"))
+		conf.autoindex = true;
+	else
+		conf.autoindex = false;
+}
+
+void	Server::checkIndex(std::string value, t_config & conf)
+{
+	std::string	tmp;
+	// die("Everything is fine and life smiles at you. Aborting");
+
+	while (value.find_first_not_of(" \n \t") != std::string::npos)
+	{
+		tmp = value.substr(0, value.find_first_of(" \t"));
+		conf.index.push_back(tmp);
+		if (value.find_first_of(" \t") == std::string::npos) 
+			break ;
+		value = value.substr(value.find_first_of(" \t"));
+		value = value.substr(value.find_first_not_of(" \t"));
+	}
+
+	std::cout << "Debug info index" << std::endl;
+	std::vector<std::string>::iterator	iter = conf.index.begin();
+	while (iter != conf.index.end())
+		std::cout << *iter++ << std::endl;
+}
+
+void	Server::checkErrorPages(std::string value, t_config & conf)
+{
+	std::string	tmp;
+	// die("Everything is fine and life smiles at you. Aborting");
+
+	while (value.find_first_not_of(" \n \t") != std::string::npos)
+	{
+		tmp = value.substr(0, value.find_first_of(" \t"));
+		conf.errorPages.push_back(tmp);
+		if (value.find_first_of(" \t") == std::string::npos) 
+			break ;
+		value = value.substr(value.find_first_of(" \t"));
+		value = value.substr(value.find_first_not_of(" \t"));
+	}
+
+	std::cout << "Debug info error_pages" << std::endl;
+	std::vector<std::string>::iterator	iter = conf.errorPages.begin();
+	while (iter != conf.errorPages.end())
+		std::cout << *iter++ << std::endl;
+}
+
+void		Server::checkClientBodyMaxSize(std::string value, t_config & conf)
+{
+	size_t	idx = value.find_first_not_of("0123456789");
+	unsigned long	size;
+	size = strtoul(value.c_str(), NULL, 0);
+	if (idx != std::string::npos)
+	{
+		if (value.c_str()[idx + 1] != '\0')
+			die("Write client_body_max_size in an acceptable way. Aborting");
+		if (value.at(idx) == 'K')
+			size *= 1024;
+		else if (value.at(idx) == 'M')
+			size *= (1024 * 1024);
+		else if (value.at(idx) == 'B')
+			;
+		else
+			die("Correct units for client_body_max_size are B (bit), K (kilobit), M (megabit). Aborting");
+	}
+	conf.client_body_max_size = size;
+
+	std::cout << "Debug info client_body_max_size" << std::endl;
+	std::cout << conf.client_body_max_size << std::endl;
+}
+
+bool		Server::configComplete(t_config & conf)
+{
+	// if (conf.port == 0)
+	// 	return (false);
+	// else if (conf.root.length() == 0)
+	// 	return (false);
+	// else if (conf.client_body_max_size == 0)
+	// 	return (false);
+	// else if (conf.locationRules.size() == 0)
+	// 	return (false);
+	(void)conf;
+	return (false);
+}
+
+bool		Server::fillConf(std::string key, std::string value, t_config & conf)
 {
 	int i;
 
-	for (i = 0; i < 7; i++)
+	for (i = 0; i < 8; i++)
 		if (!_cases.c[i].compare(key))
 			break ;
+	if (i == 8)
+		die("Directive not recognized: " + key + ". Aborting.");
 
 	switch (i)
 	{
 		case 0: // listen
 			checkHostPort(value, conf); break ;
 		case 1: // server_name
-			break ;
+			checkServerName(value, conf); break ;
 		case 2: // root
-			break ;
+			checkRoot(value, conf); break ;
 		case 3: // auto_index
-			break ;
+			checkAutoIndex(value, conf); break ;
 		case 4: // index
-			break ;
+			checkIndex(value, conf); break ;
 		case 5: // error_pages 
-			break ;
+			checkErrorPages(value, conf); break ;
 		case 6: // client_body_max_size
-			break ;
+			checkClientBodyMaxSize(value, conf); break ;
 	}
 
-	std::cout << "Debug host:port info" << std::endl;
-	std::cout << conf.port << std::endl;
-	std::cout << static_cast<int>(conf.host[0]) << "." << static_cast<int>(conf.host[1]) << "." << static_cast<int>(conf.host[2]) << "." << static_cast<int>(conf.host[3]) << std::endl << std::endl;
+	return (!configComplete(conf));
 }
 
-bool		Server::prepareRule(std::string & text, t_config & conf)
+bool		Server::prepareRule(std::string & line, t_config & conf)
 {
-	std::string	line;
-	size_t		start;
-	size_t		end;
 	std::string	key;
 	std::string	value;
-
-	// Take line and erase it from text
-	end = text.find(';');
-	if (end == std::string::npos)
-		die("Rules must end with semicolon. Aborting");
-	line = text.substr(0, end);
-	text = text.substr(end + 1);
-	if (line.find('\n') != std::string::npos)
-		die("Rules must can't be splitted on more lines. Aborting");
-	
-	// Split line and insert in conf
-	// (Trim)
-	start = line.find_first_not_of(" \t\n");
-	end = line.find_last_not_of(" \t\n");
-	line = line.substr(start, end + 1);
 
 	// (Check whitespace between key and value)
 	if (line.find_first_of(" \t") == std::string::npos)
@@ -250,39 +415,47 @@ bool		Server::prepareRule(std::string & text, t_config & conf)
 
 	// (Divide into key and value)
 	key = line.substr(0, line.find_first_of(" \t"));
-	value = line.substr(key.length());
-	value = value.substr(value.find_first_not_of(" \t"));
+	if (!key.compare("location"))
+	{
 
+	}
+	else
+	{
+		value = line.substr(key.length());
+		value = value.substr(value.find_first_not_of(" \t"));
+	}
 	std::cout << std::endl << "Debug key value splitting" << std::endl;
 	std::cout << "|" << key << "|" << std::endl;
 	std::cout << "|" << value << "|" << std::endl << std::endl;
 
-	fillConf(key, value, conf);
-	return (false);
+	return (fillConf(key, value, conf));
 }
 
 void		Server::elaborateServerBlock(std::string serverBlock)
 {
 	t_config	tmp;
-	size_t		start;
-	size_t		end;
+	ssize_t		start;
+	ssize_t		end;
 	std::string	tmpString;
 
-	// Clean string from 'server {' line and ending curly brace
-	start = serverBlock.find('{');
-	while (serverBlock.at(start) == '{' || serverBlock.at(start) == ' '
-			|| serverBlock.at(start) == '\t' || serverBlock.at(start) == '\n')
-		start++;
-	end = serverBlock.find('}');
-	while (end != std::string::npos && (serverBlock.at(end) == '{'
-			|| serverBlock.at(end) == ' ' || serverBlock.at(end) == '\t'
-			|| serverBlock.at(end) == '\n'))
-		end--;
-
-	// Parse each line while there is one and no error encountered
-	tmpString = serverBlock.substr(start, end);
-	while (prepareRule(tmpString, tmp))
-		;
+	end = -1;
+	// trim spaces
+	do {
+		if (end >= static_cast<ssize_t>(serverBlock.length()))
+			break ;
+		serverBlock = serverBlock.substr(end + 1);
+		start = serverBlock.find_first_not_of(" \n\t");
+		if (std::strncmp(serverBlock.substr(start).c_str(), "location", 8))
+			end = serverBlock.find(";");
+		else
+			end = serverBlock.find("}") + 1;
+		tmpString = serverBlock.substr(start, end - start);
+		if (std::strncmp(tmpString.c_str(), "location", 8) && tmpString.find("\n") != std::string::npos)
+			die("Rules must end with semicolon. Aborting");
+	} while (prepareRule(tmpString, tmp));
+	serverBlock = serverBlock.replace(serverBlock.begin() + start, serverBlock.begin() + start + tmpString.length(), "");
+	if (serverBlock.find_first_not_of(" \n\t") != std::string::npos)
+		die("Anything outside server block is not accepted. Aborting");
 }
 
 void		Server::defineConfig(std::ifstream & configFile)

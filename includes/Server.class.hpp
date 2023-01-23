@@ -4,9 +4,9 @@
 
 typedef	struct	s_location
 {
-	bool				regex;
-	std::string			location;
-	std::vector<char*>	try_files;
+	bool		regex;
+	std::string	location;
+	std::string	text;
 }				t_location;
 
 typedef	struct	s_cases
@@ -30,19 +30,18 @@ typedef struct	s_config
 {
 	unsigned short				port;					// listen
 	unsigned char				host[4];				// listen
-	std::vector<char*>			server_name;			// server_name
+	std::vector<std::string>	server_name;			// server_name
 	std::vector<char*>			acceptedMethods;		
-	char*						root;					// root
+	std::string					root;					// root
 	bool						autoindex;				// autoindex
-	char*						index;					// index
-	std::vector<char*>			errorPages;				// error_pages
+	std::vector<std::string>	index;					// index
+	std::vector<std::string>	errorPages;				// error_pages
 	unsigned long				client_body_max_size;	// client_body_max_size
 	std::vector<t_location>		locationRules;			// location
 
 	s_config() : port(0)
 	{
-		root = NULL;
-		index = NULL;
+		root = "";
 		host[0] = 0;
 		host[1] = 0;		
 		host[2] = 0;
@@ -71,9 +70,16 @@ class Server
 		void					divideAndCheck(std::string text, std::vector<std::string> & serverBlocks);
 		void					elaborateServerBlock(std::string serverBlock);
 		bool					prepareRule(std::string & text, t_config & conf);
-		void					fillConf(std::string key, std::string value, t_config & conf);
+		bool					fillConf(std::string key, std::string value, t_config & conf);
 		void					checkHostPort(std::string value, t_config & conf);
 		void					checkValidIP(std::string value);
+		void					checkServerName(std::string value, t_config & conf);
+		void					checkRoot(std::string value, t_config & conf);
+		void					checkAutoIndex(std::string value, t_config & conf);
+		void					checkIndex(std::string value, t_config & conf);
+		void					checkErrorPages(std::string value, t_config & conf);
+		void					checkClientBodyMaxSize(std::string value, t_config & conf);
+		bool					configComplete(t_config & conf);
 
 	public:
 		Server();
