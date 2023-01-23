@@ -4,9 +4,10 @@
 
 typedef	struct	s_location
 {
-	bool		regex;
-	std::string	location;
-	std::string	text;
+	bool		regex;		// ~
+	bool		exact_path;	// =
+	std::string	location;	// path
+	std::string	text;		// block
 }				t_location;
 
 typedef	struct	s_cases
@@ -31,7 +32,7 @@ typedef struct	s_config
 	unsigned short				port;					// listen
 	unsigned char				host[4];				// listen
 	std::vector<std::string>	server_name;			// server_name
-	std::vector<char*>			acceptedMethods;		
+	std::vector<char*>			acceptedMethods;
 	std::string					root;					// root
 	bool						autoindex;				// autoindex
 	std::vector<std::string>	index;					// index
@@ -43,7 +44,7 @@ typedef struct	s_config
 	{
 		root = "";
 		host[0] = 0;
-		host[1] = 0;		
+		host[1] = 0;
 		host[2] = 0;
 		host[3] = 0;
 	}
@@ -58,7 +59,7 @@ class Server
 		std::vector<t_config>	_config;
 		const char*				_filename;
 		t_cases					_cases;
-		
+
 
 		// Configuration File Operations
 
@@ -69,6 +70,7 @@ class Server
 		size_t					searchEndingCurlyBrace(std::string text, size_t pos);
 		void					divideAndCheck(std::string text, std::vector<std::string> & serverBlocks);
 		void					elaborateServerBlock(std::string serverBlock);
+		bool					parseLocation(std::string & line, t_config & conf);
 		bool					prepareRule(std::string & text, t_config & conf);
 		bool					fillConf(std::string key, std::string value, t_config & conf);
 		void					checkHostPort(std::string value, t_config & conf);

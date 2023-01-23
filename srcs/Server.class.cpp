@@ -57,7 +57,7 @@ bool		Server::curlyBrace(std::string text, size_t pos)
 
 	for (size_t i = 0; i < pos + 6; i++)
 		iter++;
-	
+
 	while (*iter && *iter != '{')
 	{
 		if (*iter != ' ' && *iter != '\t' && *iter != '\n')
@@ -180,7 +180,7 @@ void		Server::checkHostPort(std::string value, t_config & conf)
 	std::string::iterator	iter = value.begin();
 	long					port;
 	long					ip;
-	
+
 	if (value.find_first_of(" \t") != std::string::npos)
 		die("There can't be spaces in host:port declaration. Aborting");
 	while (iter != value.end())
@@ -302,7 +302,7 @@ void	Server::checkIndex(std::string value, t_config & conf)
 	{
 		tmp = value.substr(0, value.find_first_of(" \t"));
 		conf.index.push_back(tmp);
-		if (value.find_first_of(" \t") == std::string::npos) 
+		if (value.find_first_of(" \t") == std::string::npos)
 			break ;
 		value = value.substr(value.find_first_of(" \t"));
 		value = value.substr(value.find_first_not_of(" \t"));
@@ -323,7 +323,7 @@ void	Server::checkErrorPages(std::string value, t_config & conf)
 	{
 		tmp = value.substr(0, value.find_first_of(" \t"));
 		conf.errorPages.push_back(tmp);
-		if (value.find_first_of(" \t") == std::string::npos) 
+		if (value.find_first_of(" \t") == std::string::npos)
 			break ;
 		value = value.substr(value.find_first_of(" \t"));
 		value = value.substr(value.find_first_not_of(" \t"));
@@ -395,13 +395,47 @@ bool		Server::fillConf(std::string key, std::string value, t_config & conf)
 			checkAutoIndex(value, conf); break ;
 		case 4: // index
 			checkIndex(value, conf); break ;
-		case 5: // error_pages 
+		case 5: // error_pages
 			checkErrorPages(value, conf); break ;
 		case 6: // client_body_max_size
 			checkClientBodyMaxSize(value, conf); break ;
 	}
 
 	return (!configComplete(conf));
+}
+
+bool		Server::parseLocation(std::string & line, t_config & conf)
+{
+	t_location	tmp;
+	size_t		start;
+	size_t		end;
+
+	// check if there's a regex or exact path case
+	line = line.substr(8).substr(line.find_first_not_of(" \t"));
+	tmp.regex = false;
+	tmp.exact_path = false;
+	if (line.at(0) == '~')
+		tmp.regex = true;
+	else if (line.at(0) == '=')
+		tmp.exact_path = true;
+
+	// find the location path
+	start = line.find_first_not_of(" \t~=");
+	line = line.substr(start);
+	end = line.find_first_of(" \t\n{");
+	tmp.location = line.substr(0, end);
+	if (tmp.location.empty())
+		die("There's no path defined in location. Aborting");
+
+	// insert the remaining part inside tmp.text
+
+	line = line.substr(line.find_first_of(" \t\n{"));
+	start = line.find_first_not_of(" \t\n{");
+	end = line.find_last_not_of(" \t\n}");
+	tmp.text = line.substr(start, end - start);
+
+	(void)conf;
+	return (false);
 }
 
 bool		Server::prepareRule(std::string & line, t_config & conf)
@@ -417,7 +451,7 @@ bool		Server::prepareRule(std::string & line, t_config & conf)
 	key = line.substr(0, line.find_first_of(" \t"));
 	if (!key.compare("location"))
 	{
-
+		parseLocation(line, conf);
 	}
 	else
 	{
@@ -475,7 +509,7 @@ void		Server::defineConfig(std::ifstream & configFile)
 
 	// std::cout << "Test output [ after deleting comments ]" << std::endl;
 	// std::cout << text << std::endl;
-	
+
 	// Divide text in location blocks string and check that nothing is outside
 	divideAndCheck(text, serverBlocks);
 
