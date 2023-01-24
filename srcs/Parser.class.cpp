@@ -1,6 +1,5 @@
 #include <Parser.class.hpp>
 
-
 //////// Constructors & Destructor //////////////////////////////
 
 Parser::Parser(const char* filename, std::vector<t_config> & conf)
@@ -373,10 +372,10 @@ bool		Parser::fillConf(std::string key, std::string value, t_config & conf)
 {
 	int i;
 
-	for (i = 0; i < 8; i++)
+	for (i = 0; i < 7; i++)
 		if (!_cases.c[i].compare(key))
 			break ;
-	if (i == 8)
+	if (i == 7)
 		die("Directive not recognized: " + key + ". Aborting.");
 
 	switch (i)

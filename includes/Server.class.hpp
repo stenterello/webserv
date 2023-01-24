@@ -13,6 +13,7 @@ class Server
 
 		std::vector<t_config>	_config;
 		const char*				_filename;
+		std::vector<VirtServ*>	_virtServs;
 
 	public:
 		Server(const char* filename);

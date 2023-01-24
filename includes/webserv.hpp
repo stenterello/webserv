@@ -1,7 +1,6 @@
 #ifndef WEBSERV_HPP
 # define WEBSERV_HPP
 
-
 # include <iostream>
 # include <sstream>
 # include <vector>
@@ -13,10 +12,11 @@
 
 typedef	struct	s_location
 {
-	bool		regex;		// ~
-	bool		exact_path;	// =
-	std::string	location;	// path
-	std::string	text;		// block
+	bool				regex;		// ~
+	bool				exact_path;	// =
+	std::vector<char*>	acceptedMethods;
+	std::string			location;	// path
+	std::string			text;		// block
 }				t_location;
 
 typedef	struct	s_cases
@@ -40,8 +40,7 @@ typedef struct	s_config
 {
 	unsigned short				port;					// listen
 	unsigned char				host[4];				// listen
-	std::vector<std::string>	server_name;			// server_name
-	std::vector<char*>			acceptedMethods;
+	std::vector<std::string>	server_name;			// server_nam
 	std::string					root;					// root
 	bool						autoindex;				// autoindex
 	std::vector<std::string>	index;					// index
