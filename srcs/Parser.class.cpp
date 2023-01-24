@@ -95,7 +95,7 @@ size_t		Parser::searchEndingCurlyBrace(std::string text, size_t pos)
 	return (pos);
 }
 
-size_t	checkBlockStart(std::string text)
+size_t		Parser::checkBlockStart(std::string text)
 {
 	size_t	i = 6 + text.find("server");
 	while (text.at(i) == ' ' || text.at(i) == '\n' || text.at(i) == '\t')
@@ -105,7 +105,7 @@ size_t	checkBlockStart(std::string text)
 	return (i + 1);
 }
 
-size_t	checkBlockEnd(std::string text)
+size_t		Parser::checkBlockEnd(std::string text)
 {
 	std::string::iterator	iter = text.begin();
 	int						count = 0;
@@ -279,7 +279,7 @@ void		Parser::checkRoot(std::string value, t_config & conf)
 	conf.root = value;
 }
 
-void	Parser::checkAutoIndex(std::string value, t_config & conf)
+void		Parser::checkAutoIndex(std::string value, t_config & conf)
 {
 	if (value.compare("on") && value.compare("off"))
 		die("Valid values for autoindex are on|off. Aborting");
@@ -289,7 +289,7 @@ void	Parser::checkAutoIndex(std::string value, t_config & conf)
 		conf.autoindex = false;
 }
 
-void	Parser::checkIndex(std::string value, t_config & conf)
+void		Parser::checkIndex(std::string value, t_config & conf)
 {
 	std::string	tmp;
 	// die("Everything is fine and life smiles at you. Aborting");
@@ -310,7 +310,7 @@ void	Parser::checkIndex(std::string value, t_config & conf)
 		std::cout << *iter++ << std::endl;
 }
 
-void	Parser::checkErrorPages(std::string value, t_config & conf)
+void		Parser::checkErrorPages(std::string value, t_config & conf)
 {
 	std::string	tmp;
 	// die("Everything is fine and life smiles at you. Aborting");

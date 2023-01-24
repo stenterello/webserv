@@ -7,6 +7,7 @@
 class Server
 {
 	private:
+		Server();
 		Server(Server const & src);
 		Server&	operator=(Server const & rhs);
 
@@ -14,7 +15,6 @@ class Server
 		const char*				_filename;
 
 	public:
-		Server();
 		Server(const char* filename);
 		~Server();
 };
