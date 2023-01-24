@@ -3,7 +3,8 @@ CC		=	c++
 FLAGS	=	-Wall -Werror -Wextra -std=c++98 -I./includes -g
 SRC		=	main.cpp \
 			utils.cpp \
-			Server.class.cpp
+			Server.class.cpp \
+			Parser.class.cpp
 SRCS	=	$(addprefix srcs/, $(SRC))
 OBJS	=	$(SRCS:.cpp=.o)
 
