@@ -10,6 +10,8 @@ class VirtServ
 
 		t_config				_config;
 		struct sockaddr_in		_sin;
+		struct sockaddr_in		_client;
+		socklen_t				_size;
 		int						_sockfd;
 		int						_connfd;
 		bool					startServer();

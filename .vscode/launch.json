@@ -5,7 +5,7 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-			"name": "(lldb) Launch",
+			"name": "(gdb) Launch",
 			"type": "cppdbg",
 			"request": "launch",
 			"program": "${workspaceFolder}/webserv",
@@ -14,7 +14,7 @@
 			"cwd": "${workspaceFolder}",
 			"environment": [],
 			"externalConsole": false,
-			"MIMode": "lldb",
+			"MIMode": "gdb",
 			// "justMyCode": true,
 			// "setupCommands": [
 			// 	{
@@ -33,7 +33,7 @@
 			// 	}
 			// ],
 			"preLaunchTask": "C/C++: gcc compila il file attivo",
-			"miDebuggerPath": "/usr/bin/lldb"
+			// "miDebuggerPath": "/usr/bin/lldb"
 		}
 	]
 }

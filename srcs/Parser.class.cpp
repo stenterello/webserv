@@ -471,11 +471,12 @@ bool		Parser::prepareRule(std::string & line, t_config & conf)
 	return (fillConf(key, value, conf));
 }
 
-void		Parser::elaborateServerBlock(std::string serverBlock, t_config & conf)
+t_config		Parser::elaborateServerBlock(std::string serverBlock)
 {
 	ssize_t		start;
 	ssize_t		end;
 	std::string	tmpString;
+	t_config	ret;
 
 	end = -1;
 	// trim spaces
@@ -493,18 +494,18 @@ void		Parser::elaborateServerBlock(std::string serverBlock, t_config & conf)
 		tmpString = serverBlock.substr(start, end - start);
 		if (std::strncmp(tmpString.c_str(), "location", 8) && tmpString.find("\n") != std::string::npos)
 			die("Rules must end with semicolon. Aborting");
-	} while (prepareRule(tmpString, conf));
+	} while (prepareRule(tmpString, ret));
 	if (!serverBlock.empty())
 		serverBlock = serverBlock.replace(serverBlock.begin() + start, serverBlock.begin() + start + tmpString.length(), "");
 	if (serverBlock.find_first_not_of(" \n\t") != std::string::npos)
 		die("Anything outside server block is not accepted. Aborting");
+	return (ret);
 }
 
 void		Parser::defineConfig(std::ifstream & configFile, std::vector<t_config> & conf)
 {
 	std::string					text;
 	std::stringstream			buffer;
-	std::string::iterator		iter;
 	std::vector<std::string>	serverBlocks;
 
 	// Save file in one string
@@ -512,7 +513,6 @@ void		Parser::defineConfig(std::ifstream & configFile, std::vector<t_config> & c
 	text = buffer.str();
 
 	// Delete all comments
-	iter = text.begin();
 	text = deleteComments(text);
 
 	// std::cout << "Test output [ after deleting comments ]" << std::endl;
@@ -522,13 +522,11 @@ void		Parser::defineConfig(std::ifstream & configFile, std::vector<t_config> & c
 	divideAndCheck(text, serverBlocks);
 
 	// Elaborate each server block
-	std::vector<std::string>::iterator	iter2 = serverBlocks.begin();
-	std::vector<t_config>::iterator		configIter = conf.begin();
+	std::vector<std::string>::iterator	iter = serverBlocks.begin();
 
-	while (iter2 != serverBlocks.end())
+	while (iter != serverBlocks.end())
 	{
-		elaborateServerBlock(*iter2, *configIter);
-		iter2++;
-		configIter++;
+		conf.push_back(elaborateServerBlock(*iter));
+		iter++;
 	}
 }

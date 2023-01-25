@@ -6,6 +6,7 @@
 VirtServ::VirtServ(t_config config) : _config(config)
 {
 	memset(&_sin, '\0', sizeof(_sin));
+	memset(&_client, '\0', sizeof(_client));
 	this->_sin.sin_family = AF_INET;
 	this->_sin.sin_addr.s_addr = inet_addr(_config.host.c_str());
 	this->_sin.sin_port = htons(_config.port);
@@ -32,12 +33,12 @@ VirtServ::~VirtServ()
 bool	VirtServ::startServer()
 {
 	_sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (_sockfd < 0)
+	if (_sockfd == -1)
 	{
 		std::cout << "Socket error" << std::endl;
 		return (false);
 	}
-	if (bind(_sockfd, (struct sockaddr *)&_sin, sizeof(_sin)) < 0)
+	if (bind(_sockfd, (struct sockaddr *)&_sin, sizeof(_sin)) != 0)
 	{
 		std::cout << "Bind error" << std::endl;
 		return (false);
@@ -54,7 +55,8 @@ bool	VirtServ::startListen()
 	}
 	while (true)
 	{
-		_connfd = accept(_sockfd, (struct sockaddr *)&_sin, (socklen_t *)sizeof(_sin));
+		_size = sizeof(_client);
+		_connfd = accept(_sockfd, (struct sockaddr *)&_client, &_size);
 		if (_connfd < 0)
 		{
 			std::cout << "Error while accepting connection." << std::endl;

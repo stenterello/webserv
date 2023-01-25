@@ -18,7 +18,7 @@ class Parser
 		bool		curlyBrace(std::string text, size_t pos);
 		size_t		searchEndingCurlyBrace(std::string text, size_t pos);
 		void		divideAndCheck(std::string text, std::vector<std::string> & serverBlocks);
-		void		elaborateServerBlock(std::string serverBlock, t_config & conf);
+		t_config	elaborateServerBlock(std::string serverBlock);
 		bool		parseLocation(std::string & line, t_config & conf);
 		bool		prepareRule(std::string & text, t_config & conf);
 		bool		fillConf(std::string key, std::string value, t_config & conf);
