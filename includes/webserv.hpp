@@ -9,6 +9,13 @@
 # include <algorithm>
 # include <unistd.h>
 # include <dirent.h>
+# include <stdlib.h>
+# include <sys/types.h>
+# include <sys/socket.h>
+# include <netdb.h>
+# include <netinet/in.h>
+# include <arpa/inet.h>
+
 
 typedef	struct	s_location
 {
@@ -18,6 +25,30 @@ typedef	struct	s_location
 	std::string			location;	// path
 	std::string			text;		// block
 }				t_location;
+
+typedef struct	s_config
+{
+	unsigned short				port;					// listen
+	// unsigned char				host[4];				// listen
+	std::string					host;
+	std::vector<std::string>	server_name;			// server_nam
+	std::string					root;					// root
+	bool						autoindex;				// autoindex
+	std::vector<std::string>	index;					// index
+	std::vector<std::string>	errorPages;				// error_pages
+	unsigned long				client_body_max_size;	// client_body_max_size
+	std::vector<t_location>		locationRules;			// location
+
+	s_config() : port(0)
+	{
+		root = "";
+		host = "0.0.0.0";
+		// host[0] = 0;
+		// host[1] = 0;
+		// host[2] = 0;
+		// host[3] = 0;
+	}
+}				t_config;
 
 typedef	struct	s_cases
 {
@@ -36,31 +67,7 @@ typedef	struct	s_cases
 	}
 }				t_cases;
 
-typedef struct	s_config
-{
-	unsigned short				port;					// listen
-	unsigned char				host[4];				// listen
-	std::vector<std::string>	server_name;			// server_nam
-	std::string					root;					// root
-	bool						autoindex;				// autoindex
-	std::vector<std::string>	index;					// index
-	std::vector<std::string>	errorPages;				// error_pages
-	unsigned long				client_body_max_size;	// client_body_max_size
-	std::vector<t_location>		locationRules;			// location
-
-	s_config() : port(0)
-	{
-		root = "";
-		host[0] = 0;
-		host[1] = 0;
-		host[2] = 0;
-		host[3] = 0;
-	}
-}				t_config;
-
 void	die(std::string const err);
 void	usage();
-
-# include <Server.class.hpp>
 
 #endif

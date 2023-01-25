@@ -184,15 +184,22 @@ void		Parser::checkHostPort(std::string value, t_config & conf)
 			die("Listen directive must contains only accepted client address (IPv4) and port numbers. Aborting");
 		iter++;
 	}
-	if (value.find_first_of('.') != std::string::npos)
+
+
+	if (value.find_first_of('.') != std::string::npos)// if a IP addr is present...
 	{
+		//Check that there are only 4 numbers and 3 dots
 		checkValidIP(value);
+
+		// insert them in string conf.host
 		for (int i = 0; i < 4; i++)
 		{
 			ip = strtol(value.c_str(), NULL, 0);
 			if (ip > 255 || ip < 0)
 				die("IP must be of valid form. Aborting");
-			conf.host[i] = (unsigned char)ip;
+			conf.host += value.substr(0, value.find_first_of("."));
+			if (i != 3)
+				conf.host += ".";
 			value = value.substr(value.find_first_of('.') + 1);
 		}
 		iter = value.begin();
@@ -206,13 +213,17 @@ void		Parser::checkHostPort(std::string value, t_config & conf)
 			die("IP must be of valid form. Aborting");
 		value = value.substr(value.find_first_of(':') + 1);
 	}
+
+	// check for the port
 	port = strtol(value.c_str(), NULL, 0);
 	if (port > 65535 || ip < 0)
 		die("Port number must be unsigned short. Aborting");
 	conf.port = (unsigned short) port;
+
 	std::cout << "Debug host:port info" << std::endl;
 	std::cout << conf.port << std::endl;
-	std::cout << static_cast<int>(conf.host[0]) << "." << static_cast<int>(conf.host[1]) << "." << static_cast<int>(conf.host[2]) << "." << static_cast<int>(conf.host[3]) << std::endl << std::endl;
+	std::cout << conf.host << std::endl;
+	// std::cout << static_cast<int>(conf.host[0]) << "." << static_cast<int>(conf.host[1]) << "." << static_cast<int>(conf.host[2]) << "." << static_cast<int>(conf.host[3]) << std::endl << std::endl;
 }
 
 void		Parser::checkServerName(std::string value, t_config & conf)
@@ -372,10 +383,10 @@ bool		Parser::fillConf(std::string key, std::string value, t_config & conf)
 {
 	int i;
 
-	for (i = 0; i < 7; i++)
+	for (i = 0; i < 8; i++)
 		if (!_cases.c[i].compare(key))
 			break ;
-	if (i == 7)
+	if (i == 8)
 		die("Directive not recognized: " + key + ". Aborting.");
 
 	switch (i)

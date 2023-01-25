@@ -1,4 +1,5 @@
 #include <webserv.hpp>
+#include <Server.class.hpp>
 
 int	main(int argc, char** argv)
 {

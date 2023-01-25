@@ -33,7 +33,7 @@
 			// 	}
 			// ],
 			"preLaunchTask": "C/C++: gcc compila il file attivo",
-			// "miDebuggerPath": "/usr/bin/gdb"
+			"miDebuggerPath": "/usr/bin/lldb"
 		}
 	]
 }

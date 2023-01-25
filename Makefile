@@ -4,7 +4,8 @@ FLAGS	=	-Wall -Werror -Wextra -std=c++98 -I./includes -g
 SRC		=	main.cpp \
 			utils.cpp \
 			Server.class.cpp \
-			Parser.class.cpp
+			Parser.class.cpp \
+			VirtServ.class.cpp
 SRCS	=	$(addprefix srcs/, $(SRC))
 OBJS	=	$(SRCS:.cpp=.o)
 
