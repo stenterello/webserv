@@ -5,6 +5,21 @@
 
 VirtServ::VirtServ(t_config config) : _config(config)
 {
+	_request.insert(std::make_pair("Method", ""));
+	_request.insert(std::make_pair("Path", ""));
+	_request.insert(std::make_pair("Protocol", ""));
+	_request.insert(std::make_pair("Host", ""));
+	_request.insert(std::make_pair("User-Agent", ""));
+	_request.insert(std::make_pair("Accept", ""));
+	_request.insert(std::make_pair("Accept-Language", ""));
+	_request.insert(std::make_pair("Accept-Encoding", ""));
+	_request.insert(std::make_pair("Connection", ""));
+	_request.insert(std::make_pair("Upgrade-Insecure-Requests", ""));
+	_request.insert(std::make_pair("Sec-Fetch-Dest", ""));
+	_request.insert(std::make_pair("Sec-Fetch-Mode", ""));
+	_request.insert(std::make_pair("Sec-Fetch-Site", ""));
+	_request.insert(std::make_pair("Sec-Fetch-User", ""));
+
 	memset(&_sin, '\0', sizeof(_sin));
 	memset(&_client, '\0', sizeof(_client));
 	this->_sin.sin_family = AF_INET;
@@ -19,7 +34,6 @@ VirtServ::VirtServ(t_config config) : _config(config)
 	{
 		die("Server Failed to Listen. Aborting... :(");
 	}
-
 }
 
 VirtServ::~VirtServ()
@@ -48,6 +62,8 @@ bool	VirtServ::startServer()
 
 bool	VirtServ::startListen()
 {
+	int	bytes;
+
 	if (listen(_sockfd, 20) < 0)
 	{
 		std::cout << "Listen failed" << std::endl;
@@ -55,6 +71,9 @@ bool	VirtServ::startListen()
 	}
 	while (true)
 	{
+
+		// Accept connection
+
 		_size = sizeof(_client);
 		_connfd = accept(_sockfd, (struct sockaddr *)&_client, &_size);
 		if (_connfd < 0)
@@ -62,29 +81,64 @@ bool	VirtServ::startListen()
 			std::cout << "Error while accepting connection." << std::endl;
 			return (false);
 		}
-		char	buffer[_config.client_body_max_size];
-		if (recv(_connfd, buffer, 100, 0) == -1)
+
+		// Read communication from client
+		char	buffer[1048576] = { 0 };
+		bytes = recv(_connfd, buffer, 1048576, 0);
+		if (bytes == -1)
 		{
 			std::cout << "Error receiving" << std::endl;
 			return (false);
 		}
-		std::cout << buffer << std::endl;
+		std::cout << "Output without newline" << std::endl;
+		std::cout << "_________________________" << std::endl;
+		std::cout << buffer;
+
+		// Parse request
+		
+		cleanRequest();		
+		readRequest(buffer);
+
+		// Close connection
+		close(_connfd);
 	}
 	return (true);
 }
 
 bool	VirtServ::stopServer()
 {
-	if (!close(_connfd))
-	{
-		std::cout << "Error closing connection with fd " << _connfd << std::endl;
-		return (false);
-	}
-
 	if (!close(_sockfd))
 	{
 		std::cout << "Error closing _sockfd" << std::endl;
 		return (false);
 	}
 	return (true);
+}
+
+void	VirtServ::cleanRequest()
+{
+	std::map<std::string, std::string>::iterator	iter = _request.begin();
+
+	while (iter != _request.end())
+	{
+		(*iter).second = "";
+		iter++;
+	}
+}
+
+void	VirtServ::readRequest(std::string req)
+{
+	std::string	key;
+	int			c;
+
+	(*_request.find("Method")).second = req.substr(0, req.find_first_of(" "));
+	req = req.substr(0, req.find_first_of(" ") + 1);
+	(*_request.find("Path")).second = req.substr(0, req.find_first_of(" "));
+	req = req.substr(0, req.find_first_of(" ") + 1);
+	(*_request.find("Protocol")).second = req.substr(0, req.find_first_of(" \n"));
+	req = req.substr(0, req.find_first_of(" \n") + 1);
+
+	key = req.substr(0, req.find_first_of(":"));
+	req = req.substr(0, req.find_first_of(":") + 2);
+
 }

@@ -4,6 +4,7 @@
 # include <iostream>
 # include <sstream>
 # include <vector>
+# include <map>
 # include <fstream>
 # include <cstring>
 # include <algorithm>
@@ -29,7 +30,6 @@ typedef	struct	s_location
 typedef struct	s_config
 {
 	unsigned short				port;					// listen
-	// unsigned char				host[4];				// listen
 	std::string					host;
 	std::vector<std::string>	server_name;			// server_nam
 	std::string					root;					// root
@@ -43,10 +43,6 @@ typedef struct	s_config
 	{
 		root = "";
 		host = "0.0.0.0";
-		// host[0] = 0;
-		// host[1] = 0;
-		// host[2] = 0;
-		// host[3] = 0;
 	}
 }				t_config;
 
