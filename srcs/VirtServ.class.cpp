@@ -107,7 +107,7 @@ bool	VirtServ::startListen()
 
 bool	VirtServ::stopServer()
 {
-	if (!close(_sockfd))
+	if (close(_sockfd))
 	{
 		std::cout << "Error closing _sockfd" << std::endl;
 		return (false);
