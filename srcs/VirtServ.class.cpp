@@ -129,16 +129,32 @@ void	VirtServ::cleanRequest()
 void	VirtServ::readRequest(std::string req)
 {
 	std::string	key;
-	int			c;
 
 	(*_request.find("Method")).second = req.substr(0, req.find_first_of(" "));
-	req = req.substr(0, req.find_first_of(" ") + 1);
+	req = req.substr(req.find_first_of(" ") + 1);
 	(*_request.find("Path")).second = req.substr(0, req.find_first_of(" "));
-	req = req.substr(0, req.find_first_of(" ") + 1);
+	req = req.substr(req.find_first_of(" ") + 1);
 	(*_request.find("Protocol")).second = req.substr(0, req.find_first_of(" \n"));
-	req = req.substr(0, req.find_first_of(" \n") + 1);
+	req = req.substr(req.find_first_of(" \n") + 1);
 
-	key = req.substr(0, req.find_first_of(":"));
-	req = req.substr(0, req.find_first_of(":") + 2);
+	while (req.find_first_not_of(" \t\n") != std::string::npos)
+	{
+		key = req.substr(0, req.find_first_of(":"));
+		req = req.substr(req.find_first_of(":") + 2);
+		(*_request.find(key)).second = req.substr(0, req.find_first_of("\n"));
+		req = req.substr(req.find_first_of("\n") + 1);
+	}
 
+
+	// Check request parsed
+
+	std::cout << "PARSED REQUEST CHECKING" << std::endl;
+
+	std::map<std::string, std::string>::iterator	iter = _request.begin();
+
+	while (iter != _request.end())
+	{
+		std::cout << (*iter).first << ": " << (*iter).second << std::endl;
+		iter++;
+	}
 }
