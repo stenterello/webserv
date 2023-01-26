@@ -5,6 +5,7 @@
 
 VirtServ::VirtServ(t_config config) : _config(config)
 {
+	// Inizializzazione Request
 	_request.insert(std::make_pair("Method", ""));
 	_request.insert(std::make_pair("Path", ""));
 	_request.insert(std::make_pair("Protocol", ""));
@@ -19,6 +20,14 @@ VirtServ::VirtServ(t_config config) : _config(config)
 	_request.insert(std::make_pair("Sec-Fetch-Mode", ""));
 	_request.insert(std::make_pair("Sec-Fetch-Site", ""));
 	_request.insert(std::make_pair("Sec-Fetch-User", ""));
+
+	// Inizializzazione Response
+	_response.insert(std::make_pair("Protocol", ""));
+	_response.insert(std::make_pair("Status-Code", ""));
+	_response.insert(std::make_pair("Reason-Phrase", ""));
+	_response.insert(std::make_pair("Content-Type", ""));
+	_response.insert(std::make_pair("Content-Lenght", ""));
+	_response.insert(std::make_pair("Body", ""));
 
 	memset(&_sin, '\0', sizeof(_sin));
 	memset(&_client, '\0', sizeof(_client));
@@ -95,9 +104,17 @@ bool	VirtServ::startListen()
 		std::cout << buffer;
 
 		// Parse request
-		
-		cleanRequest();		
+
+		cleanRequest();
 		readRequest(buffer);
+
+		// Parse Response da implementare in base al path della Request
+		// dove si andrà a popolare _response con i vari campi descritti in costruzione
+		// Potrebbero servire altri campi, questi sono quelli essenziali ! 
+		// selectRepsonse();
+
+		// Send Response
+		sendResponse();
 
 		// Close connection
 		close(_connfd);
@@ -157,4 +174,24 @@ void	VirtServ::readRequest(std::string req)
 		std::cout << (*iter).first << ": " << (*iter).second << std::endl;
 		iter++;
 	}
+}
+
+void	VirtServ::sendResponse()
+{
+
+	// Questo era un test semplice prendendo come esempio la roba di appunti.
+	// Qui andranno trasformate le varie parti di _response in una c_string da inviare con send.
+
+	std::string	message;
+	std::string	sendMessage;
+	long		bytesSent;
+
+	message = "<!DOCTYPE html><html lang=\"en\"><body><h1> HOME </h1><p> Hello from your Server :) </p></body></html>";
+    std::ostringstream ss;
+    ss << "HTTP/1.1 200 OK\nContent-Type: text/html\nContent-Length: " << message.size() << "\n\n" << message;
+
+	sendMessage = ss.str();
+
+	bytesSent = send(_connfd, sendMessage.c_str(), sendMessage.size(), 0);
+
 }

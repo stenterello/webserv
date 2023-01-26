@@ -15,11 +15,13 @@ class VirtServ
 		int									_sockfd;
 		int									_connfd;
 		std::map<std::string, std::string>	_request;
+		std::map<std::string, std::string>	_response;
 		bool								startServer();
 		bool								startListen();
 		bool								stopServer();
 		void								cleanRequest();
 		void								readRequest(std::string req);
+		void								sendResponse();
 
 	public:
 		VirtServ(t_config config);

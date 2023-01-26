@@ -70,6 +70,8 @@
 		"clocale": "cpp",
 		"memory_resource": "cpp",
 		"numeric": "cpp",
-		"random": "cpp"
+		"random": "cpp",
+		"__tree": "cpp",
+		"map": "cpp"
 	}
 }
