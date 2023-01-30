@@ -63,6 +63,21 @@ typedef	struct	s_cases
 	}
 }				t_cases;
 
+typedef	struct	s_locationCases
+{
+	std::vector<std::string>	c;
+
+	s_locationCases()
+	{
+		c.push_back("try_files");
+		c.push_back("root");
+		c.push_back("autoindex");
+		c.push_back("index");
+		c.push_back("error_pages");
+		c.push_back("client_body_max_size");
+	}
+}				t_locationCases;
+
 typedef struct	s_request
 {
 	std::string							line;

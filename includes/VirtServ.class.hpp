@@ -14,6 +14,7 @@ class VirtServ
 		socklen_t							_size;
 		int									_sockfd;
 		int									_connfd;
+		t_locationCases						_cases;
 		t_request							_request;
 		std::map<std::string, std::string>	_response;
 		bool								startServer();
@@ -24,6 +25,7 @@ class VirtServ
 		void								elaborateRequest();
 		t_location*							searchLocationBlock(std::string method, std::string path);
 		void								interpretLocationBlock(t_location* location);
+		void								executeLocationRules(std::string text);
 		void								sendResponse();
 
 	public:

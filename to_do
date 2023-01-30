@@ -1,0 +1,11 @@
+- togliere controllo sull'accessibilità della cartella root nel parser: se non si avranno i permessi o la cartella non esisterà, il server se ne accorgerà a runtime restituendo un 403
+
+- immettere il check, alla fine del parser, per la presenza o meno delle regole fondamentali
+{
+	- root
+	- listen
+	- altro?
+}
+
+- testare tanto (non eccessivamente) il parser
+

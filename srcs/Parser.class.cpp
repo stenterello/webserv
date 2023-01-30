@@ -302,7 +302,6 @@ void		Parser::checkAutoIndex(std::string value, t_config & conf)
 void		Parser::checkIndex(std::string value, t_config & conf)
 {
 	std::string	tmp;
-	// die("Everything is fine and life smiles at you. Aborting");
 
 	while (value.find_first_not_of(" \n \t") != std::string::npos)
 	{
@@ -313,17 +312,11 @@ void		Parser::checkIndex(std::string value, t_config & conf)
 		value = value.substr(value.find_first_of(" \t"));
 		value = value.substr(value.find_first_not_of(" \t"));
 	}
-
-	std::cout << "Debug info index" << std::endl;
-	std::vector<std::string>::iterator	iter = conf.index.begin();
-	while (iter != conf.index.end())
-		std::cout << *iter++ << std::endl;
 }
 
 void		Parser::checkErrorPages(std::string value, t_config & conf)
 {
 	std::string	tmp;
-	// die("Everything is fine and life smiles at you. Aborting");
 
 	while (value.find_first_not_of(" \n \t") != std::string::npos)
 	{
@@ -334,11 +327,6 @@ void		Parser::checkErrorPages(std::string value, t_config & conf)
 		value = value.substr(value.find_first_of(" \t"));
 		value = value.substr(value.find_first_not_of(" \t"));
 	}
-
-	std::cout << "Debug info error_pages" << std::endl;
-	std::vector<std::string>::iterator	iter = conf.errorPages.begin();
-	while (iter != conf.errorPages.end())
-		std::cout << *iter++ << std::endl;
 }
 
 void		Parser::checkClientBodyMaxSize(std::string value, t_config & conf)
@@ -360,9 +348,6 @@ void		Parser::checkClientBodyMaxSize(std::string value, t_config & conf)
 			die("Correct units for client_body_max_size are B (bit), K (kilobit), M (megabit). Aborting");
 	}
 	conf.client_body_max_size = size;
-
-	std::cout << "Debug info client_body_max_size" << std::endl;
-	std::cout << conf.client_body_max_size << std::endl;
 }
 
 void		Parser::fillConf(std::string key, std::string value, t_config & conf)
