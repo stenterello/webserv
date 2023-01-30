@@ -9,3 +9,10 @@
 
 - testare tanto (non eccessivamente) il parser
 
+Appunti generali per quanto riguarda la gestione della richiesta HTTP:
+
+	1. riceve la t_request
+	2. cerca nelle location block disponibili quella più adatta (l'ordine di priorità in teoria parte dalle corrispondenze precise di locazione, per poi passare a quelle invece definite da un suffisso o prefisso)
+	3. scelta la location, sostituisce i termini speciali all'interno della location (es. $uri). [scegliere se questa sostituzione sia più comodo avvenga prima dell'elaborazione vera e propria della richiesta oppure no]
+	4. esecuzione, linea per linea, delle istruzioni contenute nella location block (terminando quando si incontra un return o un try_files);
+	5. costruzione della t_response e, contestualmente, invio del file risultante dall'esecuzione del location block
