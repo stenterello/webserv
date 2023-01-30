@@ -181,12 +181,13 @@ void		VirtServ::elaborateRequest()
 	std::cout << "path: " << path << std::endl;
 
 	location = searchLocationBlock(method, path);
+	interpretLocationBlock(location);
+	std::cout << location->text << std::endl;
 	(void)location;
 
 	/// 404 RESPONSE IF
 	// if (!location)
 
-	// interpretLocationBlock(location);
 	// searchResource(location);
 }
 
@@ -244,6 +245,17 @@ t_location*	VirtServ::searchLocationBlock(std::string method, std::string path)
 	(void)method;
 
 	return (ret);
+}
+
+void		VirtServ::interpretLocationBlock(t_location* location)
+{
+	std::string	uri = _request.line.substr(0, _request.line.find_first_of(" \t"));
+	std::string::iterator	iter = location->text.begin();
+
+	while (location->text.find("$uri") != std::string::npos)
+	{
+		location->text.replace(iter + location->text.find("$uri"), iter + location->text.find("$uri") + 4, uri);
+	}
 }
 
 void	VirtServ::sendResponse()

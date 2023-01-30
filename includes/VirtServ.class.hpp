@@ -23,6 +23,7 @@ class VirtServ
 		void								readRequest(std::string req);
 		void								elaborateRequest();
 		t_location*							searchLocationBlock(std::string method, std::string path);
+		void								interpretLocationBlock(t_location* location);
 		void								sendResponse();
 
 	public:

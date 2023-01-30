@@ -391,6 +391,10 @@ void		Parser::fillConf(std::string key, std::string value, t_config & conf)
 			checkErrorPages(value, conf); break ;
 		case 6: // client_body_max_size
 			checkClientBodyMaxSize(value, conf); break ;
+		case 7:
+			break ;
+		default:
+			die("Unrecognized rule. Aborting");
 	}
 }
 
