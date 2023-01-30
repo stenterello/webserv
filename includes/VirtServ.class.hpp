@@ -14,13 +14,15 @@ class VirtServ
 		socklen_t							_size;
 		int									_sockfd;
 		int									_connfd;
-		std::map<std::string, std::string>	_request;
+		t_request							_request;
 		std::map<std::string, std::string>	_response;
 		bool								startServer();
 		bool								startListen();
 		bool								stopServer();
 		void								cleanRequest();
 		void								readRequest(std::string req);
+		void								elaborateRequest();
+		t_location*							searchLocationBlock(std::string method, std::string path);
 		void								sendResponse();
 
 	public:

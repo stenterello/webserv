@@ -63,6 +63,30 @@ typedef	struct	s_cases
 	}
 }				t_cases;
 
+typedef struct	s_request
+{
+	std::string							line;
+	std::map<std::string, std::string>	headers;
+	std::string							body;
+
+	s_request()
+	{
+		line = "";
+		body = "";
+		headers.insert(std::make_pair("Host", ""));
+		headers.insert(std::make_pair("User-Agent", ""));
+		headers.insert(std::make_pair("Accept", ""));
+		headers.insert(std::make_pair("Accept-Language", ""));
+		headers.insert(std::make_pair("Accept-Encoding", ""));
+		headers.insert(std::make_pair("Connection", ""));
+		headers.insert(std::make_pair("Upgrade-Insecure-Requests", ""));
+		headers.insert(std::make_pair("Sec-Fetch-Dest", ""));
+		headers.insert(std::make_pair("Sec-Fetch-Mode", ""));
+		headers.insert(std::make_pair("Sec-Fetch-Site", ""));
+		headers.insert(std::make_pair("Sec-Fetch-User", ""));
+	}
+}				t_request;
+
 void	die(std::string const err);
 void	usage();
 

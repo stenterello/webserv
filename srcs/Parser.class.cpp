@@ -365,21 +365,7 @@ void		Parser::checkClientBodyMaxSize(std::string value, t_config & conf)
 	std::cout << conf.client_body_max_size << std::endl;
 }
 
-bool		Parser::configComplete(t_config & conf)
-{
-	// if (conf.port == 0)
-	// 	return (false);
-	// else if (conf.root.length() == 0)
-	// 	return (false);
-	// else if (conf.client_body_max_size == 0)
-	// 	return (false);
-	// else if (conf.locationRules.size() == 0)
-	// 	return (false);
-	(void)conf;
-	return (false);
-}
-
-bool		Parser::fillConf(std::string key, std::string value, t_config & conf)
+void		Parser::fillConf(std::string key, std::string value, t_config & conf)
 {
 	int i;
 
@@ -406,8 +392,6 @@ bool		Parser::fillConf(std::string key, std::string value, t_config & conf)
 		case 6: // client_body_max_size
 			checkClientBodyMaxSize(value, conf); break ;
 	}
-
-	return (!configComplete(conf));
 }
 
 bool		Parser::parseLocation(std::string & line, t_config & conf)
@@ -444,7 +428,7 @@ bool		Parser::parseLocation(std::string & line, t_config & conf)
 	return (false);
 }
 
-bool		Parser::prepareRule(std::string & line, t_config & conf)
+void		Parser::prepareRule(std::string & line, t_config & conf)
 {
 	std::string	key;
 	std::string	value;
@@ -468,7 +452,7 @@ bool		Parser::prepareRule(std::string & line, t_config & conf)
 	std::cout << "|" << key << "|" << std::endl;
 	std::cout << "|" << value << "|" << std::endl << std::endl;
 
-	return (fillConf(key, value, conf));
+	fillConf(key, value, conf);
 }
 
 t_config		Parser::elaborateServerBlock(std::string serverBlock)
@@ -494,7 +478,9 @@ t_config		Parser::elaborateServerBlock(std::string serverBlock)
 		tmpString = serverBlock.substr(start, end - start);
 		if (std::strncmp(tmpString.c_str(), "location", 8) && tmpString.find("\n") != std::string::npos)
 			die("Rules must end with semicolon. Aborting");
-	} while (prepareRule(tmpString, ret));
+		prepareRule(tmpString, ret);
+	} while (1);
+
 	if (!serverBlock.empty())
 		serverBlock = serverBlock.replace(serverBlock.begin() + start, serverBlock.begin() + start + tmpString.length(), "");
 	if (serverBlock.find_first_not_of(" \n\t") != std::string::npos)

@@ -20,8 +20,8 @@ class Parser
 		void		divideAndCheck(std::string text, std::vector<std::string> & serverBlocks);
 		t_config	elaborateServerBlock(std::string serverBlock);
 		bool		parseLocation(std::string & line, t_config & conf);
-		bool		prepareRule(std::string & text, t_config & conf);
-		bool		fillConf(std::string key, std::string value, t_config & conf);
+		void		prepareRule(std::string & text, t_config & conf);
+		void		fillConf(std::string key, std::string value, t_config & conf);
 		void		checkHostPort(std::string value, t_config & conf);
 		void		checkValidIP(std::string value);
 		void		checkServerName(std::string value, t_config & conf);
@@ -30,7 +30,6 @@ class Parser
 		void		checkIndex(std::string value, t_config & conf);
 		void		checkErrorPages(std::string value, t_config & conf);
 		void		checkClientBodyMaxSize(std::string value, t_config & conf);
-		bool		configComplete(t_config & conf);
 		size_t		checkBlockStart(std::string text);
 		size_t		checkBlockEnd(std::string text);
 

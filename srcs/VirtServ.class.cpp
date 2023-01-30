@@ -5,22 +5,6 @@
 
 VirtServ::VirtServ(t_config config) : _config(config)
 {
-	// Inizializzazione Request
-	_request.insert(std::make_pair("Method", ""));
-	_request.insert(std::make_pair("Path", ""));
-	_request.insert(std::make_pair("Protocol", ""));
-	_request.insert(std::make_pair("Host", ""));
-	_request.insert(std::make_pair("User-Agent", ""));
-	_request.insert(std::make_pair("Accept", ""));
-	_request.insert(std::make_pair("Accept-Language", ""));
-	_request.insert(std::make_pair("Accept-Encoding", ""));
-	_request.insert(std::make_pair("Connection", ""));
-	_request.insert(std::make_pair("Upgrade-Insecure-Requests", ""));
-	_request.insert(std::make_pair("Sec-Fetch-Dest", ""));
-	_request.insert(std::make_pair("Sec-Fetch-Mode", ""));
-	_request.insert(std::make_pair("Sec-Fetch-Site", ""));
-	_request.insert(std::make_pair("Sec-Fetch-User", ""));
-
 	// Inizializzazione Response
 	_response.insert(std::make_pair("Protocol", ""));
 	_response.insert(std::make_pair("Status-Code", ""));
@@ -108,6 +92,8 @@ bool	VirtServ::startListen()
 		cleanRequest();
 		readRequest(buffer);
 
+		elaborateRequest();
+
 		// Parse Response da implementare in base al path della Request
 		// dove si andrà a popolare _response con i vari campi descritti in costruzione
 		// Potrebbero servire altri campi, questi sono quelli essenziali ! 
@@ -134,9 +120,11 @@ bool	VirtServ::stopServer()
 
 void	VirtServ::cleanRequest()
 {
-	std::map<std::string, std::string>::iterator	iter = _request.begin();
+	_request.line = "";
+	_request.body = "";
+	std::map<std::string, std::string>::iterator	iter = _request.headers.begin();
 
-	while (iter != _request.end())
+	while (iter != _request.headers.end())
 	{
 		(*iter).second = "";
 		iter++;
@@ -147,33 +135,115 @@ void	VirtServ::readRequest(std::string req)
 {
 	std::string	key;
 
-	(*_request.find("Method")).second = req.substr(0, req.find_first_of(" "));
-	req = req.substr(req.find_first_of(" ") + 1);
-	(*_request.find("Path")).second = req.substr(0, req.find_first_of(" "));
-	req = req.substr(req.find_first_of(" ") + 1);
-	(*_request.find("Protocol")).second = req.substr(0, req.find_first_of(" \n"));
-	req = req.substr(req.find_first_of(" \n") + 1);
+	_request.line = req.substr(0, req.find_first_of("\n"));
+	req = req.substr(req.find_first_of("\n") + 1);
 
-	while (req.find_first_not_of(" \t\n") != std::string::npos)
+	while (req.find_first_not_of(" \t\n") != std::string::npos && std::strncmp(req.c_str(), "\n\n", 2))
 	{
 		key = req.substr(0, req.find_first_of(":"));
 		req = req.substr(req.find_first_of(":") + 2);
-		(*_request.find(key)).second = req.substr(0, req.find_first_of("\n"));
+		(*_request.headers.find(key)).second = req.substr(0, req.find_first_of("\n"));
 		req = req.substr(req.find_first_of("\n") + 1);
 	}
+
+	if (req.find_first_not_of("\n") != std::string::npos)
+		_request.body = req.substr(req.find_first_not_of("\n"));
 
 
 	// Check request parsed
 
 	std::cout << "PARSED REQUEST CHECKING" << std::endl;
 
-	std::map<std::string, std::string>::iterator	iter = _request.begin();
+	std::cout << _request.line << std::endl;
 
-	while (iter != _request.end())
+	std::map<std::string, std::string>::iterator	iter = _request.headers.begin();
+
+	while (iter != _request.headers.end())
 	{
 		std::cout << (*iter).first << ": " << (*iter).second << std::endl;
 		iter++;
 	}
+
+	std::cout << _request.body << std::endl;
+}
+
+void		VirtServ::elaborateRequest()
+{
+	std::string	method;
+	std::string	path;
+	t_location*	location;
+
+	method = _request.line.substr(0, _request.line.find_first_of(" "));
+	_request.line = _request.line.substr(method.length() + 1);
+	path = _request.line.substr(0, _request.line.find_first_of(" "));
+
+	std::cout << "method: " << method << std::endl;
+	std::cout << "path: " << path << std::endl;
+
+	location = searchLocationBlock(method, path);
+	(void)location;
+
+	/// 404 RESPONSE IF
+	// if (!location)
+
+	// interpretLocationBlock(location);
+	// searchResource(location);
+}
+
+t_location*	VirtServ::searchLocationBlock(std::string method, std::string path)
+{
+	std::vector<t_location>::iterator	iter = _config.locationRules.begin();
+	t_location*							ret = NULL;
+
+	// Exact corrispondence
+	while (iter != _config.locationRules.end())
+	{
+		if (!std::strncmp(path.c_str(), (*iter).location.c_str(), (*iter).location.length()) && !(*iter).regex)
+		{
+			if (ret == NULL || (*iter).location.length() > ret->location.length())
+				ret = &(*iter);
+		}
+		iter++;
+	}
+
+	// Prefix
+	if (ret == NULL)
+	{
+		iter = _config.locationRules.begin();
+		while (iter != _config.locationRules.end())
+		{
+			if (!std::strncmp(path.c_str(), (*iter).location.c_str(), path.length()) && !(*iter).regex)
+			{
+				if (ret == NULL || (*iter).location.length() > ret->location.length())
+					ret = &(*iter);
+			}
+			iter++;
+		}
+	}
+
+	// Regex
+	if (ret == NULL)
+	{
+		iter = _config.locationRules.begin();
+		while (iter != _config.locationRules.end())
+		{
+			if ((*iter).regex && !std::strncmp((*iter).location.c_str(), path.substr(path.length() - (*iter).location.length()).c_str(), (*iter).location.length()))
+			{
+				if (ret == NULL || (*iter).location.length() > ret->location.length())
+					ret = &(*iter);
+			}
+			iter++;
+		}
+	}
+
+	if (ret != NULL)
+		std::cout << ret->location << std::endl;
+	else
+		std::cout << "not found" << std::endl;
+		
+	(void)method;
+
+	return (ret);
 }
 
 void	VirtServ::sendResponse()
@@ -193,5 +263,5 @@ void	VirtServ::sendResponse()
 	sendMessage = ss.str();
 
 	bytesSent = send(_connfd, sendMessage.c_str(), sendMessage.size(), 0);
-
+	(void)bytesSent;
 }
