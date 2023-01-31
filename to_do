@@ -28,3 +28,5 @@ Appunti generali per quanto riguarda la gestione della richiesta HTTP:
 - I campi dell'header della response sono quelli che ho notato facendo la prova con curl. Non so come siano invece per un browser comune. (Ho aggiunto gli header che venivano inizializzati nel costruttore di VirtServ alla fine degli header che ho immesso nella struct t_response)
 
 - Segmentation fault se si tenta di accedere in HTTPS!!!
+
+- LEAKS
