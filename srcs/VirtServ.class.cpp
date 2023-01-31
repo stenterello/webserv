@@ -83,15 +83,10 @@ bool	VirtServ::startListen()
 			std::cout << "Error receiving" << std::endl;
 			return (false);
 		}
-		std::cout << "Output without newline" << std::endl;
-		std::cout << "_________________________" << std::endl;
-		std::cout << buffer;
 
 		// Parse request
-
 		cleanRequest();
 		readRequest(buffer);
-
 		elaborateRequest();
 
 		// Parse Response da implementare in base al path della Request
@@ -153,17 +148,13 @@ void	VirtServ::readRequest(std::string req)
 	// Check request parsed
 
 	std::cout << "PARSED REQUEST CHECKING" << std::endl;
-
 	std::cout << _request.line << std::endl;
-
 	std::map<std::string, std::string>::iterator	iter = _request.headers.begin();
-
 	while (iter != _request.headers.end())
 	{
 		std::cout << (*iter).first << ": " << (*iter).second << std::endl;
 		iter++;
 	}
-
 	std::cout << _request.body << std::endl;
 }
 
@@ -183,51 +174,48 @@ void		VirtServ::elaborateRequest()
 	location = searchLocationBlock(method, path);
 	/// 404 RESPONSE IF
 	// if (!location)
-	interpretLocationBlock(location);
-	std::cout << "interpreted location block" << std::endl;
-	std::cout << location->text << std::endl;
-	executeLocationRules(location->text);
+	// executeLocationRules(location->text);
 	(void)location;
 
 
 	// searchResource(location);
 }
 
-void		VirtServ::executeLocationRules(std::string text)
-{
-	t_config	tmpConfig(_config);
-	std::string	line;
-	std::string	key;
-	std::string	value;
-	int			i;
+// void		VirtServ::executeLocationRules(std::string text)
+// {
+// 	t_config	tmpConfig(_config);
+// 	std::string	line;
+// 	std::string	key;
+// 	std::string	value;
+// 	int			i;
 
-	while (text.find("\n") != std::string::npos)
-	{
-		rule = text.substr(text.find_first_not_of(" \t"), text.find_first_of("\n"));
-		for (i = 0; i < 6; i++)
-		{
-			if (!rule.compare(_cases.c[i]))
-				break ;
-		}
-		switch (i)
-		{
-			case 0:
-				tryFiles(rule, tmpConfig); return ;
-			case 1:
-				setRoot(rule, tmpConfig); break ;
-			case 2:
-				setAutoindex(rule, tmpConfig); break ;
-			case 3:
-				setIndex(rule, tmpConfig); break ;
-			case 4:
-				setErrorPages(rule, tmpConfig); break ;
-			case 5:
-				setClientBodyMaxSize(rule, tmpConfig); break ;
-			default: die("Location instruction unrecognized. Aborting") ;
-		}
-		text = text.substr(text.find_first_of("\n"));
-	}
-}
+// 	while (text.find("\n") != std::string::npos)
+// 	{
+// 		rule = text.substr(text.find_first_not_of(" \t"), text.find_first_of("\n"));
+// 		for (i = 0; i < 6; i++)
+// 		{
+// 			if (!rule.compare(_cases.c[i]))
+// 				break ;
+// 		}
+// 		switch (i)
+// 		{
+// 			case 0:
+// 				tryFiles(rule, tmpConfig); return ;
+// 			case 1:
+// 				setRoot(rule, tmpConfig); break ;
+// 			case 2:
+// 				setAutoindex(rule, tmpConfig); break ;
+// 			case 3:
+// 				setIndex(rule, tmpConfig); break ;
+// 			case 4:
+// 				setErrorPages(rule, tmpConfig); break ;
+// 			case 5:
+// 				setClientBodyMaxSize(rule, tmpConfig); break ;
+// 			default: die("Location instruction unrecognized. Aborting") ;
+// 		}
+// 		text = text.substr(text.find_first_of("\n"));
+// 	}
+// }
 
 t_location*	VirtServ::searchLocationBlock(std::string method, std::string path)
 {

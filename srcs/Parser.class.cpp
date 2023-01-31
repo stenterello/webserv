@@ -275,17 +275,8 @@ void		Parser::checkServerName(std::string value, t_config & conf)
 
 void		Parser::checkRoot(std::string value, t_config & conf)
 {
-	DIR*	d;
-
-	if (!access(value.c_str(), X_OK))
-	{
-		d = opendir(value.c_str());
-		if (!d)
-			die("Root is not a directory. Aborting.");
-		closedir(d);
-	}
-	else
-		die("No access to root path. Aborting.");
+	if (value.find(" \n\t") != std::string::npos)
+		die("Root path can only be one. Aborting");
 	conf.root = value;
 }
 
@@ -452,7 +443,6 @@ t_config		Parser::elaborateServerBlock(std::string serverBlock)
 	t_config	ret;
 
 	end = -1;
-	// trim spaces
 	do {
 		if (end >= static_cast<ssize_t>(serverBlock.length()))
 			break ;
@@ -474,6 +464,10 @@ t_config		Parser::elaborateServerBlock(std::string serverBlock)
 		serverBlock = serverBlock.replace(serverBlock.begin() + start, serverBlock.begin() + start + tmpString.length(), "");
 	if (serverBlock.find_first_not_of(" \n\t") != std::string::npos)
 		die("Anything outside server block is not accepted. Aborting");
+
+	if (ret.port == 0 || ret.root == "")
+		die("Server must listen to a port and be rooted in a path. Aborting");
+		
 	return (ret);
 }
 
