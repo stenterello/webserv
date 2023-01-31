@@ -219,11 +219,6 @@ void		Parser::checkHostPort(std::string value, t_config & conf)
 	if (port > 65535 || ip < 0)
 		die("Port number must be unsigned short. Aborting");
 	conf.port = (unsigned short) port;
-
-	std::cout << "Debug host:port info" << std::endl;
-	std::cout << conf.port << std::endl;
-	std::cout << conf.host << std::endl;
-	// std::cout << static_cast<int>(conf.host[0]) << "." << static_cast<int>(conf.host[1]) << "." << static_cast<int>(conf.host[2]) << "." << static_cast<int>(conf.host[3]) << std::endl << std::endl;
 }
 
 void		Parser::checkServerName(std::string value, t_config & conf)
@@ -261,14 +256,6 @@ void		Parser::checkServerName(std::string value, t_config & conf)
 				die("Server name is of invalid format. Aborting");
 			tmp = tmp.substr(1);
 		}
-		iter++;
-	}
-
-	std::cout << "Debug server_name info" << std::endl;
-	iter = conf.server_name.begin();
-	while (iter != conf.server_name.end())
-	{
-		std::cout << "|" << *iter << "|" << std::endl;
 		iter++;
 	}
 }
@@ -428,10 +415,6 @@ void		Parser::prepareRule(std::string & line, t_config & conf)
 		value = line.substr(key.length());
 		value = value.substr(value.find_first_not_of(" \t"));
 	}
-	std::cout << std::endl << "Debug key value splitting" << std::endl;
-	std::cout << "|" << key << "|" << std::endl;
-	std::cout << "|" << value << "|" << std::endl << std::endl;
-
 	fillConf(key, value, conf);
 }
 
