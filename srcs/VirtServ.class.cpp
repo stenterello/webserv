@@ -369,12 +369,14 @@ void		VirtServ::answer(std::string fullPath, struct dirent* dirent)
 		responseStream << (*iter).first << ": " << (*iter).second << "\r" << std::endl;
 		iter++;
 	}
-	responseStream << "\r" << std::endl << "\r" << std::endl;
+	responseStream << "\r" << std::endl;
 	responseStream << _response.body;
 
 	responseString = responseStream.str();
 
-	send(_connfd, responseString.c_str(), responseString.length(), 0);
+	int	bytes = send(_connfd, responseString.c_str(), responseString.size(), 0);
+	std::cout << "bytes: " << bytes << std::endl;
+	std::cout << "size: " << responseString.size() << std::endl;
 
 	std::cout << "SENT RESPONSE" << std::endl;
 	std::cout << responseString << std::endl;
