@@ -1,3 +1,4 @@
+#include <Parser.class.hpp>
 #include <VirtServ.class.hpp>
 
 
@@ -19,13 +20,15 @@ VirtServ::VirtServ(t_config config) : _config(config)
 	this->_sin.sin_addr.s_addr = inet_addr(_config.host.c_str());
 	this->_sin.sin_port = htons(_config.port);
 
+	_connfd = 0;
+
 	if(!this->startServer())
 	{
 		die("Server Failed to Start. Aborting... :(");
 	}
 	if(!this->startListen())
 	{
-		die("Server Failed to Listen. Aborting... :(");
+		die("Server Failed to Listen. Aborting... :(", *this);
 	}
 }
 
@@ -34,20 +37,33 @@ VirtServ::~VirtServ()
 
 }
 
+//////// Getters & Setters ///////////////////////////////////
+
+int		VirtServ::getSocket() { return (_sockfd); }
+int		VirtServ::getConnectionFd() { return (_connfd); }
+
 
 //////// Main Functions //////////////////////////////////////
 
 bool	VirtServ::startServer()
 {
+	// int	i = 1;
+
 	_sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (_sockfd == -1)
 	{
-		std::cout << "Socket error" << std::endl;
+		std::cerr << "Socket error" << std::endl;
 		return (false);
 	}
+	// fcntl(_sockfd, F_SETFL, O_NONBLOCK);
+	// if (setsockopt(_sockfd, SOL_SOCKET, SO_REUSEADDR, (const char *)&i, sizeof(i)) < 0)
+	// {
+	// 	std::cerr << "setsockopt error" << std::endl;
+	// 	return (false);
+	// }
 	if (bind(_sockfd, (struct sockaddr *)&_sin, sizeof(_sin)) != 0)
 	{
-		std::cout << "Bind error" << std::endl;
+		std::cerr << "Bind error" << std::endl;
 		return (false);
 	}
 	return (true);
@@ -59,7 +75,7 @@ bool	VirtServ::startListen()
 
 	if (listen(_sockfd, 20) < 0)
 	{
-		std::cout << "Listen failed" << std::endl;
+		std::cerr << "Listen failed" << std::endl;
 		return (false);
 	}
 	while (true)
@@ -71,7 +87,7 @@ bool	VirtServ::startListen()
 		_connfd = accept(_sockfd, (struct sockaddr *)&_client, &_size);
 		if (_connfd < 0)
 		{
-			std::cout << "Error while accepting connection." << std::endl;
+			std::cerr << "Error while accepting connection." << std::endl;
 			return (false);
 		}
 
@@ -80,7 +96,7 @@ bool	VirtServ::startListen()
 		bytes = recv(_connfd, buffer, 1048576, 0);
 		if (bytes == -1)
 		{
-			std::cout << "Error receiving" << std::endl;
+			std::cerr << "Error receiving" << std::endl;
 			return (false);
 		}
 
@@ -99,6 +115,7 @@ bool	VirtServ::startListen()
 
 		// Close connection
 		close(_connfd);
+		_connfd = 0;
 	}
 	return (true);
 }
@@ -133,7 +150,7 @@ void	VirtServ::readRequest(std::string req)
 	_request.line = req.substr(0, req.find_first_of("\n"));
 	req = req.substr(req.find_first_of("\n") + 1);
 
-	while (req.find_first_not_of(" \t\n") != std::string::npos && std::strncmp(req.c_str(), "\n\n", 2))
+	while (req.find_first_not_of(" \t\n\r") != std::string::npos && std::strncmp(req.c_str(), "\n\n", 2))
 	{
 		key = req.substr(0, req.find_first_of(":"));
 		req = req.substr(req.find_first_of(":") + 2);
@@ -146,7 +163,6 @@ void	VirtServ::readRequest(std::string req)
 
 
 	// Check request parsed
-
 	std::cout << "PARSED REQUEST CHECKING" << std::endl;
 	std::cout << _request.line << std::endl;
 	std::map<std::string, std::string>::iterator	iter = _request.headers.begin();
@@ -172,50 +188,163 @@ void		VirtServ::elaborateRequest()
 	std::cout << "path: " << path << std::endl;
 
 	location = searchLocationBlock(method, path);
-	/// 404 RESPONSE IF
 	// if (!location)
-	// executeLocationRules(location->text);
+	// RETURN 404
+	executeLocationRules(location->text);
 	(void)location;
-
-
-	// searchResource(location);
 }
 
-// void		VirtServ::executeLocationRules(std::string text)
-// {
-// 	t_config	tmpConfig(_config);
-// 	std::string	line;
-// 	std::string	key;
-// 	std::string	value;
-// 	int			i;
+void		VirtServ::executeLocationRules(std::string text)
+{
+	t_config	tmpConfig(_config);
+	std::string	line;
+	std::string	key;
+	std::string	value;
+	int			i;
 
-// 	while (text.find("\n") != std::string::npos)
-// 	{
-// 		rule = text.substr(text.find_first_not_of(" \t"), text.find_first_of("\n"));
-// 		for (i = 0; i < 6; i++)
-// 		{
-// 			if (!rule.compare(_cases.c[i]))
-// 				break ;
-// 		}
-// 		switch (i)
-// 		{
-// 			case 0:
-// 				tryFiles(rule, tmpConfig); return ;
-// 			case 1:
-// 				setRoot(rule, tmpConfig); break ;
-// 			case 2:
-// 				setAutoindex(rule, tmpConfig); break ;
-// 			case 3:
-// 				setIndex(rule, tmpConfig); break ;
-// 			case 4:
-// 				setErrorPages(rule, tmpConfig); break ;
-// 			case 5:
-// 				setClientBodyMaxSize(rule, tmpConfig); break ;
-// 			default: die("Location instruction unrecognized. Aborting") ;
-// 		}
-// 		text = text.substr(text.find_first_of("\n"));
-// 	}
-// }
+	while (text.find_first_not_of(" \t\r\n") != std::string::npos)
+	{
+		line = text.substr(0, text.find("\n"));
+		if (line.at(line.length() - 1) != ';')
+			die("Location rules must end with semicolon. Aborting", *this);
+		line = line.substr(0, line.length() - 1);
+		if (line.find_first_of(" \t") == std::string::npos)
+			die("Location rules must be given in format 'key value'. Aborting", *this);
+		key = line.substr(0, line.find_first_of(" \t"));
+		value = line.substr(line.find_first_not_of(" \t", key.length()));
+		if (value.find_first_not_of(" \t\n") == std::string::npos)
+			die("Location rule without value. Aborting", *this);
+
+		for (i = 0; i < 6; i++)
+		{
+			if (!key.compare(_cases.c[i]))
+				break ;
+		}
+
+		switch (i)
+		{
+			case 0:
+				tmpConfig.root = value; break ;
+			case 1:
+			{
+				if (!value.compare("on"))
+					tmpConfig.autoindex = true;
+				else if (!value.compare("off"))
+					tmpConfig.autoindex = false;
+				else
+					die("Autoindex rule must have on|off value. Aborting", *this);
+				break ;
+			}
+			case 2:
+			{
+				tmpConfig.index.clear();
+				while (value.find_first_not_of(" \n\t") != std::string::npos)
+				{
+					tmpConfig.index.push_back(value.substr(0, value.find_first_of(" \t")));
+					value = value.substr(value.find_first_of(" \t"));
+					value = value.substr(value.find_first_not_of(" \t"));
+				}
+				break ;
+			}
+			case 3:
+			{
+				tmpConfig.errorPages.clear();
+				while (value.find_first_not_of(" \n\t") != std::string::npos)
+				{
+					tmpConfig.errorPages.push_back(value.substr(0, value.find_first_of(" \t")));
+					value = value.substr(value.find_first_of(" \t"));
+					value = value.substr(value.find_first_not_of(" \t"));
+				}
+				break ;
+			}
+			case 4:
+				Parser::checkClientBodyMaxSize(value, tmpConfig); break ;
+			case 5:
+				tryFiles(value, tmpConfig); return ;
+			default: die("Unrecognized location rule. Aborting", *this);
+		}
+		text = text.substr(text.find("\n") + 1);
+		text = text.substr(text.find_first_not_of(" \t"));
+	}
+	(void)tmpConfig;
+}
+
+void		VirtServ::tryFiles(std::string value, t_config tmpConfig)
+{
+	std::vector<std::string>	files;
+	std::string					defaultFile;
+	FILE*						resource;
+
+	while (value.find_first_of(" \t") != std::string::npos)
+	{
+		files.push_back(value.substr(0, value.find_first_of(" \t")));
+		value = value.substr(value.find_first_of(" \t"));
+		value = value.find_first_not_of(" \t");
+	}
+	defaultFile = value;
+
+	std::vector<std::string>::iterator	iter = files.begin();
+	while (iter != files.end())
+	{
+		resource = tryGetResource(*iter, tmpConfig);
+		if (resource)
+		{
+			std::cout << "Eccola" << std::endl;
+			return ;
+		}
+		iter++;
+	}
+	resource = tryGetResource(defaultFile, tmpConfig);
+	// if (!resource)
+		// ritorna 404
+}
+
+FILE*		VirtServ::tryGetResource(std::string filename, t_config tmpConfig)
+{
+	std::string		fullPath = tmpConfig.root;
+	DIR*			directory;
+	struct dirent*	dirent;
+
+	if (!filename.compare("$uri"))
+		filename = _request.line.substr(0, _request.line.find_first_of(" \t"));
+	if (filename.find("/") != std::string::npos)
+	{
+		fullPath += filename.substr(0, filename.find_last_of("/") + 1);
+		if (filename.find_last_of("/") != filename.length() - 1)
+			filename = filename.substr(filename.find_last_of("/") + 1);
+		else
+			filename = "";
+	}
+	directory = opendir(fullPath.c_str());
+	if (directory == NULL)
+	{
+		if (errno == EACCES)
+			std::cout << "cannot access path" << std::endl;
+		if (errno == ENOENT)
+			std::cout << "path is non-existent" << std::endl;
+		if (errno == ENOTDIR)
+			std::cout << "path is not a directory" << std::endl;
+	}
+	if (filename.length())
+	{
+		dirent = readdir(directory);
+		while (dirent != NULL)
+		{
+			if (!filename.compare(dirent->d_name))
+				std::cout << "found file " << filename << std::endl;
+			dirent = readdir(directory);
+		}
+	}
+	else if (tmpConfig.autoindex)
+	{
+		std::cout << "ready to autoindex directory" << std::endl;
+	}
+	else
+	{
+		std::cout << "404 because there is no autoindex" << std::endl;
+	}
+	return (NULL);
+}
 
 t_location*	VirtServ::searchLocationBlock(std::string method, std::string path)
 {
@@ -284,7 +413,7 @@ void		VirtServ::interpretLocationBlock(t_location* location)
 	}
 }
 
-void	VirtServ::sendResponse()
+void		VirtServ::sendResponse()
 {
 
 	// Questo era un test semplice prendendo come esempio la roba di appunti.

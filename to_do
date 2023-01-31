@@ -14,3 +14,11 @@ Appunti generali per quanto riguarda la gestione della richiesta HTTP:
 	3. scelta la location, sostituisce i termini speciali all'interno della location (es. $uri). [scegliere se questa sostituzione sia più comodo avvenga prima dell'elaborazione vera e propria della richiesta oppure no]
 	4. esecuzione, linea per linea, delle istruzioni contenute nella location block (terminando quando si incontra un return o un try_files);
 	5. costruzione della t_response e, contestualmente, invio del file risultante dall'esecuzione del location block
+
+- Le location block scritte in maniera errata (per esempio senza un ';' al termine della riga), generano un errore critica (exit code 1) soltanto nel momento in cui vengono elaborate (ovvero nella funzione void		VirtServ::executeLocationRules(std::string text), VirtServ.class.cpp, riga 184)
+
+- Per praticità si potrebbe utilizzare la funzione fillConf del Parser per elaborare le location block del VirtServ e contestualmente riempire la configurazione temporanea. In tal caso rendere fillConf di Parser pubblica e chiamare Parser::fillConf (vedi switch in executeLocationRules)
+
+- Aggiunto la funzione die(std::string err, VirtServ & serv) per far chiudere il socket qualora si presentasse un errore in fase di elaborazione della location block
+
+- in startServer (VirtServ.class.cpp) sono commentate le funzioni fcntl e setsockopt perché sul mio computer mi dà errore, non ho idea del perché.

@@ -26,11 +26,16 @@ class VirtServ
 		t_location*							searchLocationBlock(std::string method, std::string path);
 		void								interpretLocationBlock(t_location* location);
 		void								executeLocationRules(std::string text);
+		void								tryFiles(std::string value, t_config tmpConfig);
+		FILE*								tryGetResource(std::string filename, t_config tmpConfig);
 		void								sendResponse();
 
 	public:
 		VirtServ(t_config config);
 		~VirtServ();
+
+		int									getSocket();
+		int									getConnectionFd();
 };
 
 

@@ -402,7 +402,7 @@ bool		Parser::parseLocation(std::string & line, t_config & conf)
 	line = line.substr(line.find_first_of(" \t\n{"));
 	start = line.find_first_not_of(" \t\n{");
 	end = line.find_last_not_of(" \t\n}");
-	tmp.text = line.substr(start, end - start);
+	tmp.text = line.substr(start, end - start + 1);
 
 	conf.locationRules.push_back(tmp);
 	return (false);

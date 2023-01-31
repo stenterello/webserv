@@ -29,14 +29,14 @@ class Parser
 		void		checkAutoIndex(std::string value, t_config & conf);
 		void		checkIndex(std::string value, t_config & conf);
 		void		checkErrorPages(std::string value, t_config & conf);
-		void		checkClientBodyMaxSize(std::string value, t_config & conf);
 		size_t		checkBlockStart(std::string text);
 		size_t		checkBlockEnd(std::string text);
 
 	public:
 		Parser(const char* filename, std::vector<t_config> & conf);
 		~Parser();
-
+		
+		static void		checkClientBodyMaxSize(std::string value, t_config & conf);
 };
 
 #endif

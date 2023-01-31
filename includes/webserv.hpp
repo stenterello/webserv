@@ -16,6 +16,7 @@
 # include <netdb.h>
 # include <netinet/in.h>
 # include <arpa/inet.h>
+# include <fcntl.h>
 
 
 typedef	struct	s_location
@@ -69,12 +70,12 @@ typedef	struct	s_locationCases
 
 	s_locationCases()
 	{
-		c.push_back("try_files");
 		c.push_back("root");
 		c.push_back("autoindex");
 		c.push_back("index");
 		c.push_back("error_pages");
 		c.push_back("client_body_max_size");
+		c.push_back("try_files");
 	}
 }				t_locationCases;
 
@@ -102,7 +103,10 @@ typedef struct	s_request
 	}
 }				t_request;
 
+# include <VirtServ.class.hpp>
+
 void	die(std::string const err);
+void	die(std::string const err, VirtServ & serv);
 void	usage();
 
 #endif
