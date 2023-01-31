@@ -103,6 +103,30 @@ typedef struct	s_request
 	}
 }				t_request;
 
+typedef struct	s_response
+{
+	std::string							line;
+	std::map<std::string, std::string>	headers;
+	std::string							body;
+
+	s_response()
+	{
+		line = "HTTP/1.1 ";
+		body = "";
+		headers.insert(std::make_pair("Server", "webserv"));
+		headers.insert(std::make_pair("Date", ""));
+		headers.insert(std::make_pair("Content-type", ""));
+		headers.insert(std::make_pair("Content-length", ""));
+		headers.insert(std::make_pair("Last-Modified", ""));
+		headers.insert(std::make_pair("Connection", ""));
+		headers.insert(std::make_pair("ETag", ""));
+		headers.insert(std::make_pair("Accept-Ranges", ""));
+		headers.insert(std::make_pair("Protocol", ""));
+		headers.insert(std::make_pair("Status-Code", ""));
+		headers.insert(std::make_pair("Reason-Phrase", ""));
+	}
+}				t_response;
+
 # include <VirtServ.class.hpp>
 
 void	die(std::string const err);

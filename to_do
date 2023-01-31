@@ -22,3 +22,9 @@ Appunti generali per quanto riguarda la gestione della richiesta HTTP:
 - Aggiunto la funzione die(std::string err, VirtServ & serv) per far chiudere il socket qualora si presentasse un errore in fase di elaborazione della location block
 
 - in startServer (VirtServ.class.cpp) sono commentate le funzioni fcntl e setsockopt perché sul mio computer mi dà errore, non ho idea del perché.
+
+- Il protocollo nella response adesso è di default HTTP/1.1, poiché non è salvato nella request. Basterebbe salvarlo per costruire poi la response con un protocollo che in teoria è quello corretto
+
+- I campi dell'header della response sono quelli che ho notato facendo la prova con curl. Non so come siano invece per un browser comune. (Ho aggiunto gli header che venivano inizializzati nel costruttore di VirtServ alla fine degli header che ho immesso nella struct t_response)
+
+- Segmentation fault se si tenta di accedere in HTTPS!!!

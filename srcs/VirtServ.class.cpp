@@ -6,14 +6,6 @@
 
 VirtServ::VirtServ(t_config config) : _config(config)
 {
-	// Inizializzazione Response
-	_response.insert(std::make_pair("Protocol", ""));
-	_response.insert(std::make_pair("Status-Code", ""));
-	_response.insert(std::make_pair("Reason-Phrase", ""));
-	_response.insert(std::make_pair("Content-Type", ""));
-	_response.insert(std::make_pair("Content-Lenght", ""));
-	_response.insert(std::make_pair("Body", ""));
-
 	memset(&_sin, '\0', sizeof(_sin));
 	memset(&_client, '\0', sizeof(_client));
 	this->_sin.sin_family = AF_INET;
@@ -145,7 +137,8 @@ void	VirtServ::cleanRequest()
 
 void	VirtServ::readRequest(std::string req)
 {
-	std::string	key;
+	std::string										key;
+	std::map<std::string, std::string>::iterator	header;
 
 	_request.line = req.substr(0, req.find_first_of("\n"));
 	req = req.substr(req.find_first_of("\n") + 1);
@@ -154,7 +147,9 @@ void	VirtServ::readRequest(std::string req)
 	{
 		key = req.substr(0, req.find_first_of(":"));
 		req = req.substr(req.find_first_of(":") + 2);
-		(*_request.headers.find(key)).second = req.substr(0, req.find_first_of("\n"));
+		header = _request.headers.find(key);
+		if (header != _request.headers.end())
+			(*header).second = req.substr(0, req.find_first_of("\n"));
 		req = req.substr(req.find_first_of("\n") + 1);
 	}
 
@@ -184,14 +179,10 @@ void		VirtServ::elaborateRequest()
 	_request.line = _request.line.substr(method.length() + 1);
 	path = _request.line.substr(0, _request.line.find_first_of(" "));
 
-	std::cout << "method: " << method << std::endl;
-	std::cout << "path: " << path << std::endl;
-
 	location = searchLocationBlock(method, path);
 	// if (!location)
 	// RETURN 404
 	executeLocationRules(location->text);
-	(void)location;
 }
 
 void		VirtServ::executeLocationRules(std::string text)
@@ -331,7 +322,7 @@ FILE*		VirtServ::tryGetResource(std::string filename, t_config tmpConfig)
 		while (dirent != NULL)
 		{
 			if (!filename.compare(dirent->d_name))
-				std::cout << "found file " << filename << std::endl;
+				answer(fullPath, dirent);
 			dirent = readdir(directory);
 		}
 	}
@@ -344,6 +335,44 @@ FILE*		VirtServ::tryGetResource(std::string filename, t_config tmpConfig)
 		std::cout << "404 because there is no autoindex" << std::endl;
 	}
 	return (NULL);
+}
+
+void		VirtServ::answer(std::string fullPath, struct dirent* dirent)
+{
+	std::stringstream	stream;
+	std::string			tmpBody;
+	std::ostringstream	responseStream;
+	std::string			responseString;
+
+	std::ifstream	resource((fullPath + std::string(dirent->d_name)).c_str());
+	if (!resource.is_open())
+	{
+		std::cout << "cannot read file" << std::endl;
+		return ;
+	}
+	_response.line += std::string(dirent->d_name) + " 200 OK";
+	stream << resource.rdbuf();
+	tmpBody = stream.str();
+	_response.headers.find("Content-length")->second = tmpBody.length();
+	_response.body = tmpBody;
+
+	responseStream << _response.line << std::endl;
+	std::map<std::string, std::string>::iterator	iter = _response.headers.begin();
+
+	while (iter != _response.headers.end())
+	{
+		responseStream << (*iter).first << ": " << (*iter).second << std::endl;
+		iter++;
+	}
+	responseStream << std::endl << std::endl;
+	responseStream << _response.body;
+
+	responseString = responseStream.str();
+
+	send(_connfd, responseString.c_str(), responseString.length(), 0);
+
+	std::cout << "SENT RESPONSE" << std::endl;
+	std::cout << responseString << std::endl;
 }
 
 t_location*	VirtServ::searchLocationBlock(std::string method, std::string path)
@@ -423,7 +452,7 @@ void		VirtServ::sendResponse()
 	std::string	sendMessage;
 	long		bytesSent;
 
-	message = "<!DOCTYPE html><html lang=\"en\"><body><h1> HOME </h1><p> Hello from your Server :) </p></body></html>";
+	message = "FUNCTION sendResponse TEXT:\n\n<!DOCTYPE html><html lang=\"en\"><body><h1> HOME </h1><p> Hello from your Server :) </p></body></html>";
     std::ostringstream ss;
     ss << "HTTP/1.1 200 OK\nContent-Type: text/html\nContent-Length: " << message.size() << "\n\n" << message;
 
