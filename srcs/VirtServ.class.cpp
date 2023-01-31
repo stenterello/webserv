@@ -340,6 +340,7 @@ FILE*		VirtServ::tryGetResource(std::string filename, t_config tmpConfig)
 void		VirtServ::answer(std::string fullPath, struct dirent* dirent)
 {
 	std::stringstream	stream;
+	std::string			tmpString;
 	std::string			tmpBody;
 	std::ostringstream	responseStream;
 	std::string			responseString;
@@ -350,21 +351,25 @@ void		VirtServ::answer(std::string fullPath, struct dirent* dirent)
 		std::cout << "cannot read file" << std::endl;
 		return ;
 	}
-	_response.line += std::string(dirent->d_name) + " 200 OK";
+	_response.line += "200 OK";
 	stream << resource.rdbuf();
 	tmpBody = stream.str();
-	_response.headers.find("Content-length")->second = tmpBody.length();
+	stream.str("");
+	std::map<std::string, std::string>::iterator	iter2 = _response.headers.find("Content-length");
+	stream << tmpBody.length();
+	stream >> tmpString;
+	(*iter2).second = tmpString;
 	_response.body = tmpBody;
 
-	responseStream << _response.line << std::endl;
+	responseStream << _response.line << "\r" << std::endl;
 	std::map<std::string, std::string>::iterator	iter = _response.headers.begin();
 
 	while (iter != _response.headers.end())
 	{
-		responseStream << (*iter).first << ": " << (*iter).second << std::endl;
+		responseStream << (*iter).first << ": " << (*iter).second << "\r" << std::endl;
 		iter++;
 	}
-	responseStream << std::endl << std::endl;
+	responseStream << "\r" << std::endl << "\r" << std::endl;
 	responseStream << _response.body;
 
 	responseString = responseStream.str();
