@@ -29,6 +29,7 @@ class VirtServ
 		void				tryFiles(std::string value, t_config tmpConfig);
 		FILE*				tryGetResource(std::string filename, t_config tmpConfig);
 		void				answer(std::string fullPath, struct dirent* dirent);
+		void				answerAutoindex(std::string fullPath, DIR* directory);
 		void				sendResponse();
 
 	public:

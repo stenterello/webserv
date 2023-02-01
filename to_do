@@ -30,3 +30,5 @@ Appunti generali per quanto riguarda la gestione della richiesta HTTP:
 - Segmentation fault se si tenta di accedere in HTTPS!!!
 
 - LEAKS
+
+- Il valore di ritorno della funzione tryGetResource non ha senso

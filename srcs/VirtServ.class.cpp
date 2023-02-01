@@ -328,13 +328,55 @@ FILE*		VirtServ::tryGetResource(std::string filename, t_config tmpConfig)
 	}
 	else if (tmpConfig.autoindex)
 	{
-		std::cout << "ready to autoindex directory" << std::endl;
+		answerAutoindex(fullPath, directory);
 	}
 	else
 	{
 		std::cout << "404 because there is no autoindex" << std::endl;
 	}
 	return (NULL);
+}
+
+void		VirtServ::answerAutoindex(std::string fullPath, DIR* directory)
+{
+	std::stringstream	stream;
+	struct dirent*		dirent;
+	struct stat			attr;
+	std::string			tmpString;
+
+	stream << "<html>\n<head><title>Index of " \
+		<< _request.line.substr(0, _request.line.find_first_of(" ")) << "</title></head>\n<body>\n<h1>Index of " << _request.line.substr(0, _request.line.find_first_of(" ")) << "</h1><hr><pre>";
+	dirent = readdir(directory);
+	while (dirent != NULL)
+	{
+		stat((fullPath + dirent->d_name).c_str(), &attr);
+		stream << "<a href=\"" << dirent->d_name << "\">" << dirent->d_name << "</a>\t\t\t\t\t\t\t\t\t\t" << ctime(&attr.st_mtime) << "\t\t\t\t\t" << attr.st_size << "\n";
+		dirent = readdir(directory);
+	}
+	stream << "</pre><hr></body>\n</html>";
+	_response.body = stream.str();
+	stream.str("");
+	stream << _request.body.length();
+	stream >> tmpString;
+	_request.headers.find("Content-length")->second = tmpString;
+
+	stream.str("");
+	stream << _response.line << "\r" << std::endl;
+	std::map<std::string, std::string>::iterator	iter = _response.headers.begin();
+
+	while (iter != _response.headers.end())
+	{
+		stream << (*iter).first << ": " << (*iter).second << "\r" << std::endl;
+		iter++;
+	}
+	stream << "\r" << std::endl;
+	stream << _response.body;
+
+	tmpString = stream.str();
+
+	send(_connfd, tmpString.c_str(), tmpString.size(), 0);
+	std::cout << "SENT RESPONSE" << std::endl;
+	std::cout << tmpString << std::endl;
 }
 
 void		VirtServ::answer(std::string fullPath, struct dirent* dirent)
@@ -374,9 +416,7 @@ void		VirtServ::answer(std::string fullPath, struct dirent* dirent)
 
 	responseString = responseStream.str();
 
-	int	bytes = send(_connfd, responseString.c_str(), responseString.size(), 0);
-	std::cout << "bytes: " << bytes << std::endl;
-	std::cout << "size: " << responseString.size() << std::endl;
+	send(_connfd, responseString.c_str(), responseString.size(), 0);
 
 	std::cout << "SENT RESPONSE" << std::endl;
 	std::cout << responseString << std::endl;
