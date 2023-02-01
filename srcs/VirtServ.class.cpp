@@ -51,7 +51,7 @@ bool	VirtServ::startServer()
 		std::cerr << "Socket error" << std::endl;
 		return (false);
 	}
-	fcntl(_sockfd, F_SETFL, O_NONBLOCK);
+	// fcntl(_sockfd, F_SETFL, O_NONBLOCK);
 	if (setsockopt(_sockfd, SOL_SOCKET, SO_REUSEADDR, (const char *)&i, sizeof(i)) < 0)
 	{
 		std::cerr << "setsockopt() error" << std::endl;
@@ -125,7 +125,7 @@ void	VirtServ::handleClient(int i)
 			{
 				cleanRequest();
 				readRequest(buf);
-				elaborateRequest(dest_fd);
+				elaborateRequest(sender_fd);
 			}
 		}
 	}
