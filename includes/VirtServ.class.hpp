@@ -31,6 +31,9 @@ class VirtServ
 		void				answer(std::string fullPath, struct dirent* dirent);
 		void				answerAutoindex(std::string fullPath, DIR* directory);
 		void				sendResponse();
+		// Poll Functions
+		void 				add_to_pfds(struct pollfd *pfds[], int newfd, int *fd_count, int *fd_size);
+		void 				del_from_pfds(struct pollfd pfds[], int i, int *fd_count);
 
 		struct pollfd		*_pfds;
 		int					_fd_size;
@@ -43,10 +46,6 @@ class VirtServ
 		int					getSocket();
 		int					getConnectionFd();
 
-		// Poll Functions
-		void 				add_to_pfds(struct pollfd *pfds[], int newfd, int *fd_count, int *fd_size);
-		void 				del_from_pfds(struct pollfd pfds[], int i, int *fd_count);
-		int 				get_listener_socket(std::string addr, const char *port);
 
 		// Select
 		// bool				selectList();
