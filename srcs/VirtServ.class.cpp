@@ -69,22 +69,81 @@ bool	VirtServ::startServer()
 	return (true);
 }
 
+void	VirtServ::acceptConnectionAddFd()
+{
+	socklen_t				addrlen;
+	int						newfd;
+	struct sockaddr_storage	remoteaddr;
+	char					remoteIP[INET6_ADDRSTRLEN];
+
+	// If listener is ready to read, handle new connection
+	addrlen = sizeof remoteaddr;
+	newfd = accept(_sockfd,
+		(struct sockaddr *)&remoteaddr,
+		&addrlen);
+	if (newfd == -1) {
+		perror("accept");
+	} else {
+		add_to_pfds(&_pfds, newfd, &_fd_count, &_fd_size);
+		printf("pollserver: new connection from %s on "
+			"socket %d\n", inet_ntop(remoteaddr.ss_family,
+				&_sin.sin_addr,
+				remoteIP, INET6_ADDRSTRLEN),
+			newfd);
+	}
+}
+
+// void	VirtServ::buildResponse();
+// {
+
+// }
+void	VirtServ::handleClient(int i)
+{
+	char					buf[256];
+
+	// If not the listener, we're just a regular client
+	int nbytes = recv(_pfds[i].fd, buf, sizeof buf, 0);
+	int sender_fd = _pfds[i].fd;
+	if (nbytes <= 0) {
+		// Got error or connection closed by client
+		if (nbytes == 0) {
+			// Connection closed
+			printf("pollserver: socket %d hung up\n", sender_fd);
+		} else {
+			perror("recv");
+		}
+		close(_pfds[i].fd); // Bye!
+		del_from_pfds(_pfds, i, &_fd_count);
+	} else {
+		// We got some good data from a client
+		for(int j = 0; j < _fd_count; j++) {
+			// Send to everyone!
+			int dest_fd = _pfds[j].fd;
+			// Except the listener and ourselves
+			if (dest_fd != _sockfd && dest_fd != sender_fd) {
+				if (send(dest_fd, buf, nbytes, 0) == -1) {
+					perror("send");
+				}
+			}
+			else
+			{
+				cleanRequest();
+				readRequest(buf);
+				elaborateRequest(dest_fd);
+			}
+		}
+	}
+}
+
 bool    VirtServ::startListen()
 {
 	this->_fd_size = 5;
-	struct sockaddr_storage	remoteaddr;   // Client address
-	socklen_t				addrlen;
-	int						newfd;        // Newly accept()ed socket descriptor
-	char					buf[256];     // Buffer for client data
-
 	this->_pfds = (struct pollfd*)malloc(sizeof(*_pfds) * _fd_size);  // We  start creating arbitrary 5 sockets
 
 	 // Add the listener to set
 	_pfds[0].fd = _sockfd;
 	_pfds[0].events = POLLIN; // Report ready to read on incoming connection
 	this->_fd_count = 1; // For the listener
-	char remoteIP[INET6_ADDRSTRLEN];
-
 
 	for(;;) {
 		int poll_count = poll(_pfds, _fd_count, -1);
@@ -93,53 +152,14 @@ bool    VirtServ::startListen()
 			exit(1);
 		}
 		// Run through the existing connections looking for data to read
-		for(int i = 0; i < _fd_count; i++) {
+		for (int i = 0; i < _fd_count; i++) {
 			// Check if someone's ready to read
-			if (_pfds[i].revents & POLLIN) { // We got one!!
-				if (_pfds[i].fd == _sockfd) {
-					// If listener is ready to read, handle new connection
-					addrlen = sizeof remoteaddr;
-					newfd = accept(_sockfd,
-						(struct sockaddr *)&remoteaddr,
-						&addrlen);
-					if (newfd == -1) {
-						perror("accept");
-					} else {
-						add_to_pfds(&_pfds, newfd, &_fd_count, &_fd_size);
-						printf("pollserver: new connection from %s on "
-							"socket %d\n", inet_ntop(remoteaddr.ss_family,
-                                &_sin.sin_addr,
-                                remoteIP, INET6_ADDRSTRLEN),
-							newfd);
-					}
-				} else {
-					// If not the listener, we're just a regular client
-					int nbytes = recv(_pfds[i].fd, buf, sizeof buf, 0);
-					int sender_fd = _pfds[i].fd;
-					if (nbytes <= 0) {
-						// Got error or connection closed by client
-						if (nbytes == 0) {
-							// Connection closed
-							printf("pollserver: socket %d hung up\n", sender_fd);
-						} else {
-							perror("recv");
-						}
-						close(_pfds[i].fd); // Bye!
-						del_from_pfds(_pfds, i, &_fd_count);
-					} else {
-						// We got some good data from a client
-						for(int j = 0; j < _fd_count; j++) {
-							// Send to everyone!
-							int dest_fd = _pfds[j].fd;
-							// Except the listener and ourselves
-							if (dest_fd != _sockfd && dest_fd != sender_fd) {
-								if (send(dest_fd, buf, nbytes, 0) == -1) {
-									perror("send");
-								}
-							}
-						}
-					}
-				} // END handle data from client
+			if (_pfds[i].revents & POLLIN) // We got one!!
+			{
+				if (_pfds[i].fd == _sockfd)
+					acceptConnectionAddFd();
+				else
+					handleClient(i); // END handle data from client
 			} // END got ready-to-read from poll()
 		} // END looping through file descriptors
 	} // END for(;;)--and you thought it would never end!
@@ -224,7 +244,7 @@ void	VirtServ::readRequest(std::string req)
 	std::cout << _request.body << std::endl;
 }
 
-void		VirtServ::elaborateRequest()
+void		VirtServ::elaborateRequest(int dest_fd)
 {
 	std::string	method;
 	std::string	path;
@@ -237,10 +257,10 @@ void		VirtServ::elaborateRequest()
 	location = searchLocationBlock(method, path);
 	// if (!location)
 	// RETURN 404
-	executeLocationRules(location->text);
+	executeLocationRules(location->text, dest_fd);
 }
 
-void		VirtServ::executeLocationRules(std::string text)
+void		VirtServ::executeLocationRules(std::string text, int dest_fd)
 {
 	t_config	tmpConfig(_config);
 	std::string	line;
@@ -306,16 +326,16 @@ void		VirtServ::executeLocationRules(std::string text)
 			case 4:
 				Parser::checkClientBodyMaxSize(value, tmpConfig); break ;
 			case 5:
-				tryFiles(value, tmpConfig); return ;
+				tryFiles(value, tmpConfig, dest_fd); return ;
 			default: die("Unrecognized location rule. Aborting", *this);
 		}
 		text = text.substr(text.find("\n") + 1);
-		text = text.substr(text.find_first_not_of(" \t"));
+		text = text.substr(text.find_first_not_of(" \t\n"));
 	}
 	(void)tmpConfig;
 }
 
-void		VirtServ::tryFiles(std::string value, t_config tmpConfig)
+void		VirtServ::tryFiles(std::string value, t_config tmpConfig, int dest_fd)
 {
 	std::vector<std::string>	files;
 	std::string					defaultFile;
@@ -332,7 +352,7 @@ void		VirtServ::tryFiles(std::string value, t_config tmpConfig)
 	std::vector<std::string>::iterator	iter = files.begin();
 	while (iter != files.end())
 	{
-		resource = tryGetResource(*iter, tmpConfig);
+		resource = tryGetResource(*iter, tmpConfig, dest_fd);
 		if (resource)
 		{
 			std::cout << "Eccola" << std::endl;
@@ -340,12 +360,12 @@ void		VirtServ::tryFiles(std::string value, t_config tmpConfig)
 		}
 		iter++;
 	}
-	resource = tryGetResource(defaultFile, tmpConfig);
+	resource = tryGetResource(defaultFile, tmpConfig, dest_fd);
 	// if (!resource)
 		// ritorna 404
 }
 
-FILE*		VirtServ::tryGetResource(std::string filename, t_config tmpConfig)
+FILE*		VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int dest_fd)
 {
 	std::string		fullPath = tmpConfig.root;
 	DIR*			directory;
@@ -377,13 +397,13 @@ FILE*		VirtServ::tryGetResource(std::string filename, t_config tmpConfig)
 		while (dirent != NULL)
 		{
 			if (!filename.compare(dirent->d_name))
-				answer(fullPath, dirent);
+				answer(fullPath, dirent, dest_fd);
 			dirent = readdir(directory);
 		}
 	}
 	else if (tmpConfig.autoindex)
 	{
-		answerAutoindex(fullPath, directory);
+		answerAutoindex(fullPath, directory, dest_fd);
 	}
 	else
 	{
@@ -392,7 +412,7 @@ FILE*		VirtServ::tryGetResource(std::string filename, t_config tmpConfig)
 	return (NULL);
 }
 
-void		VirtServ::answerAutoindex(std::string fullPath, DIR* directory)
+void		VirtServ::answerAutoindex(std::string fullPath, DIR* directory, int dest_fd)
 {
 	std::stringstream	stream;
 	struct dirent*		dirent;
@@ -429,12 +449,12 @@ void		VirtServ::answerAutoindex(std::string fullPath, DIR* directory)
 
 	tmpString = stream.str();
 
-	send(_connfd, tmpString.c_str(), tmpString.size(), 0);
+	send(dest_fd, tmpString.c_str(), tmpString.size(), 0);
 	std::cout << "SENT RESPONSE" << std::endl;
 	std::cout << tmpString << std::endl;
 }
 
-void		VirtServ::answer(std::string fullPath, struct dirent* dirent)
+void		VirtServ::answer(std::string fullPath, struct dirent* dirent, int dest_fd)
 {
 	std::stringstream	stream;
 	std::string			tmpString;
@@ -471,7 +491,7 @@ void		VirtServ::answer(std::string fullPath, struct dirent* dirent)
 
 	responseString = responseStream.str();
 
-	send(_connfd, responseString.c_str(), responseString.size(), 0);
+	send(dest_fd, responseString.c_str(), responseString.size(), 0);
 
 	std::cout << "SENT RESPONSE" << std::endl;
 	std::cout << responseString << std::endl;
