@@ -51,7 +51,7 @@ bool	VirtServ::startServer()
 		std::cerr << "Socket error" << std::endl;
 		return (false);
 	}
-	// fcntl(_sockfd, F_SETFL, O_NONBLOCK);
+	fcntl(_sockfd, F_SETFL, O_NONBLOCK);
 	if (setsockopt(_sockfd, SOL_SOCKET, SO_REUSEADDR, (const char *)&i, sizeof(i)) < 0)
 	{
 		std::cerr << "setsockopt() error" << std::endl;
@@ -93,10 +93,6 @@ void	VirtServ::acceptConnectionAddFd()
 	}
 }
 
-// void	VirtServ::buildResponse();
-// {
-
-// }
 void	VirtServ::handleClient(int i)
 {
 	char					buf[256];
@@ -402,52 +398,50 @@ FILE*		VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int de
 		}
 	}
 	else if (tmpConfig.autoindex)
-	{
 		answerAutoindex(fullPath, directory, dest_fd);
-	}
 	else
-	{
 		std::cout << "404 because there is no autoindex" << std::endl;
-	}
 	return (NULL);
 }
 
 void		VirtServ::answerAutoindex(std::string fullPath, DIR* directory, int dest_fd)
 {
-	std::stringstream	stream;
+	std::string			body;
+	std::ostringstream	convert;
 	struct dirent*		dirent;
 	struct stat			attr;
 	std::string			tmpString;
+	std::stringstream	output;
 
-	stream << "<html>\n<head><title>Index of " \
-		<< _request.line.substr(0, _request.line.find_first_of(" ")) << "</title></head>\n<body>\n<h1>Index of " << _request.line.substr(0, _request.line.find_first_of(" ")) << "</h1><hr><pre>";
+	_response.line = "HTTP/1.1 200 OK";
+	body = "<html>\n<head><title>Index of " + _request.line.substr(0, _request.line.find_first_of(" ")) + "</title></head>\n<body>\n<h1>Index of " + _request.line.substr(0, _request.line.find_first_of(" ")) + "</h1><hr><pre>";
 	dirent = readdir(directory);
 	while (dirent != NULL)
 	{
 		stat((fullPath + dirent->d_name).c_str(), &attr);
-		stream << "<a href=\"" << dirent->d_name << "\">" << dirent->d_name << "</a>\t\t\t\t\t\t\t\t\t\t" << ctime(&attr.st_mtime) << "\t\t\t\t\t" << attr.st_size << "\n";
+		convert << attr.st_size;
+		body += "<a href=\"" + std::string(dirent->d_name) + "\">" + dirent->d_name + "</a>\t\t\t\t\t\t\t\t\t\t" + ctime(&attr.st_mtime) + "\t\t\t\t\t" + convert.str() + "\n";
+		convert.str("");
 		dirent = readdir(directory);
 	}
-	stream << "</pre><hr></body>\n</html>";
-	_response.body = stream.str();
-	stream.str("");
-	stream << _request.body.length();
-	stream >> tmpString;
-	_request.headers.find("Content-length")->second = tmpString;
+	body += "</pre><hr></body>\n</html>";
+	_response.body = body;
+	convert << _response.body.length();
+	tmpString = convert.str();
+	_response.headers.find("Content-length")->second = tmpString;
 
-	stream.str("");
-	stream << _response.line << "\r" << std::endl;
+	output << _response.line << "\r" << std::endl;
 	std::map<std::string, std::string>::iterator	iter = _response.headers.begin();
 
 	while (iter != _response.headers.end())
 	{
-		stream << (*iter).first << ": " << (*iter).second << "\r" << std::endl;
+		output << (*iter).first << ": " << (*iter).second << "\r" << std::endl;
 		iter++;
 	}
-	stream << "\r" << std::endl;
-	stream << _response.body;
+	output << "\r" << std::endl;
+	output << _response.body;
 
-	tmpString = stream.str();
+	tmpString = output.str();
 
 	send(dest_fd, tmpString.c_str(), tmpString.size(), 0);
 	std::cout << "SENT RESPONSE" << std::endl;
