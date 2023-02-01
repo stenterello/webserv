@@ -1,6 +1,17 @@
 #include <Parser.class.hpp>
 #include <VirtServ.class.hpp>
-
+#include <poll.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <sys/time.h>
+#define PORT 8888
 
 //////// Constructors & Destructor //////////////////////////////
 
@@ -61,56 +72,195 @@ bool	VirtServ::startServer()
 	return (true);
 }
 
-bool	VirtServ::startListen()
+bool    VirtServ::startListen()
 {
-	int	bytes;
-
-	if (listen(_sockfd, 20) < 0)
-	{
-		std::cerr << "Listen failed" << std::endl;
-		return (false);
-	}
-	while (true)
-	{
-
-		// Accept connection
-
-		_size = sizeof(_client);
-		_connfd = accept(_sockfd, (struct sockaddr *)&_client, &_size);
-		if (_connfd < 0)
-		{
-			std::cerr << "Error while accepting connection." << std::endl;
-			return (false);
-		}
-
-		// Read communication from client
-		char	buffer[1048576] = { 0 };
-		bytes = recv(_connfd, buffer, 1048576, 0);
-		if (bytes == -1)
-		{
-			std::cerr << "Error receiving" << std::endl;
-			return (false);
-		}
-
-		// Parse request
-		cleanRequest();
-		readRequest(buffer);
-		elaborateRequest();
-
-		// Parse Response da implementare in base al path della Request
-		// dove si andrà a popolare _response con i vari campi descritti in costruzione
-		// Potrebbero servire altri campi, questi sono quelli essenziali ! 
-		// selectRepsonse();
-
-		// Send Response
-		sendResponse();
-
-		// Close connection
-		close(_connfd);
-		_connfd = 0;
-	}
-	return (true);
+    this->_fd_size = 5;
+    struct sockaddr_storage remoteaddr;   // Client address
+    socklen_t               addrlen;
+    int                     newfd;        // Newly accept()ed socket descriptor
+    char                    buf[256];     // Buffer for client data
+    this->_pfds = (struct pollfd*)malloc(sizeof(*_pfds) * _fd_size);  // We  start creating arbitrary 5 sockets
+    // Set up and get a listening socket
+    _sockfd = get_listener_socket(_config.host.c_str(), "12372");
+    if (_sockfd == -1) {
+        fprintf(stderr, "error getting listening socket\n");
+        exit(1);
+    }
+     // Add the listener to set
+    _pfds[0].fd = _sockfd;
+    _pfds[0].events = POLLIN; // Report ready to read on incoming connection
+    this->_fd_count = 1; // For the listener
+    for(;;) {
+        int poll_count = poll(_pfds, _fd_count, -1);
+        if (poll_count == -1) {
+            perror("poll");
+            exit(1);
+        }
+        // Run through the existing connections looking for data to read
+        for(int i = 0; i < _fd_count; i++) {
+            // Check if someone's ready to read
+            if (_pfds[i].revents & POLLIN) { // We got one!!
+                if (_pfds[i].fd == _sockfd) {
+                    // If listener is ready to read, handle new connection
+                    addrlen = sizeof remoteaddr;
+                    newfd = accept(_sockfd,
+                        (struct sockaddr *)&remoteaddr,
+                        &addrlen);
+                    if (newfd == -1) {
+                        perror("accept");
+                    } else {
+                        add_to_pfds(&_pfds, newfd, &_fd_count, &_fd_size);
+                        printf("pollserver: new connection from %s on "
+                            "socket %d\n", "localhost",
+                            newfd);
+                    }
+                } else {
+                    // If not the listener, we're just a regular client
+                    int nbytes = recv(_pfds[i].fd, buf, sizeof buf, 0);
+                    int sender_fd = _pfds[i].fd;
+                    if (nbytes <= 0) {
+                        // Got error or connection closed by client
+                        if (nbytes == 0) {
+                            // Connection closed
+                            printf("pollserver: socket %d hung up\n", sender_fd);
+                        } else {
+                            perror("recv");
+                        }
+                        close(_pfds[i].fd); // Bye!
+                        del_from_pfds(_pfds, i, &_fd_count);
+                    } else {
+                        // We got some good data from a client
+                        for(int j = 0; j < _fd_count; j++) {
+                            // Send to everyone!
+                            int dest_fd = _pfds[j].fd;
+                            // Except the listener and ourselves
+                            if (dest_fd != _sockfd && dest_fd != sender_fd) {
+                                if (send(dest_fd, buf, nbytes, 0) == -1) {
+                                    perror("send");
+                                }
+                            }
+                        }
+                    }
+                } // END handle data from client
+            } // END got ready-to-read from poll()
+        } // END looping through file descriptors
+    } // END for(;;)--and you thought it would never end!
+    return (true);
 }
+
+// Add a new file descriptor to the set
+void VirtServ::add_to_pfds(struct pollfd *pfds[], int newfd, int *fd_count, int *fd_size)
+{
+    // If we don't have room, add more space in the pfds array
+    if (*fd_count == *fd_size) {
+        *fd_size *= 2; // Double it
+        *pfds = (struct pollfd *)realloc(*pfds, sizeof(**pfds) * (*fd_size));
+    }
+    (*pfds)[*fd_count].fd = newfd;
+    (*pfds)[*fd_count].events = POLLIN; // Check ready-to-read
+    (*fd_count)++;
+}
+
+// Remove an index from the set
+void VirtServ::del_from_pfds(struct pollfd pfds[], int i, int *fd_count)
+{
+    // Copy the one from the end over this one
+    pfds[i] = pfds[*fd_count-1];
+    (*fd_count)--;
+}
+
+// Return a listening socket
+int VirtServ::get_listener_socket(std::string addr, const char *port)
+{
+    int listener;     // Listening socket descriptor
+    int yes=1;        // For setsockopt() SO_REUSEADDR, below
+    int rv;
+    addr.begin();
+    struct addrinfo hints, *ai, *p;
+    // Get us a socket and bind it
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+    if ((rv = getaddrinfo(NULL, port, &hints, &ai)) != 0) {
+        fprintf(stderr, "selectserver: %s\n", gai_strerror(rv));
+        exit(1);
+    }
+    for(p = ai; p != NULL; p = p->ai_next) {
+        listener = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+        if (listener < 0) {
+            continue;
+        }
+        // Lose the pesky "address already in use" error message
+        setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
+        if (bind(listener, p->ai_addr, p->ai_addrlen) < 0) {
+            close(listener);
+            continue;
+        }
+        break;
+    }
+    freeaddrinfo(ai); // All done with this
+    // If we got here, it means we didn't get bound
+    if (p == NULL) {
+        return -1;
+    }
+    // Listen
+    if (listen(listener, 10) == -1) {
+        return -1;
+    }
+    return listener;
+}
+
+// bool	VirtServ::startListen()
+// {
+// 	int	bytes;
+
+// 	if (listen(_sockfd, 20) < 0)
+// 	{
+// 		std::cerr << "Listen failed" << std::endl;
+// 		return (false);
+// 	}
+// 	while (true)
+// 	{
+
+// 		// Accept connection
+
+// 		_size = sizeof(_client);
+// 		_connfd = accept(_sockfd, (struct sockaddr *)&_client, &_size);
+// 		if (_connfd < 0)
+// 		{
+// 			std::cerr << "Error while accepting connection." << std::endl;
+// 			return (false);
+// 		}
+
+// 		// Read communication from client
+// 		char	buffer[1048576] = { 0 };
+// 		bytes = recv(_connfd, buffer, 1048576, 0);
+// 		if (bytes == -1)
+// 		{
+// 			std::cerr << "Error receiving" << std::endl;
+// 			return (false);
+// 		}
+
+// 		// Parse request
+// 		cleanRequest();
+// 		readRequest(buffer);
+// 		elaborateRequest();
+
+// 		// Parse Response da implementare in base al path della Request
+// 		// dove si andrà a popolare _response con i vari campi descritti in costruzione
+// 		// Potrebbero servire altri campi, questi sono quelli essenziali ! 
+// 		// selectRepsonse();
+
+// 		// Send Response
+// 		sendResponse();
+
+// 		// Close connection
+// 		close(_connfd);
+// 		_connfd = 0;
+// 	}
+// 	return (true);
+// }
 
 bool	VirtServ::stopServer()
 {
