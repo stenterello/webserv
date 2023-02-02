@@ -1,4 +1,5 @@
 #include <Parser.class.hpp>
+#include <Server.class.hpp>
 #include <VirtServ.class.hpp>
 #include <poll.h>
 #include <stdio.h>
@@ -15,7 +16,7 @@
 
 //////// Constructors & Destructor //////////////////////////////
 
-VirtServ::VirtServ(t_config config) : _config(config), _connfd(0)
+VirtServ::VirtServ(t_config config, Server* server) : _server(server), _config(config), _connfd(0)
 {
 	memset(&_sin, '\0', sizeof(_sin));
 	memset(&_client, '\0', sizeof(_client));
@@ -76,6 +77,73 @@ bool	VirtServ::stopServer()
 	}
 	return (true);
 }
+
+void	VirtServ::acceptConnectionAddFd(int fd_count, int fd_size, int sockfd)
+{
+	socklen_t				addrlen;
+	struct sockaddr_storage	remoteaddr;
+
+	// If listener is ready to read, handle new connection
+	addrlen = sizeof remoteaddr;
+	_connfd = accept(sockfd,
+		(struct sockaddr *)&remoteaddr,
+		&addrlen);
+	if (_connfd == -1) {
+		perror("accept");
+	} else {
+		struct pollfd*	pollfd = _server->getPollStruct();
+		_server->add_to_pfds(&pollfd, _connfd, &fd_count, &fd_size);
+		printf("pollserver: new connection from %s on "
+			"socket %d\n", "server ip address",
+			_connfd);
+	}
+	// In questo modo il newfd si perde dopo questa funzione, invece che essere salvato
+	// Viene inviata la risposta a dest_fd, che è preso dalla lista pdfs, la quale contiene
+	// i socket e non gli fd di connessione
+}
+
+void	VirtServ::handleClient(int i, int fd_count)
+{
+	char					buf[256];
+
+	std::cout << "VALUE OF I IS: " << i << std::endl;
+	// If not the listener, we're just a regular client
+	int nbytes = recv(_server->getPollStruct()[i].fd, buf, sizeof buf, 0);
+	int sender_fd = _server->getPollStruct()[i].fd;
+	if (nbytes <= 0) {
+		// Got error or connection closed by client
+		if (nbytes == 0) {
+			// Connection closed
+			printf("pollserver: socket %d hung up\n", sender_fd);
+		} else {
+			perror("recv");
+		}
+		close(_server->getPollStruct()[i].fd); // Bye!
+		_server->del_from_pfds(_server->getPollStruct(), i, &fd_count);
+	} else {
+		// We got some good data from a client
+		for(int j = 0; j < fd_count; j++) {
+			// Send to everyone!
+			int dest_fd = _server->getPollStruct()[j].fd;
+			// Except the listener and ourselves
+			for(std::vector<VirtServ>::iterator it = _server->getVirtServ().begin(); it < _server->getVirtServ().end(); it++) {
+				if (dest_fd != it->getSockfd() && dest_fd != sender_fd) {
+					if (send(_connfd, buf, nbytes, 0) == -1) {
+						perror("send");
+					}
+				}
+				else
+				{
+					it->cleanRequest();
+					it->readRequest(buf);
+					it->elaborateRequest(_connfd);
+				}
+			}
+		}
+	}
+	std::cout << "FINE HANDLE" << std::endl;
+}
+
 
 void	VirtServ::readRequest(std::string req)
 {

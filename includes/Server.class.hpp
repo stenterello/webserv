@@ -1,6 +1,7 @@
 #ifndef SERVER_CLASS_HPP
 # define SERVER_CLASS_HPP
 
+class VirtServ;
 # include <VirtServ.class.hpp>
 # include <Parser.class.hpp>
 # include <webserv.hpp>
@@ -25,11 +26,12 @@ class Server
 		Server(const char* filename);
 		~Server();
 
+		struct pollfd*			getPollStruct();
+		std::vector<VirtServ>	getVirtServ();
+
 		bool	startListen();
 
 		// Poll Functions
-		void				acceptConnectionAddFd(int fd_count, int fd_size, int sockfd);
-		void				handleClient(int i, int fd_count);
 		void 				add_to_pfds(struct pollfd *pfds[], int newfd, int *fd_count, int *fd_size);
 		void 				del_from_pfds(struct pollfd pfds[], int i, int *fd_count);
 
