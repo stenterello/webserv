@@ -38,9 +38,6 @@ class VirtServ
 		void				readRequest(std::string req);
 		void				elaborateRequest(int dest_fd);
 
-
-		// Select
-		// bool				selectList();
 		t_config			getConfig() { return _config; };
 		int					getSockfd() { return _sockfd; };
 		bool				sendAll(int socket, char *buf, size_t *len);

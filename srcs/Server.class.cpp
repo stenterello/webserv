@@ -11,10 +11,8 @@ Server::Server(const char* filename) : _filename(filename == NULL ? "default.con
 	std::vector<VirtServ>::iterator		iter = _virtServs.begin();
 	std::vector<t_config>::iterator		iterConfig = _config.begin();
 
-	std::cout << "TEST 0 !!!" << std::endl;
 	while (iterConfig != _config.end())
 	{
-		std::cout << "TEST 1 !!!" << std::endl;
 		_virtServs.push_back(VirtServ(*iterConfig));
 		iter++;
 		iterConfig++;
@@ -65,6 +63,9 @@ void	Server::acceptConnectionAddFd(int fd_count, int fd_size, int sockfd)
 			"socket %d\n", "server ip address",
 			newfd);
 	}
+	// In questo modo il newfd si perde dopo questa funzione, invece che essere salvato
+	// Viene inviata la risposta a dest_fd, che è preso dalla lista pdfs, la quale contiene
+	// i socket e non gli fd di connessione
 }
 
 void	Server::handleClient(int i, int fd_count)
@@ -99,9 +100,9 @@ void	Server::handleClient(int i, int fd_count)
 				}
 				else
 				{
-				it->cleanRequest();
-				it->readRequest(buf);
-				it->elaborateRequest(sender_fd);
+					it->cleanRequest();
+					it->readRequest(buf);
+					it->elaborateRequest(sender_fd);
 				}
 			}
 		}
@@ -112,14 +113,16 @@ void	Server::handleClient(int i, int fd_count)
 bool    Server::startListen()
 {
 	std::stack<int>	vServSock;
-	int fd_count = 0; // For the listener
+	int				fd_count = 0; // For the listener
+	int				fd_size;
 
 	for(std::vector<VirtServ>::iterator it = _virtServs.begin(); it < _virtServs.end(); it++) {
 		std::cout << it->getConfig().port << std::endl;
 		vServSock.push(it->getSockfd());
 	}
-	int	fd_size = vServSock.size();
-	this->_pfds = (struct pollfd*)malloc(sizeof(*_pfds) * fd_size);  // We  start creating arbitrary 5 sockets
+	fd_size = vServSock.size();
+	this->_pfds = (struct pollfd*)malloc(sizeof(*_pfds) * fd_size);
+	
 	 // Add the listener to set
 	for(int i = 0; vServSock.size() > 0; i++) {
 		_pfds[i].fd = vServSock.top();
@@ -135,7 +138,7 @@ bool    Server::startListen()
 			exit(1);
 		}
 		// Run through the existing connections looking for data to read
-		for(std::vector<VirtServ>::iterator it = _virtServs.begin(); it < _virtServs.end(); it++) {
+		for(std::vector<VirtServ>::iterator it = _virtServs.begin(); it != _virtServs.end(); it++) {
 			for (int i = 0; i < fd_count; i++) {
 				// Check if someone's ready to read
 				if (_pfds[i].revents & POLLIN) // We got one!!
