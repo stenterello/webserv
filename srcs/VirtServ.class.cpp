@@ -27,8 +27,6 @@ VirtServ::VirtServ(t_config config) : _config(config), _connfd(0)
 
 	if (!this->startServer())
 		die("Server Failed to Start. Aborting... :(");
-	if (!this->startListen())
-		die("Server Failed to Listen. Aborting... :(", *this);
 }
 
 VirtServ::~VirtServ() {}
@@ -69,120 +67,6 @@ bool	VirtServ::startServer()
 	return (true);
 }
 
-void	VirtServ::acceptConnectionAddFd()
-{
-	socklen_t				addrlen;
-	int						newfd;
-	struct sockaddr_storage	remoteaddr;
-	char					remoteIP[INET6_ADDRSTRLEN];
-
-	// If listener is ready to read, handle new connection
-	addrlen = sizeof remoteaddr;
-	newfd = accept(_sockfd,
-		(struct sockaddr *)&remoteaddr,
-		&addrlen);
-	if (newfd == -1) {
-		perror("accept");
-	} else {
-		add_to_pfds(&_pfds, newfd, &_fd_count, &_fd_size);
-		printf("pollserver: new connection from %s on "
-			"socket %d\n", inet_ntop(remoteaddr.ss_family,
-				&_sin.sin_addr,
-				remoteIP, INET6_ADDRSTRLEN),
-			newfd);
-	}
-}
-
-void	VirtServ::handleClient(int i)
-{
-	char					buf[256];
-
-	// If not the listener, we're just a regular client
-	int nbytes = recv(_pfds[i].fd, buf, sizeof buf, 0);
-	int sender_fd = _pfds[i].fd;
-	if (nbytes <= 0) {
-		// Got error or connection closed by client
-		if (nbytes == 0) {
-			// Connection closed
-			printf("pollserver: socket %d hung up\n", sender_fd);
-		} else {
-			perror("recv");
-		}
-		close(_pfds[i].fd); // Bye!
-		del_from_pfds(_pfds, i, &_fd_count);
-	} else {
-		// We got some good data from a client
-		for(int j = 0; j < _fd_count; j++) {
-			// Send to everyone!
-			int dest_fd = _pfds[j].fd;
-			// Except the listener and ourselves
-			if (dest_fd != _sockfd && dest_fd != sender_fd) {
-				if (send(dest_fd, buf, nbytes, 0) == -1) {
-					perror("send");
-				}
-			}
-			else
-			{
-				cleanRequest();
-				readRequest(buf);
-				elaborateRequest(sender_fd);
-			}
-		}
-	}
-}
-
-bool    VirtServ::startListen()
-{
-	this->_fd_size = 5;
-	this->_pfds = (struct pollfd*)malloc(sizeof(*_pfds) * _fd_size);  // We  start creating arbitrary 5 sockets
-
-	 // Add the listener to set
-	_pfds[0].fd = _sockfd;
-	_pfds[0].events = POLLIN; // Report ready to read on incoming connection
-	this->_fd_count = 1; // For the listener
-
-	for(;;) {
-		int poll_count = poll(_pfds, _fd_count, -1);
-		if (poll_count == -1) {
-			perror("poll");
-			exit(1);
-		}
-		// Run through the existing connections looking for data to read
-		for (int i = 0; i < _fd_count; i++) {
-			// Check if someone's ready to read
-			if (_pfds[i].revents & POLLIN) // We got one!!
-			{
-				if (_pfds[i].fd == _sockfd)
-					acceptConnectionAddFd();
-				else
-					handleClient(i); // END handle data from client
-			} // END got ready-to-read from poll()
-		} // END looping through file descriptors
-	} // END for(;;)--and you thought it would never end!
-	return (true);
-}
-
-// Add a new file descriptor to the set
-void VirtServ::add_to_pfds(struct pollfd *pfds[], int newfd, int *fd_count, int *fd_size)
-{
-	// If we don't have room, add more space in the pfds array
-	if (*fd_count == *fd_size) {
-		*fd_size *= 2; // Double it
-		*pfds = (struct pollfd *)realloc(*pfds, sizeof(**pfds) * (*fd_size));
-	}
-	(*pfds)[*fd_count].fd = newfd;
-	(*pfds)[*fd_count].events = POLLIN; // Check ready-to-read
-	(*fd_count)++;
-}
-
-// Remove an index from the set
-void VirtServ::del_from_pfds(struct pollfd pfds[], int i, int *fd_count)
-{
-	// Copy the one from the end over this one
-	pfds[i] = pfds[*fd_count-1];
-	(*fd_count)--;
-}
-
 bool	VirtServ::stopServer()
 {
 	if (close(_sockfd))
@@ -191,19 +75,6 @@ bool	VirtServ::stopServer()
 		return (false);
 	}
 	return (true);
-}
-
-void	VirtServ::cleanRequest()
-{
-	_request.line = "";
-	_request.body = "";
-	std::map<std::string, std::string>::iterator	iter = _request.headers.begin();
-
-	while (iter != _request.headers.end())
-	{
-		(*iter).second = "";
-		iter++;
-	}
 }
 
 void	VirtServ::readRequest(std::string req)
@@ -254,6 +125,19 @@ void		VirtServ::elaborateRequest(int dest_fd)
 	// if (!location)
 	// RETURN 404
 	executeLocationRules(location->text, dest_fd);
+}
+
+void	VirtServ::cleanRequest()
+{
+	_request.line = "";
+	_request.body = "";
+	std::map<std::string, std::string>::iterator	iter = _request.headers.begin();
+
+	while (iter != _request.headers.end())
+	{
+		(*iter).second = "";
+		iter++;
+	}
 }
 
 void		VirtServ::executeLocationRules(std::string text, int dest_fd)
