@@ -41,7 +41,7 @@ class VirtServ
 		void				elaborateRequest(int dest_fd);
 
 		int				acceptConnectionAddFd(int sockfd);
-		int				handleClient(int fd_count);
+		int				handleClient(int fd, int fd_count);
 		t_config			getConfig() { return _config; };
 		int					getSockfd() { return _sockfd; };
 		bool				sendAll(int socket, char *buf, size_t *len);

@@ -108,47 +108,35 @@ int	VirtServ::acceptConnectionAddFd(int sockfd)
 	// i socket e non gli fd di connessione
 }
 
-int	VirtServ::handleClient(int fd_count)
+int	VirtServ::handleClient(int fd, int fd_count)
 {
-	char					buf[256];
+	char	buf[256];
+	int		i;
 
-	if (_connfd)
-		std::cout << "VALUE OF I IS: " << _connfd << std::endl;
-	// If not the listener, we're just a regular client
-	int nbytes = recv(_connfd, buf, sizeof buf, 0);
-	// int sender_fd = i;
+	if (fd != _connfd)
+		return (1);
+	int nbytes = recv(fd, buf, sizeof buf, 0);
 	if (nbytes <= 0) {
-		// Got error or connection closed by client
 		if (nbytes == 0) {
-			// Connection closed
-			printf("pollserver: socket %d hung up\n", _connfd);
+			printf("pollserver: socket %d hung up\n", fd);
 		} else {
 			perror("recv");
 		}
-		// close(i); // Bye!
 		return (1);
-		// _server->del_from_pfds(_server->getPollStruct(), i, &fd_count);
 	} else {
 		// We got some good data from a client
-		for(int j = 0; j < fd_count; j++) {
-			// Send to everyone!
-			// int dest_fd = _server->getPollStruct()[j].fd;
-			// Except the listener and ourselves
-				// if (dest_fd != i && dest_fd != sender_fd) {
-					if (_connfd)
-					{
-					std::cout << "CIAO ENTRA\n\n";
-					this->cleanRequest();
-					this->readRequest(buf);
-					this->elaborateRequest(_connfd);
-					close(_connfd);
-					_connfd = 0;
-					}
-				// }
-		}
+		// Send to everyone!
+		this->cleanRequest();
+		this->readRequest(buf);
+		this->elaborateRequest(fd);
+		close(fd);
+		i = 0;
+		for (; _server->getPollStruct()[i].fd != fd; i++)
+			;
+		_server->del_from_pfds(_server->getPollStruct(), i, &fd_count);
+		_connfd = 0;
 	}
-	std::cout << "FINE HANDLE" << std::endl;
-	return 0;
+	return (0);
 }
 
 
