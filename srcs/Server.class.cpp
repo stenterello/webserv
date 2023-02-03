@@ -84,23 +84,24 @@ bool    Server::startListen()
 		// Run through the existing connections looking for data to read
 		for(int i = 0; i < fd_count; i++) {
 			for (std::vector<VirtServ>::iterator it = _virtServs.begin(); it != _virtServs.end(); it++) {
-				// Check if someone's ready to read
-				if (_pfds[i].revents & POLLIN) // We got one!!
-				{
-					if (_pfds[i].fd == it->getSocket()) {
-						int tmpfd = it->acceptConnectionAddFd(it->getSocket());
-						if (tmpfd != -1)
-							this->add_to_pfds(&_pfds, tmpfd, &fd_count, &fd_size);
+			// Check if someone's ready to read
+			if (_pfds[i].revents & POLLIN) {
+				if (_pfds[i].fd == it->getSocket()) {
+					int tmpfd = it->acceptConnectionAddFd(it->getSocket());
+					if (tmpfd != -1)
+						this->add_to_pfds(&_pfds, tmpfd, &fd_count, &fd_size);
 						std::cout << "FINE CONNECTION" << std::endl;
-					}
-
 				} // END got ready-to-read from poll()
-				else {
-					std::cout << "HANDLE CLIENT" << std::endl;
-					it->handleClient(i, fd_count); // END handle data from client
-				}
-			}	
-		} // END looping through file descriptors
-	} // END for(;;)--and you thought it would never end!
+			} else {
+					if (_pfds[i].fd == it->getSocket()) {
+						if (it->handleClient(_pfds[i].fd, fd_count) == 1) {
+						close(_pfds[i].fd);
+						del_from_pfds(_pfds, i, &fd_count); // END handle data from client
+						}
+					}	
+				} // END looping through file descriptors 
+			} // END for(;;)--and you thought it would never end!
+		}
+	}
 	return (true);
 }

@@ -18,7 +18,6 @@
 
 VirtServ::VirtServ(t_config config, Server* server) : _server(server), _config(config)
 {
-	_indexFd = 0;
 	// memset(&_connfd, 0, sizeof(int));
 	memset(&_sin, '\0', sizeof(_sin));
 	memset(&_client, '\0', sizeof(_client));
@@ -37,7 +36,7 @@ VirtServ::~VirtServ() {}
 //////// Getters & Setters ///////////////////////////////////
 
 int		VirtServ::getSocket() { return (_sockfd); }
-int		VirtServ::getConnectionFd() { return (_connfd[_indexFd]); }
+int		VirtServ::getConnectionFd() { return (_connfd); }
 
 
 //////// Main Functions //////////////////////////////////////
@@ -87,20 +86,20 @@ int	VirtServ::acceptConnectionAddFd(int sockfd)
 
 	// If listener is ready to read, handle new connection
 	addrlen = sizeof remoteaddr;
-	_connfd[_indexFd] = accept(sockfd,
+	_connfd = accept(sockfd,
 		(struct sockaddr *)&remoteaddr,
 		&addrlen);
-	if (_connfd[_indexFd] == -1) {
+	if (_connfd == -1) {
 		perror("accept");
 		return -1;
 	} 
 	// else {
-		return (_connfd[_indexFd]);
+		return (_connfd);
 		// struct pollfd*	pollfd = _server->getPollStruct();
-		// _server->add_to_pfds(&pollfd, _connfd[_indexFd], &fd_count, &fd_size);
+		// _server->add_to_pfds(&pollfd, _connfd, &fd_count, &fd_size);
 		// printf("pollserver: new connection from %s on "
 		// 	"socket %d\n", "server ip address",
-		// 	_connfd[_indexFd]);
+		// 	_connfd);
 	// }
 	// _indexFd++;
 	// In questo modo il newfd si perde dopo questa funzione, invece che essere salvato
@@ -108,14 +107,14 @@ int	VirtServ::acceptConnectionAddFd(int sockfd)
 	// i socket e non gli fd di connessione
 }
 
-void	VirtServ::handleClient(int i, int fd_count)
+int	VirtServ::handleClient(int i, int fd_count)
 {
 	char					buf[256];
 
 	std::cout << "VALUE OF I IS: " << i << std::endl;
 	// If not the listener, we're just a regular client
-	int nbytes = recv(_server->getPollStruct()[i].fd, buf, sizeof buf, 0);
-	int sender_fd = _server->getPollStruct()[i].fd;
+	int nbytes = recv(i, buf, sizeof buf, 0);
+	int sender_fd = i;
 	if (nbytes <= 0) {
 		// Got error or connection closed by client
 		if (nbytes == 0) {
@@ -124,23 +123,25 @@ void	VirtServ::handleClient(int i, int fd_count)
 		} else {
 			perror("recv");
 		}
-		close(_server->getPollStruct()[i].fd); // Bye!
-		_server->del_from_pfds(_server->getPollStruct(), i, &fd_count);
+		// close(i); // Bye!
+		return (1);
+		// _server->del_from_pfds(_server->getPollStruct(), i, &fd_count);
 	} else {
 		// We got some good data from a client
 		for(int j = 0; j < fd_count; j++) {
 			// Send to everyone!
 			int dest_fd = _server->getPollStruct()[j].fd;
 			// Except the listener and ourselves
-				if (dest_fd != _server->getPollStruct()[i].fd && dest_fd != sender_fd) {
+				if (dest_fd != i && dest_fd != sender_fd) {
+					std::cout << "CIAO ENTRA\n\n";
 					this->cleanRequest();
 					this->readRequest(buf);
-					this->elaborateRequest(_connfd[_indexFd]);
+					this->elaborateRequest(i);
 				}
-			std::cout << "FINE HANDLE" << std::endl;
 		}
 	}
 	std::cout << "FINE HANDLE" << std::endl;
+	return 0;
 }
 
 
@@ -525,6 +526,6 @@ void		VirtServ::sendResponse()
 
 	sendMessage = ss.str();
 
-	bytesSent = send(_connfd[_indexFd], sendMessage.c_str(), sendMessage.size(), 0);
+	bytesSent = send(_connfd, sendMessage.c_str(), sendMessage.size(), 0);
 	(void)bytesSent;
 }
