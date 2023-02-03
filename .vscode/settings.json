@@ -72,6 +72,10 @@
 		"numeric": "cpp",
 		"random": "cpp",
 		"__tree": "cpp",
-		"map": "cpp"
+		"map": "cpp",
+		"compare": "cpp",
+		"concepts": "cpp",
+		"numbers": "cpp",
+		"cinttypes": "cpp"
 	}
 }

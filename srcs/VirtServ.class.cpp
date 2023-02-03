@@ -94,24 +94,15 @@ int	VirtServ::acceptConnectionAddFd(int sockfd)
 		perror("accept");
 		return -1;
 	} 
-	// else {
-		return (_connfd);
-		// struct pollfd*	pollfd = _server->getPollStruct();
-		// _server->add_to_pfds(&pollfd, _connfd, &fd_count, &fd_size);
-		// printf("pollserver: new connection from %s on "
-		// 	"socket %d\n", "server ip address",
-		// 	_connfd);
-	// }
-	// _indexFd++;
+	return (_connfd);
 	// In questo modo il newfd si perde dopo questa funzione, invece che essere salvato
 	// Viene inviata la risposta a dest_fd, che è preso dalla lista pdfs, la quale contiene
 	// i socket e non gli fd di connessione
 }
 
-int	VirtServ::handleClient(int fd, int fd_count)
+int	VirtServ::handleClient(int fd)
 {
 	char	buf[256];
-	int		i;
 
 	if (fd != _connfd)
 		return (1);
@@ -125,16 +116,10 @@ int	VirtServ::handleClient(int fd, int fd_count)
 		return (1);
 	} else {
 		// We got some good data from a client
-		// Send to everyone!
 		this->cleanRequest();
 		this->readRequest(buf);
 		this->elaborateRequest(fd);
-		close(fd);
-		i = 0;
-		for (; _server->getPollStruct()[i].fd != fd; i++)
-			;
-		_server->del_from_pfds(_server->getPollStruct(), i, &fd_count);
-		_connfd = 0;
+		// close(fd);
 	}
 	return (0);
 }
