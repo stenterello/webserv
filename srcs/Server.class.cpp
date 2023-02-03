@@ -14,7 +14,7 @@ Server::Server(const char* filename) : _filename(filename == NULL ? "default.con
 
 	while (iterConfig != _config.end())
 	{
-		_virtServs.push_back(VirtServ(*iterConfig, this));
+		_virtServs.push_back(VirtServ(*iterConfig));
 		iter++;
 		iterConfig++;
 	}
@@ -34,14 +34,13 @@ Server::~Server()
 
 struct pollfd*			Server::getPollStruct() { return _pfds; }
 std::vector<VirtServ>	Server::getVirtServ() { return _virtServs; }
+const char*				Server::getFilename() const { return _filename; }
 
 
 ///////// Main functions /////////////////////////////////////////
 
-// Add a new file descriptor to the set
 void Server::add_to_pfds(struct pollfd *pfds[], int newfd, int *fd_count, int *fd_size)
 {
-	// If we don't have room, add more space in the pfds array
 	if (*fd_count == *fd_size) {
 		*fd_size *= 2; // Double it
 		*pfds = (struct pollfd *)realloc(*pfds, sizeof(**pfds) * (*fd_size));
@@ -51,10 +50,8 @@ void Server::add_to_pfds(struct pollfd *pfds[], int newfd, int *fd_count, int *f
 	(*fd_count)++;
 }
 
-// Remove an index from the set
 void Server::del_from_pfds(struct pollfd pfds[], int i, int *fd_count)
 {
-	// Copy the one from the end over this one
 	pfds[i] = pfds[*fd_count-1];
 	(*fd_count)--;
 }
@@ -62,17 +59,16 @@ void Server::del_from_pfds(struct pollfd pfds[], int i, int *fd_count)
 bool    Server::startListen()
 {
 	std::stack<int>	vServSock;
-	int				fd_count = 0; // For the listener
+	int				fd_count = 0;
 	int				fd_size;
 
 	for(std::vector<VirtServ>::iterator it = _virtServs.begin(); it < _virtServs.end(); it++) {
 		std::cout << it->getConfig().port << std::endl;
-		vServSock.push(it->getSockfd());
+		vServSock.push(it->getSocket());
 	}
 	fd_size = vServSock.size();
 	this->_pfds = (struct pollfd*)malloc(sizeof(*_pfds) * fd_size);
 	
-	 // Add the listener to set
 	for(int i = 0; vServSock.size() > 0; i++) {
 		_pfds[i].fd = vServSock.top();
 		_pfds[i].events = POLLIN;
@@ -91,7 +87,6 @@ bool    Server::startListen()
 			perror("Timeout");
 			exit(1);
 		}
-		// Run through the existing connections looking for data to read
 		for (int i = 0; i < fd_count; i++) {
 			for (std::vector<VirtServ>::iterator it = _virtServs.begin(); it != _virtServs.end(); it++) {
 				if (_pfds[i].revents & POLLIN) {
@@ -104,8 +99,8 @@ bool    Server::startListen()
 					if (it->handleClient(_pfds[i].fd) == 0) {
 						del_from_pfds(_pfds, i, &fd_count);
 					}
-				} // END looping through file descriptors
-			} // END for(;;)--and you thought it would never end!
+				}
+			}
 		}
 	}
 	return (true);

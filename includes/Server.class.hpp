@@ -30,16 +30,14 @@ class Server
 		// Gets
 		struct pollfd*			getPollStruct();
 		std::vector<VirtServ>	getVirtServ();
+		const char*				getFilename() const;
 
 		// Poll Functions
 		void 				add_to_pfds(struct pollfd *pfds[], int newfd, int *fd_count, int *fd_size);
 		void 				del_from_pfds(struct pollfd pfds[], int i, int *fd_count);
 
-		// Communication Functions
+		// Listening Loop
 		bool				startListen();
-		void				cleanRequest();
-		void				readRequest(std::string req);
-		void				elaborateRequest(int dest_fd);
 		
 };
 

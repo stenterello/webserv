@@ -16,7 +16,7 @@
 
 //////// Constructors & Destructor //////////////////////////////
 
-VirtServ::VirtServ(t_config config, Server* server) : _server(server), _config(config)
+VirtServ::VirtServ(t_config config) : _config(config)
 {
 	memset(&_sin, '\0', sizeof(_sin));
 	memset(&_client, '\0', sizeof(_client));
@@ -28,11 +28,28 @@ VirtServ::VirtServ(t_config config, Server* server) : _server(server), _config(c
 		die("Server Failed to Start. Aborting... :(");
 }
 
-VirtServ::~VirtServ() {}
+VirtServ::VirtServ(const VirtServ & cpy, unsigned short port)
+{
+	this->_config = cpy.getConfig();
+	memset(&_sin, '\0', sizeof(_sin));
+	memset(&_client, '\0', sizeof(_client));
+	this->_sin.sin_family = AF_INET;
+	this->_sin.sin_addr.s_addr = inet_addr(_config.host.c_str());
+	this->_sin.sin_port = htons(port);
+
+	if (!this->startServer())
+		die("Server Failed to Start. Aborting... :(");
+}
+
+VirtServ::~VirtServ()
+{
+	_connfd.clear();
+}
 
 //////// Getters & Setters ///////////////////////////////////
 
-int		VirtServ::getSocket() { return (_sockfd); }
+int					VirtServ::getSocket() { return (_sockfd); }
+t_config			VirtServ::getConfig() const { return _config; }
 std::vector<int>	VirtServ::getConnfd() { return _connfd; };
 
 //////// Main Functions //////////////////////////////////////
@@ -485,6 +502,25 @@ void		VirtServ::interpretLocationBlock(t_location* location)
 	{
 		location->text.replace(iter + location->text.find("$uri"), iter + location->text.find("$uri") + 4, uri);
 	}
+}
+
+bool	VirtServ::sendAll(int socket, char*buf, size_t *len)
+{
+	size_t total = 0;        // how many bytes we've sent
+    int bytesleft = *len; // how many we have left to send
+    int n;
+
+    while(total < *len) {
+        n = send(socket, buf+total, bytesleft, 0);
+        if (n == -1) 
+			break;
+        total += n;
+        bytesleft -= n;
+    }
+
+    *len = total; // return number actually sent here
+
+    return (n == -1 ? false : true);
 }
 
 // void		VirtServ::sendResponse()

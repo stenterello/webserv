@@ -9,7 +9,6 @@ class VirtServ
 	private:
 		VirtServ();
 
-		Server*				_server;
 		t_config			_config;
 		struct sockaddr_in	_sin;
 		struct sockaddr_in	_client;
@@ -31,20 +30,22 @@ class VirtServ
 		void				sendResponse();
 
 	public:
-		VirtServ(t_config config, Server* server);
+		// Structors
+		VirtServ(t_config config);
+		VirtServ(const VirtServ & cpy, unsigned short port);
 		~VirtServ();
 
+		// Gets
 		int					getSocket();
-		// int					getConnectionFd();
+		t_config			getConfig() const;
 		std::vector<int>	getConnfd();
+		
+		// Communication Functions
 		void				cleanRequest();
 		void				readRequest(std::string req);
 		void				elaborateRequest(int dest_fd);
-
-		int				acceptConnectionAddFd(int sockfd);
-		int				handleClient(int fd);
-		t_config			getConfig() { return _config; };
-		int					getSockfd() { return _sockfd; };
+		int					acceptConnectionAddFd(int sockfd);
+		int					handleClient(int fd);
 		bool				sendAll(int socket, char *buf, size_t *len);
 };
 
