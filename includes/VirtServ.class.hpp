@@ -15,7 +15,7 @@ class VirtServ
 		struct sockaddr_in	_client;
 		socklen_t			_size;
 		int					_sockfd;
-		int					_connfd;
+		std::vector<int>	_connfd;
 		t_locationCases		_cases;
 		t_request			_request;
 		t_response			_response;
@@ -35,7 +35,8 @@ class VirtServ
 		~VirtServ();
 
 		int					getSocket();
-		int					getConnectionFd();
+		// int					getConnectionFd();
+		std::vector<int>	getConnfd();
 		void				cleanRequest();
 		void				readRequest(std::string req);
 		void				elaborateRequest(int dest_fd);

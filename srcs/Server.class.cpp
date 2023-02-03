@@ -22,7 +22,12 @@ Server::Server(const char* filename) : _filename(filename == NULL ? "default.con
 	this->startListen();
 }
 
-Server::~Server() {}
+Server::~Server()
+{
+	free(_pfds);
+	_config.clear();
+	_virtServs.clear();
+}
 
 
 ////////// Getters & Setters /////////////////////////////////////
@@ -77,7 +82,7 @@ bool    Server::startListen()
 
 	for(;;) {
 		std::cout << "START LOOP" << std::endl;  
-		int poll_count = poll(_pfds, fd_count, -1);
+		int poll_count = poll(_pfds, fd_count, 3000);
 		if (poll_count == -1) {
 			perror("poll");
 			exit(1);
