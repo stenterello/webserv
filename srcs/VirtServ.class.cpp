@@ -16,8 +16,10 @@
 
 //////// Constructors & Destructor //////////////////////////////
 
-VirtServ::VirtServ(t_config config, Server* server) : _server(server), _config(config), _connfd(0)
+VirtServ::VirtServ(t_config config, Server* server) : _server(server), _config(config)
 {
+	_indexFd = 0;
+	// memset(&_connfd, 0, sizeof(int));
 	memset(&_sin, '\0', sizeof(_sin));
 	memset(&_client, '\0', sizeof(_client));
 	this->_sin.sin_family = AF_INET;
@@ -35,7 +37,7 @@ VirtServ::~VirtServ() {}
 //////// Getters & Setters ///////////////////////////////////
 
 int		VirtServ::getSocket() { return (_sockfd); }
-int		VirtServ::getConnectionFd() { return (_connfd); }
+int		VirtServ::getConnectionFd() { return (_connfd[_indexFd]); }
 
 
 //////// Main Functions //////////////////////////////////////
@@ -78,25 +80,29 @@ bool	VirtServ::stopServer()
 	return (true);
 }
 
-void	VirtServ::acceptConnectionAddFd(int fd_count, int fd_size, int sockfd)
+int	VirtServ::acceptConnectionAddFd(int sockfd)
 {
 	socklen_t				addrlen;
 	struct sockaddr_storage	remoteaddr;
 
 	// If listener is ready to read, handle new connection
 	addrlen = sizeof remoteaddr;
-	_connfd = accept(sockfd,
+	_connfd[_indexFd] = accept(sockfd,
 		(struct sockaddr *)&remoteaddr,
 		&addrlen);
-	if (_connfd == -1) {
+	if (_connfd[_indexFd] == -1) {
 		perror("accept");
-	} else {
-		struct pollfd*	pollfd = _server->getPollStruct();
-		_server->add_to_pfds(&pollfd, _connfd, &fd_count, &fd_size);
-		printf("pollserver: new connection from %s on "
-			"socket %d\n", "server ip address",
-			_connfd);
-	}
+		return -1;
+	} 
+	// else {
+		return (_connfd[_indexFd]);
+		// struct pollfd*	pollfd = _server->getPollStruct();
+		// _server->add_to_pfds(&pollfd, _connfd[_indexFd], &fd_count, &fd_size);
+		// printf("pollserver: new connection from %s on "
+		// 	"socket %d\n", "server ip address",
+		// 	_connfd[_indexFd]);
+	// }
+	// _indexFd++;
 	// In questo modo il newfd si perde dopo questa funzione, invece che essere salvato
 	// Viene inviata la risposta a dest_fd, che è preso dalla lista pdfs, la quale contiene
 	// i socket e non gli fd di connessione
@@ -126,19 +132,12 @@ void	VirtServ::handleClient(int i, int fd_count)
 			// Send to everyone!
 			int dest_fd = _server->getPollStruct()[j].fd;
 			// Except the listener and ourselves
-			for(std::vector<VirtServ>::iterator it = _server->getVirtServ().begin(); it < _server->getVirtServ().end(); it++) {
-				if (dest_fd != it->getSockfd() && dest_fd != sender_fd) {
-					if (send(_connfd, buf, nbytes, 0) == -1) {
-						perror("send");
-					}
+				if (dest_fd != _server->getPollStruct()[i].fd && dest_fd != sender_fd) {
+					this->cleanRequest();
+					this->readRequest(buf);
+					this->elaborateRequest(_connfd[_indexFd]);
 				}
-				else
-				{
-					it->cleanRequest();
-					it->readRequest(buf);
-					it->elaborateRequest(_connfd);
-				}
-			}
+			std::cout << "FINE HANDLE" << std::endl;
 		}
 	}
 	std::cout << "FINE HANDLE" << std::endl;
@@ -526,6 +525,6 @@ void		VirtServ::sendResponse()
 
 	sendMessage = ss.str();
 
-	bytesSent = send(_connfd, sendMessage.c_str(), sendMessage.size(), 0);
+	bytesSent = send(_connfd[_indexFd], sendMessage.c_str(), sendMessage.size(), 0);
 	(void)bytesSent;
 }

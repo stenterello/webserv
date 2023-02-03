@@ -15,7 +15,8 @@ class VirtServ
 		struct sockaddr_in	_client;
 		socklen_t			_size;
 		int					_sockfd;
-		int				 	_connfd;
+		int				 	_connfd[100];
+		int					_indexFd;
 		t_locationCases		_cases;
 		t_request			_request;
 		t_response			_response;
@@ -40,7 +41,7 @@ class VirtServ
 		void				readRequest(std::string req);
 		void				elaborateRequest(int dest_fd);
 
-		void				acceptConnectionAddFd(int fd_count, int fd_size, int sockfd);
+		int				acceptConnectionAddFd(int sockfd);
 		void				handleClient(int i, int fd_count);
 		t_config			getConfig() { return _config; };
 		int					getSockfd() { return _sockfd; };

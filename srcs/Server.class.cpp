@@ -75,24 +75,30 @@ bool    Server::startListen()
 	}
 
 	for(;;) {
+		std::cout << "START LOOP" << std::endl;
 		int poll_count = poll(_pfds, fd_count, -1);
 		if (poll_count == -1) {
 			perror("poll");
 			exit(1);
 		}
 		// Run through the existing connections looking for data to read
-		for(std::vector<VirtServ>::iterator it = _virtServs.begin(); it != _virtServs.end(); it++) {
-			for (int i = 0; i < fd_count; i++) {
+		for(int i = 0; i < fd_count; i++) {
+			for (std::vector<VirtServ>::iterator it = _virtServs.begin(); it != _virtServs.end(); it++) {
 				// Check if someone's ready to read
 				if (_pfds[i].revents & POLLIN) // We got one!!
 				{
 					if (_pfds[i].fd == it->getSocket()) {
-						it->acceptConnectionAddFd(fd_count, fd_size, it->getSocket());
-							std::cout << "FINE CONNECTION" << std::endl;
+						int tmpfd = it->acceptConnectionAddFd(it->getSocket());
+						if (tmpfd != -1)
+							this->add_to_pfds(&_pfds, tmpfd, &fd_count, &fd_size);
+						std::cout << "FINE CONNECTION" << std::endl;
 					}
+
 				} // END got ready-to-read from poll()
-				else
+				else {
+					std::cout << "HANDLE CLIENT" << std::endl;
 					it->handleClient(i, fd_count); // END handle data from client
+				}
 			}	
 		} // END looping through file descriptors
 	} // END for(;;)--and you thought it would never end!
