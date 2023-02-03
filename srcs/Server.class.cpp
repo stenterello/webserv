@@ -82,9 +82,13 @@ bool    Server::startListen()
 
 	for(;;) {
 		std::cout << "START LOOP" << std::endl;  
-		int poll_count = poll(_pfds, fd_count, 3000);
+		int poll_count = poll(_pfds, fd_count, 30000);
 		if (poll_count == -1) {
 			perror("poll");
+			exit(1);
+		}
+		if (poll_count == 0) {
+			perror("Timeout");
 			exit(1);
 		}
 		// Run through the existing connections looking for data to read
