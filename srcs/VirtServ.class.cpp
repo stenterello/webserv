@@ -113,13 +113,13 @@ int	VirtServ::handleClient(int fd)
 		} else {
 			perror("recv");
 		}
+		close(fd);
 		return (1);
 	} else {
 		// We got some good data from a client
 		this->cleanRequest();
 		this->readRequest(buf);
 		this->elaborateRequest(fd);
-		// close(fd);
 	}
 	return (0);
 }

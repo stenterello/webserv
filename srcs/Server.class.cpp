@@ -92,7 +92,7 @@ bool    Server::startListen()
 							this->add_to_pfds(&_pfds, tmpfd, &fd_count, &fd_size);
 					}
 				} else {
-					if (it->handleClient(_pfds[i].fd) == 1) {
+					if (it->handleClient(_pfds[i].fd) == 0) {
 						del_from_pfds(_pfds, i, &fd_count);
 					}
 				} // END looping through file descriptors
