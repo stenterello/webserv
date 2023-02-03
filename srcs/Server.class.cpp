@@ -94,9 +94,8 @@ bool    Server::startListen()
 				} // END got ready-to-read from poll()
 			} else {
 					if (_pfds[i].fd == it->getSocket()) {
-						if (it->handleClient(_pfds[i].fd, fd_count) == 1) {
-						close(_pfds[i].fd);
-						del_from_pfds(_pfds, i, &fd_count); // END handle data from client
+						if (it->handleClient(fd_count) == 1) {
+							std::cout << "Handled" << std::endl;
 						}
 					}	
 				} // END looping through file descriptors 
