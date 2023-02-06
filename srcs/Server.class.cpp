@@ -93,6 +93,7 @@ bool    Server::startListen()
 						std::cout << "FINE CONNECTION" << std::endl;
 					} // END got ready-to-read from poll()
 				} else {
+					// Potremmo mettere if (_pfds[i].fd == it->getConnectionFd()) it->handleClient();
 					if (it->handleClient(_pfds[i].fd, fd_count) == 0) {
 						std::cout << "Handled" << std::endl;
 					}
