@@ -96,14 +96,8 @@ bool    Server::startListen()
 							this->add_to_pfds(&_pfds, tmpfd, &fd_count, &fd_size);
 					}
 				} else {
-<<<<<<< HEAD
-					// Potremmo mettere if (_pfds[i].fd == it->getConnectionFd()) it->handleClient();
-					if (it->handleClient(_pfds[i].fd, fd_count) == 0) {
-						std::cout << "Handled" << std::endl;
-=======
 					if (it->handleClient(_pfds[i].fd) == 0) {
 						del_from_pfds(_pfds, i, &fd_count);
->>>>>>> c543a34fed1d2c8c2c2039fa6cbaefb2d7f2cc71
 					}
 				}
 			}

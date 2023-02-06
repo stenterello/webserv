@@ -274,7 +274,6 @@ void		VirtServ::executeLocationRules(std::string text, int dest_fd)
 		text = text.substr(text.find("\n") + 1);
 		text = text.substr(text.find_first_not_of(" \t\n"));
 	}
-	(void)tmpConfig;
 }
 
 void		VirtServ::tryFiles(std::string value, t_config tmpConfig, int dest_fd)
@@ -347,6 +346,8 @@ FILE*		VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int de
 		answerAutoindex(fullPath, directory, dest_fd);
 	else
 		std::cout << "404 because there is no autoindex" << std::endl;
+	if (directory)
+		closedir(directory);
 	return (NULL);
 }
 
@@ -358,16 +359,37 @@ void		VirtServ::answerAutoindex(std::string fullPath, DIR* directory, int dest_f
 	struct stat			attr;
 	std::string			tmpString;
 	std::stringstream	output;
+	std::string			name;
 
 	_response.line = "HTTP/1.1 200 OK";
 	body = "<html>\n<head><title>Index of " + _request.line.substr(0, _request.line.find_first_of(" ")) + "</title></head>\n<body>\n<h1>Index of " + _request.line.substr(0, _request.line.find_first_of(" ")) + "</h1><hr><pre>";
 	dirent = readdir(directory);
 	while (dirent != NULL)
 	{
-		stat((fullPath + dirent->d_name).c_str(), &attr);
-		convert << attr.st_size;
-		body += "<a href=\"" + std::string(dirent->d_name) + "\">" + dirent->d_name + "</a>\t\t\t\t\t\t\t\t\t\t" + ctime(&attr.st_mtime) + "\t\t\t\t\t" + convert.str() + "\n";
-		convert.str("");
+		name = std::string(dirent->d_name);
+		if (std::strncmp(".\0", name.c_str(), 2))
+		{
+			stat((fullPath + dirent->d_name).c_str(), &attr);				
+			convert << attr.st_size;
+			if (!S_ISREG(attr.st_mode))
+				name += "/";
+			body += "<a href=\"" + name + "\">" + name + "</a>";
+			if (std::strncmp("../\0", name.c_str(), 4))
+			{
+				tmpString = std::string(ctime(&attr.st_mtime)).substr(0, std::string(ctime(&attr.st_mtime)).length() - 1);
+				for (int i = 0; i < 52 - static_cast<int>(name.length()); i++)
+					body += " ";
+				body += tmpString;
+				for (int i = 0; i < 21 - convert.width(); i++)
+					body += " ";
+				if (S_ISREG(attr.st_mode))
+					body += convert.str();
+				else
+					body += "-";
+			}
+			body += "\n";
+			convert.str("");
+		}
 		dirent = readdir(directory);
 	}
 	body += "</pre><hr></body>\n</html>";
