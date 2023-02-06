@@ -363,8 +363,13 @@ void		VirtServ::defaultAnswerError(int err, int dest_fd)
 
 	switch (err)
 	{
+		case 400: errString = "400 Bad Request"; break;
+		case 401: errString = "401 Unauthorized"; break;
+		case 402: errString = "402 Payment Required"; break ;
 		case 403: errString = "403 Forbidden"; break ;
 		case 404: errString = "404 Not Found"; break ;
+		case 405: errString = "405 Method Not Allowed"; break ;
+		case 406: errString = "406 Not Acceptable"; break ;
 		default: break ;
 	}
 
