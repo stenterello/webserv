@@ -184,8 +184,11 @@ void		VirtServ::elaborateRequest(int dest_fd)
 	path = _request.line.substr(0, _request.line.find_first_of(" "));
 
 	location = searchLocationBlock(method, path);
-	// if (!location)
-	// RETURN 404
+	if (!location)
+	{
+		defaultAnswerError(403, dest_fd);
+		return ;
+	}
 	executeLocationRules(location->text, dest_fd);
 }
 
