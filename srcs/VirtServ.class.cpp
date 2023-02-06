@@ -16,29 +16,41 @@
 
 //////// Constructors & Destructor //////////////////////////////
 
-VirtServ::VirtServ(t_config config, Server* server) : _server(server), _config(config)
+VirtServ::VirtServ(t_config config) : _config(config)
 {
-	_connfd = 0;
-	// memset(&_connfd, 0, sizeof(int));
 	memset(&_sin, '\0', sizeof(_sin));
 	memset(&_client, '\0', sizeof(_client));
 	this->_sin.sin_family = AF_INET;
 	this->_sin.sin_addr.s_addr = inet_addr(_config.host.c_str());
 	this->_sin.sin_port = htons(_config.port);
 
-	// ((struct addrinfo*)&_sin)->ai_flags = AI_PASSIVE;
+	if (!this->startServer())
+		die("Server Failed to Start. Aborting... :(");
+}
+
+VirtServ::VirtServ(const VirtServ & cpy, unsigned short port)
+{
+	this->_config = cpy.getConfig();
+	memset(&_sin, '\0', sizeof(_sin));
+	memset(&_client, '\0', sizeof(_client));
+	this->_sin.sin_family = AF_INET;
+	this->_sin.sin_addr.s_addr = inet_addr(_config.host.c_str());
+	this->_sin.sin_port = htons(port);
 
 	if (!this->startServer())
 		die("Server Failed to Start. Aborting... :(");
 }
 
-VirtServ::~VirtServ() {}
+VirtServ::~VirtServ()
+{
+	_connfd.clear();
+}
 
 //////// Getters & Setters ///////////////////////////////////
 
-int		VirtServ::getSocket() { return (_sockfd); }
-int		VirtServ::getConnectionFd() { return (_connfd); }
-
+int					VirtServ::getSocket() { return (_sockfd); }
+t_config			VirtServ::getConfig() const { return _config; }
+std::vector<int>	VirtServ::getConnfd() { return _connfd; };
 
 //////// Main Functions //////////////////////////////////////
 
@@ -72,6 +84,7 @@ bool	VirtServ::startServer()
 
 bool	VirtServ::stopServer()
 {
+	_connfd.clear();
 	if (close(_sockfd))
 	{
 		std::cout << "Error closing _sockfd" << std::endl;
@@ -87,33 +100,25 @@ int	VirtServ::acceptConnectionAddFd(int sockfd)
 
 	// If listener is ready to read, handle new connection
 	addrlen = sizeof remoteaddr;
-	_connfd = accept(sockfd,
+	if (_connfd.size() == _connfd.capacity())
+		_connfd.reserve(1);
+	_connfd.push_back(accept(sockfd,
 		(struct sockaddr *)&remoteaddr,
-		&addrlen);
-	if (_connfd == -1) {
+		&addrlen));
+	if (_connfd.back() == -1) {
+		_connfd.pop_back();
 		perror("accept");
 		return -1;
 	} 
-	// else {
-		return (_connfd);
-		// struct pollfd*	pollfd = _server->getPollStruct();
-		// _server->add_to_pfds(&pollfd, _connfd, &fd_count, &fd_size);
-		// printf("pollserver: new connection from %s on "
-		// 	"socket %d\n", "server ip address",
-		// 	_connfd);
-	// }
-	// _indexFd++;
-	// In questo modo il newfd si perde dopo questa funzione, invece che essere salvato
-	// Viene inviata la risposta a dest_fd, che è preso dalla lista pdfs, la quale contiene
-	// i socket e non gli fd di connessione
+	return (_connfd.back());
 }
 
-int	VirtServ::handleClient(int fd, int fd_count)
+int	VirtServ::handleClient(int fd)
 {
 	char	buf[256];
-	int		i;
 
-	if (fd != _connfd)
+	std::vector<int>::iterator it = std::find(_connfd.begin(), _connfd.end(), fd);
+	if (it == _connfd.end())
 		return (1);
 	int nbytes = recv(fd, buf, sizeof buf, 0);
 	if (nbytes <= 0) {
@@ -122,19 +127,13 @@ int	VirtServ::handleClient(int fd, int fd_count)
 		} else {
 			perror("recv");
 		}
+		close(fd);
 		return (1);
 	} else {
-		// We got some good data from a client
-		// Send to everyone!
 		this->cleanRequest();
 		this->readRequest(buf);
 		this->elaborateRequest(fd);
-		close(fd);
-		i = 0;
-		for (; _server->getPollStruct()[i].fd != fd; i++)
-			;
-		_server->del_from_pfds(_server->getPollStruct(), i, &fd_count);
-		_connfd = 0;
+		_connfd.erase(it);
 	}
 	return (0);
 }
@@ -505,22 +504,41 @@ void		VirtServ::interpretLocationBlock(t_location* location)
 	}
 }
 
-void		VirtServ::sendResponse()
+bool	VirtServ::sendAll(int socket, char*buf, size_t *len)
 {
+	size_t total = 0;        // how many bytes we've sent
+    int bytesleft = *len; // how many we have left to send
+    int n;
 
-	// Questo era un test semplice prendendo come esempio la roba di appunti.
-	// Qui andranno trasformate le varie parti di _response in una c_string da inviare con send.
+    while(total < *len) {
+        n = send(socket, buf+total, bytesleft, 0);
+        if (n == -1) 
+			break;
+        total += n;
+        bytesleft -= n;
+    }
 
-	std::string	message;
-	std::string	sendMessage;
-	long		bytesSent;
+    *len = total; // return number actually sent here
 
-	message = "FUNCTION sendResponse TEXT:\n\n<!DOCTYPE html><html lang=\"en\"><body><h1> HOME </h1><p> Hello from your Server :) </p></body></html>";
-	std::ostringstream ss;
-	ss << "HTTP/1.1 200 OK\nContent-Type: text/html\nContent-Length: " << message.size() << "\n\n" << message;
-
-	sendMessage = ss.str();
-
-	bytesSent = send(_connfd, sendMessage.c_str(), sendMessage.size(), 0);
-	(void)bytesSent;
+    return (n == -1 ? false : true);
 }
+
+// void		VirtServ::sendResponse()
+// {
+
+// 	// Questo era un test semplice prendendo come esempio la roba di appunti.
+// 	// Qui andranno trasformate le varie parti di _response in una c_string da inviare con send.
+
+// 	std::string	message;
+// 	std::string	sendMessage;
+// 	long		bytesSent;
+
+// 	message = "FUNCTION sendResponse TEXT:\n\n<!DOCTYPE html><html lang=\"en\"><body><h1> HOME </h1><p> Hello from your Server :) </p></body></html>";
+// 	std::ostringstream ss;
+// 	ss << "HTTP/1.1 200 OK\nContent-Type: text/html\nContent-Length: " << message.size() << "\n\n" << message;
+
+// 	sendMessage = ss.str();
+
+// 	bytesSent = send(_connfd, sendMessage.c_str(), sendMessage.size(), 0);
+// 	(void)bytesSent;
+// }

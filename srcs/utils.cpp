@@ -10,8 +10,9 @@ void	die(std::string const err)
 void	die(std::string const err, VirtServ & serv)
 {
 	std::cerr << err << std::endl;
-	if (serv.getConnectionFd())
-		close(serv.getConnectionFd());
+	// serv.getConnfd().clear();
+	// if (serv.getConnectionFd())
+	// 	close(serv.getConnectionFd());
 	close(serv.getSocket());
 	exit(1);
 }
