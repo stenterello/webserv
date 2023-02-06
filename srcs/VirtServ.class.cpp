@@ -326,11 +326,9 @@ FILE*		VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int de
 	if (directory == NULL)
 	{
 		if (errno == EACCES)
-			std::cout << "cannot access path" << std::endl;
-		if (errno == ENOENT)
-			std::cout << "path is non-existent" << std::endl;
-		if (errno == ENOTDIR)
-			std::cout << "path is not a directory" << std::endl;
+			defaultAnswerError(403, dest_fd);
+		if (errno == ENOENT || errno == ENOTDIR)
+			defaultAnswerError(404, dest_fd);
 	}
 	if (filename.length())
 	{
@@ -338,17 +336,58 @@ FILE*		VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int de
 		while (dirent != NULL)
 		{
 			if (!filename.compare(dirent->d_name))
+			{
 				answer(fullPath, dirent, dest_fd);
+				break ;
+			}
 			dirent = readdir(directory);
 		}
+		if (!dirent)
+			defaultAnswerError(404, dest_fd);
 	}
 	else if (tmpConfig.autoindex)
 		answerAutoindex(fullPath, directory, dest_fd);
 	else
-		std::cout << "404 because there is no autoindex" << std::endl;
+		defaultAnswerError(404, dest_fd);
 	if (directory)
 		closedir(directory);
 	return (NULL);
+}
+
+void		VirtServ::defaultAnswerError(int err, int dest_fd)
+{
+	std::string 		errString;
+	std::ostringstream	convert;
+	std::string			tmp;
+	std::stringstream	output;
+
+	switch (err)
+	{
+		case 403: errString = "403 Forbidden"; break ;
+		case 404: errString = "404 Not Found"; break ;
+		default: break ;
+	}
+
+	_response.line = "HTTP/1.1 " + errString;
+	_response.body = "<html>\n<head><title>" + errString + "</title></head>\n<body>\n<center><h1>" + errString + "</h1></center>\n<hr><center>webserv</center>\n</body>\n</html>\n";
+	convert << _response.body.length();
+	tmp = convert.str();
+	_response.headers.find("Content-length")->second = tmp;
+
+	output << _response.line << "\r" << std::endl;
+	std::map<std::string, std::string>::iterator	iter = _response.headers.begin();
+
+	while (iter != _response.headers.end())
+	{
+		output << (*iter).first << ": " << (*iter).second << "\r" << std::endl;
+		iter++;
+	}
+	output << "\r" << std::endl;
+	output << _response.body;
+
+	tmp = output.str();
+
+	send(dest_fd, tmp.c_str(), tmp.size(), 0);
 }
 
 void		VirtServ::answerAutoindex(std::string fullPath, DIR* directory, int dest_fd)
