@@ -9,8 +9,6 @@ class Parser
 		Parser();
 		Parser(Parser const & src);
 		Parser&	operator=(Parser const & rhs);
-		
-		t_cases		_cases;
 
 		void		openFile(const char* filename, std::vector<t_config> & conf);
 		void		defineConfig(std::ifstream & configFile, std::vector<t_config> & conf);

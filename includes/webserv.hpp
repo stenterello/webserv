@@ -23,11 +23,11 @@
 
 typedef	struct	s_location
 {
-	bool				regex;		// ~
-	bool				exact_path;	// =
-	std::vector<char*>	acceptedMethods;
-	std::string			location;	// path
-	std::string			text;		// block
+	bool						regex;		// ~
+	bool						exact_path;	// =
+	std::vector<std::string>	acceptedMethods;
+	std::string					location;	// path
+	std::string					text;		// block
 }				t_location;
 
 typedef struct	s_config
@@ -49,38 +49,6 @@ typedef struct	s_config
 	}
 }				t_config;
 
-typedef	struct	s_cases
-{
-	std::vector<std::string>	c;
-
-	s_cases()
-	{
-		c.push_back("listen");
-		c.push_back("server_name");
-		c.push_back("root");
-		c.push_back("autoindex");
-		c.push_back("index");
-		c.push_back("error_pages");
-		c.push_back("client_body_max_size");
-		c.push_back("location");
-	}
-}				t_cases;
-
-typedef	struct	s_locationCases
-{
-	std::vector<std::string>	c;
-
-	s_locationCases()
-	{
-		c.push_back("root");
-		c.push_back("autoindex");
-		c.push_back("index");
-		c.push_back("error_pages");
-		c.push_back("client_body_max_size");
-		c.push_back("try_files");
-	}
-}				t_locationCases;
-
 typedef struct	s_request
 {
 	std::string							line;
@@ -89,8 +57,6 @@ typedef struct	s_request
 
 	s_request()
 	{
-		line = "";
-		body = "";
 		headers.insert(std::make_pair("Host", ""));
 		headers.insert(std::make_pair("User-Agent", ""));
 		headers.insert(std::make_pair("Accept", ""));
@@ -113,8 +79,6 @@ typedef struct	s_response
 
 	s_response()
 	{
-		line = "HTTP/1.1 ";
-		body = "";
 		headers.insert(std::make_pair("Server", "webserv"));
 		headers.insert(std::make_pair("Date", ""));
 		headers.insert(std::make_pair("Content-type", ""));

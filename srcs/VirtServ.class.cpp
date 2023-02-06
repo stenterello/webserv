@@ -183,12 +183,9 @@ void		VirtServ::elaborateRequest(int dest_fd)
 	_request.line = _request.line.substr(method.length() + 1);
 	path = _request.line.substr(0, _request.line.find_first_of(" "));
 
-	location = searchLocationBlock(method, path);
+	location = searchLocationBlock(method, path, dest_fd);
 	if (!location)
-	{
-		defaultAnswerError(403, dest_fd);
 		return ;
-	}
 	executeLocationRules(location->text, dest_fd);
 }
 
@@ -211,6 +208,7 @@ void		VirtServ::executeLocationRules(std::string text, int dest_fd)
 	std::string	line;
 	std::string	key;
 	std::string	value;
+	std::string toCompare[6] = { "root", "autoindex", "index", "error_pages", "client_body_max_sizes", "try_files" };
 	int			i;
 
 	while (text.find_first_not_of(" \t\r\n") != std::string::npos)
@@ -228,7 +226,7 @@ void		VirtServ::executeLocationRules(std::string text, int dest_fd)
 
 		for (i = 0; i < 6; i++)
 		{
-			if (!key.compare(_cases.c[i]))
+			if (key == toCompare[i])
 				break ;
 		}
 
@@ -259,10 +257,13 @@ void		VirtServ::executeLocationRules(std::string text, int dest_fd)
 			}
 			case 3:
 			{
+				// Error_pages
 				tmpConfig.errorPages.clear();
 				while (value.find_first_not_of(" \n\t") != std::string::npos)
 				{
 					tmpConfig.errorPages.push_back(value.substr(0, value.find_first_of(" \t")));
+					if (value.find_first_of(" \t") == std::string::npos)
+						break ;
 					value = value.substr(value.find_first_of(" \t"));
 					value = value.substr(value.find_first_not_of(" \t"));
 				}
@@ -283,7 +284,6 @@ void		VirtServ::tryFiles(std::string value, t_config tmpConfig, int dest_fd)
 {
 	std::vector<std::string>	files;
 	std::string					defaultFile;
-	FILE*						resource;
 
 	while (value.find_first_of(" \t") != std::string::npos)
 	{
@@ -296,12 +296,8 @@ void		VirtServ::tryFiles(std::string value, t_config tmpConfig, int dest_fd)
 	std::vector<std::string>::iterator	iter = files.begin();
 	while (iter != files.end())
 	{
-		resource = tryGetResource(*iter, tmpConfig, dest_fd);
-		if (resource)
-		{
-			std::cout << "Eccola" << std::endl;
+		if (tryGetResource(*iter, tmpConfig, dest_fd))
 			return ;
-		}
 		iter++;
 	}
 	// resource = tryGetResource(defaultFile, tmpConfig, dest_fd);
@@ -325,147 +321,221 @@ FILE*		VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int de
 		else
 			filename = "";
 	}
-	directory = opendir(fullPath.c_str());
-	if (directory == NULL)
+	if (!(directory = opendir(fullPath.c_str())))
 	{
+		defaultAnswerError(errno, dest_fd, tmpConfig);
 		if (errno == EACCES)
-			defaultAnswerError(403, dest_fd);
+			defaultAnswerError(403, dest_fd, tmpConfig);
 		if (errno == ENOENT || errno == ENOTDIR)
-			defaultAnswerError(404, dest_fd);
+			defaultAnswerError(404, dest_fd, tmpConfig);
 		return (NULL);
 	}
 	if (filename.length())
 	{
-		dirent = readdir(directory);
-		while (dirent != NULL)
+		// dirent = readdir(directory);
+		while ((dirent = readdir(directory)))
 		{
 			if (!filename.compare(dirent->d_name))
 			{
 				answer(fullPath, dirent, dest_fd);
 				break ;
 			}
-			dirent = readdir(directory);
+			// dirent = readdir(directory);
 		}
 		if (!dirent)
-			defaultAnswerError(404, dest_fd);
+			defaultAnswerError(404, dest_fd, tmpConfig);
 	}
 	else if (tmpConfig.autoindex)
 		answerAutoindex(fullPath, directory, dest_fd);
 	else
-		defaultAnswerError(404, dest_fd);
-	if (directory)
-		closedir(directory);
+		defaultAnswerError(404, dest_fd, tmpConfig);
+	closedir(directory);
 	return (NULL);
 }
 
-void		VirtServ::defaultAnswerError(int err, int dest_fd)
+void		VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 {
-	std::string 		errString;
+	std::string 		tmpString;
 	std::ostringstream	convert;
-	std::string			tmp;
-	std::stringstream	output;
+	std::ifstream		file;
+
+	if (tmpConfig.errorPages.size())
+	{
+		convert << err;
+		for (std::vector<std::string>::iterator it = tmpConfig.errorPages.begin(); it != tmpConfig.errorPages.end(); it++)
+		{
+			if (!std::strncmp(convert.str().c_str(), (*it).c_str(), 3))
+			{
+				if (*(tmpConfig.root.end() - 1) == '/')
+					file.open(tmpConfig.root + *it);
+				else
+					file.open(tmpConfig.root + "/" + *it);
+				if (file.bad())
+					file.close(); defaultAnswerError(500, dest_fd, tmpConfig); return ;
+				break ;
+			}
+		}
+	}
 
 	switch (err)
 	{
-		case 400: errString = "400 Bad Request"; break;
-		case 401: errString = "401 Unauthorized"; break;
-		case 402: errString = "402 Payment Required"; break ;
-		case 403: errString = "403 Forbidden"; break ;
-		case 404: errString = "404 Not Found"; break ;
-		case 405: errString = "405 Method Not Allowed"; break ;
-		case 406: errString = "406 Not Acceptable"; break ;
+		case 400: tmpString = "400 Bad Request"; break;
+		case 401: tmpString = "401 Unauthorized"; break;
+		case 402: tmpString = "402 Payment Required"; break ;
+		case 403: tmpString = "403 Forbidden"; break ;
+		case 404: tmpString = "404 Not Found"; break ;
+		case 405: tmpString = "405 Method Not Allowed"; break ;
+		case 406: tmpString = "406 Not Acceptable"; break ;
+		case 500: tmpString = "500 Internal Server Error"; break ;
 		default: break ;
 	}
+	
+	_response.line = "HTTP/1.1 " + tmpString;
 
-	_response.line = "HTTP/1.1 " + errString;
-	_response.body = "<html>\n<head><title>" + errString + "</title></head>\n<body>\n<center><h1>" + errString + "</h1></center>\n<hr><center>webserv</center>\n</body>\n</html>\n";
+	if (file.is_open())
+	{
+		convert.clear();
+		convert << file.rdbuf();
+		file.close();
+		_response.body = convert.str();
+		convert.clear();
+		convert << _response.body.length();
+		_response.headers.find("Content-length")->second = convert.str();
+		send(dest_fd, _response.body.c_str(), _response.body.size(), 0);
+		return ;
+	}
+
+	_response.body = "<html>\n<head><title>" + tmpString + "</title></head>\n<body>\n<center><h1>" + tmpString + "</h1></center>\n<hr><center>webserv</center>\n</body>\n</html>\n";
 	convert << _response.body.length();
-	tmp = convert.str();
-	_response.headers.find("Content-length")->second = tmp;
+	_response.headers.find("Content-length")->second = convert.str();
 
-	output << _response.line << "\r" << std::endl;
+	tmpString.clear();
+	tmpString = _response.line + "\r\n";
 	std::map<std::string, std::string>::iterator	iter = _response.headers.begin();
 
 	while (iter != _response.headers.end())
 	{
-		output << (*iter).first << ": " << (*iter).second << "\r" << std::endl;
+		if ((*iter).second.length())
+			tmpString += (*iter).first + ": " + (*iter).second + "\r\n";
 		iter++;
 	}
-	output << "\r" << std::endl;
-	output << _response.body;
-
-	tmp = output.str();
-
-	send(dest_fd, tmp.c_str(), tmp.size(), 0);
-	std::cout << "SENT RESPONSE" << std::endl;
-	std::cout << tmp << std::endl;
-}
-
-void		VirtServ::answerAutoindex(std::string fullPath, DIR* directory, int dest_fd)
-{
-	std::string			body;
-	std::ostringstream	convert;
-	struct dirent*		dirent;
-	struct stat			attr;
-	std::string			tmpString;
-	std::stringstream	output;
-	std::string			name;
-
-	_response.line = "HTTP/1.1 200 OK";
-	body = "<html>\n<head><title>Index of " + _request.line.substr(0, _request.line.find_first_of(" ")) + "</title></head>\n<body>\n<h1>Index of " + _request.line.substr(0, _request.line.find_first_of(" ")) + "</h1><hr><pre>";
-	dirent = readdir(directory);
-	while (dirent != NULL)
-	{
-		name = std::string(dirent->d_name);
-		if (std::strncmp(".\0", name.c_str(), 2))
-		{
-			stat((fullPath + dirent->d_name).c_str(), &attr);				
-			convert << attr.st_size;
-			if (!S_ISREG(attr.st_mode))
-				name += "/";
-			body += "<a href=\"" + name + "\">" + name + "</a>";
-			if (std::strncmp("../\0", name.c_str(), 4))
-			{
-				tmpString = std::string(ctime(&attr.st_mtime)).substr(0, std::string(ctime(&attr.st_mtime)).length() - 1);
-				for (int i = 0; i < 52 - static_cast<int>(name.length()); i++)
-					body += " ";
-				body += tmpString;
-				for (int i = 0; i < 21 - convert.width(); i++)
-					body += " ";
-				if (S_ISREG(attr.st_mode))
-					body += convert.str();
-				else
-					body += "-";
-			}
-			body += "\n";
-			convert.str("");
-		}
-		dirent = readdir(directory);
-	}
-	body += "</pre><hr></body>\n</html>";
-	_response.body = body;
-	convert << _response.body.length();
-	tmpString = convert.str();
-	_response.headers.find("Content-length")->second = tmpString;
-
-	output << _response.line << "\r" << std::endl;
-	std::map<std::string, std::string>::iterator	iter = _response.headers.begin();
-
-	while (iter != _response.headers.end())
-	{
-		output << (*iter).first << ": " << (*iter).second << "\r" << std::endl;
-		iter++;
-	}
-	output << "\r" << std::endl;
-	output << _response.body;
-
-	tmpString = output.str();
+	tmpString += "\r\n";
+	tmpString += _response.body;
 
 	send(dest_fd, tmpString.c_str(), tmpString.size(), 0);
 	std::cout << "SENT RESPONSE" << std::endl;
 	std::cout << tmpString << std::endl;
 }
 
+struct dirent**     VirtServ::fill_dirent(DIR *directory)
+{
+    struct dirent** ret;
+    struct dirent*  tmp;
+    int             size = 0;
+    int             i = 0;
+    while ((tmp = readdir(directory)))
+        size++;
+    closedir(directory);
+    opendir(_config.root.c_str());
+    ret = (struct dirent**)malloc(sizeof(*ret) * size + 1);
+    while (i < size)
+    {
+        ret[i] = readdir(directory);
+        i++;
+    }
+    ret[i] = NULL;
+    return (ret);
+}
+
+void        VirtServ::answerAutoindex(std::string fullPath, DIR* directory, int dest_fd)
+{
+    std::string         body;
+    std::ostringstream  convert;
+    // struct dirent*       dirent;
+    struct dirent**     store;
+    struct stat         attr;
+    std::string         tmpString;
+    std::stringstream   output;
+    std::string         name;
+    store = fill_dirent(directory);
+    _response.line = "HTTP/1.1 200 OK";
+    body = "<html>\n<head><title>Index of " + _request.line.substr(0, _request.line.find_first_of(" ")) + "</title></head>\n<body>\n<h1>Index of " + _request.line.substr(0, _request.line.find_first_of(" ")) + "</h1><hr><pre>";
+    // dirent = readdir(directory);
+    int i = 0;
+    while (store[i] != NULL)
+    {
+        if (store[i]->d_type == DT_DIR)
+        {
+            name = std::string((store[i])->d_name);
+            if (std::strncmp(".\0", name.c_str(), 2))
+            {
+                stat((fullPath + (store[i])->d_name).c_str(), &attr);
+                convert << attr.st_size;
+                name += "/";
+                body += "<a href=\"" + name + "\">" + name + "</a>";
+                if (std::strncmp("../\0", name.c_str(), 4))
+                {
+                    tmpString = std::string(ctime(&attr.st_mtime)).substr(0, std::string(ctime(&attr.st_mtime)).length() - 1);
+                    for (int i = 0; i < 52 - static_cast<int>(name.length()); i++)
+                        body += " ";
+                    body += tmpString;
+                    for (int i = 0; i < 21 - convert.width(); i++)
+                        body += " ";
+                    body += "-";
+                }
+                body += "\n";
+                convert.str("");
+            }
+        }
+        i++;
+    }
+    i = 0;
+    while (store[i] != NULL)
+    {
+        if (store[i]->d_type != DT_DIR)
+        {
+            name = std::string((store[i])->d_name);
+            if (std::strncmp(".\0", name.c_str(), 2))
+            {
+                stat((fullPath + (store[i])->d_name).c_str(), &attr);
+                convert << attr.st_size;
+                body += "<a href=\"" + name + "\">" + name + "</a>";
+                if (std::strncmp("../\0", name.c_str(), 4))
+                {
+                    tmpString = std::string(ctime(&attr.st_mtime)).substr(0, std::string(ctime(&attr.st_mtime)).length() - 1);
+                    for (int i = 0; i < 52 - static_cast<int>(name.length()); i++)
+                        body += " ";
+                    body += tmpString;
+                    for (int i = 0; i < 21 - convert.width(); i++)
+                        body += " ";
+                    body += convert.str();
+                }
+                body += "\n";
+                convert.str("");
+            }
+        }
+        i++;
+    }
+    body += "</pre><hr></body>\n</html>";
+    _response.body = body;
+    convert << _response.body.length();
+    tmpString = convert.str();
+    _response.headers.find("Content-length")->second = tmpString;
+    output << _response.line << "\r" << std::endl;
+    std::map<std::string, std::string>::iterator    iter = _response.headers.begin();
+    while (iter != _response.headers.end())
+    {
+        output << (*iter).first << ": " << (*iter).second << "\r" << std::endl;
+        iter++;
+    }
+    output << "\r" << std::endl;
+    output << _response.body;
+    tmpString = output.str();
+    send(dest_fd, tmpString.c_str(), tmpString.size(), 0);
+    std::cout << "SENT RESPONSE" << std::endl;
+    std::cout << tmpString << std::endl;
+    delete[](store);
+}
 void		VirtServ::answer(std::string fullPath, struct dirent* dirent, int dest_fd)
 {
 	std::stringstream	stream;
@@ -509,13 +579,20 @@ void		VirtServ::answer(std::string fullPath, struct dirent* dirent, int dest_fd)
 	std::cout << responseString << std::endl;
 }
 
-t_location*	VirtServ::searchLocationBlock(std::string method, std::string path)
+t_location*	VirtServ::searchLocationBlock(std::string method, std::string path, int dest_fd)
 {
 	std::vector<t_location>::iterator	iter = _config.locationRules.begin();
 	t_location*							ret = NULL;
+	bool								regex = false;
+
+	if (path.at(0) == '~')
+	{
+		path = path.substr(path.find_first_of(" \t"), path.find_first_not_of(" \t"));
+		regex = true;
+	}
 
 	// Exact corrispondence
-	while (iter != _config.locationRules.end())
+	while (iter != _config.locationRules.end() && !regex)
 	{
 		if (!std::strncmp(path.c_str(), (*iter).location.c_str(), (*iter).location.length()) && !(*iter).regex)
 		{
@@ -526,7 +603,7 @@ t_location*	VirtServ::searchLocationBlock(std::string method, std::string path)
 	}
 
 	// Prefix
-	if (ret == NULL)
+	if (ret == NULL && !regex)
 	{
 		iter = _config.locationRules.begin();
 		while (iter != _config.locationRules.end())
@@ -541,7 +618,7 @@ t_location*	VirtServ::searchLocationBlock(std::string method, std::string path)
 	}
 
 	// Regex
-	if (ret == NULL)
+	if (regex)
 	{
 		iter = _config.locationRules.begin();
 		while (iter != _config.locationRules.end())
@@ -555,13 +632,16 @@ t_location*	VirtServ::searchLocationBlock(std::string method, std::string path)
 		}
 	}
 
-	if (ret != NULL)
-		std::cout << ret->location << std::endl;
-	else
-		std::cout << "not found" << std::endl;
-		
-	(void)method;
-
+	if (!ret)
+	{
+		defaultAnswerError(403, dest_fd, _config);
+		return (NULL);
+	}
+	if (ret && ret->acceptedMethods.size() && std::find(ret->acceptedMethods.begin(), ret->acceptedMethods.end(), method) == ret->acceptedMethods.end())
+	{
+		defaultAnswerError(405, dest_fd, _config);
+		return (NULL);
+	}
 	return (ret);
 }
 

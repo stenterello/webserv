@@ -330,10 +330,11 @@ void		Parser::checkClientBodyMaxSize(std::string value, t_config & conf)
 
 void		Parser::fillConf(std::string key, std::string value, t_config & conf)
 {
-	int i;
+	int 		i;
+	std::string	toCompare[8] = { "listen", "server_name", "root", "autoindex", "index", "error_pages", "client_body_max_size", "location" };
 
 	for (i = 0; i < 8; i++)
-		if (!_cases.c[i].compare(key))
+		if (!toCompare[i].compare(key))
 			break ;
 	if (i == 8)
 		die("Directive not recognized: " + key + ". Aborting.");
