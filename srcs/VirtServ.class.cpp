@@ -301,7 +301,7 @@ void		VirtServ::tryFiles(std::string value, t_config tmpConfig, int dest_fd)
 		}
 		iter++;
 	}
-	resource = tryGetResource(defaultFile, tmpConfig, dest_fd);
+	// resource = tryGetResource(defaultFile, tmpConfig, dest_fd);
 	// if (!resource)
 		// ritorna 404
 }
@@ -329,6 +329,7 @@ FILE*		VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int de
 			defaultAnswerError(403, dest_fd);
 		if (errno == ENOENT || errno == ENOTDIR)
 			defaultAnswerError(404, dest_fd);
+		return (NULL);
 	}
 	if (filename.length())
 	{
@@ -393,6 +394,8 @@ void		VirtServ::defaultAnswerError(int err, int dest_fd)
 	tmp = output.str();
 
 	send(dest_fd, tmp.c_str(), tmp.size(), 0);
+	std::cout << "SENT RESPONSE" << std::endl;
+	std::cout << tmp << std::endl;
 }
 
 void		VirtServ::answerAutoindex(std::string fullPath, DIR* directory, int dest_fd)
