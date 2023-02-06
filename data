@@ -1,0 +1,12 @@
+SENT RESPONSE
+HTTP/1.1 404 Not Found
+Content-length: 404141
+Server: webserv
+
+<html>
+<head><title>404 Not Found</title></head>
+<body>
+<center><h1>404 Not Found</h1></center>
+<hr><center>webserv</center>
+</body>
+</html>

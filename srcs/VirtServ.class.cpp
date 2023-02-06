@@ -345,10 +345,12 @@ FILE*		VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int de
 		if (!dirent)
 			defaultAnswerError(404, dest_fd, tmpConfig);
 	}
-	else if (tmpConfig.autoindex)
+	else if (tmpConfig.autoindex) {
 		answerAutoindex(fullPath, directory, dest_fd);
-	else
+	}
+	else {
 		defaultAnswerError(404, dest_fd, tmpConfig);
+	}
 	closedir(directory);
 	return (NULL);
 }
@@ -357,7 +359,7 @@ void		VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 {
 	std::string 		tmpString;
 	std::ostringstream	convert;
-	std::ifstream		file;
+	std::fstream		file;
 
 	if (tmpConfig.errorPages.size())
 	{
@@ -366,12 +368,15 @@ void		VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 		{
 			if (!std::strncmp(convert.str().c_str(), (*it).c_str(), 3))
 			{
-				if (*(tmpConfig.root.end() - 1) == '/')
+				if (*(tmpConfig.root.end() - 1) == '/'){
 					file.open(tmpConfig.root + *it);
-				else
+				}
+				else {
 					file.open(tmpConfig.root + "/" + *it);
-				if (file.bad())
+				}
+				if (file.bad()){
 					file.close(); defaultAnswerError(500, dest_fd, tmpConfig); return ;
+				}
 				break ;
 			}
 		}
@@ -398,19 +403,23 @@ void		VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 		convert << file.rdbuf();
 		file.close();
 		_response.body = convert.str();
+		_response.body.erase(0, 3);
 		convert.clear();
 		convert << _response.body.length();
 		_response.headers.find("Content-length")->second = convert.str();
-		send(dest_fd, _response.body.c_str(), _response.body.size(), 0);
-		return ;
+		tmpString.clear();
+		tmpString = _response.line + "\r\n" + _response.body;
 	}
+	else
+	{
+		_response.body = "<html>\n<head><title>" + tmpString + "</title></head>\n<body>\n<center><h1>" + tmpString + "</h1></center>\n<hr><center>webserv</center>\n</body>\n</html>\n";
+		convert << _response.body.length();
+		_response.headers.find("Content-length")->second = convert.str();
 
-	_response.body = "<html>\n<head><title>" + tmpString + "</title></head>\n<body>\n<center><h1>" + tmpString + "</h1></center>\n<hr><center>webserv</center>\n</body>\n</html>\n";
-	convert << _response.body.length();
-	_response.headers.find("Content-length")->second = convert.str();
-
-	tmpString.clear();
-	tmpString = _response.line + "\r\n";
+		tmpString.clear();
+		tmpString = _response.line + "\r\n";
+	}
+	
 	std::map<std::string, std::string>::iterator	iter = _response.headers.begin();
 
 	while (iter != _response.headers.end())
@@ -421,7 +430,6 @@ void		VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 	}
 	tmpString += "\r\n";
 	tmpString += _response.body;
-
 	send(dest_fd, tmpString.c_str(), tmpString.size(), 0);
 	std::cout << "SENT RESPONSE" << std::endl;
 	std::cout << tmpString << std::endl;
@@ -574,7 +582,6 @@ void		VirtServ::answer(std::string fullPath, struct dirent* dirent, int dest_fd)
 	responseString = responseStream.str();
 
 	send(dest_fd, responseString.c_str(), responseString.size(), 0);
-
 	std::cout << "SENT RESPONSE" << std::endl;
 	std::cout << responseString << std::endl;
 }
