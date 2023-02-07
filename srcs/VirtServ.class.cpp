@@ -430,101 +430,74 @@ struct dirent**     VirtServ::fill_dirent(DIR *directory)
     closedir(directory);
     opendir(_config.root.c_str());
     ret = (struct dirent**)malloc(sizeof(*ret) * size + 1);
+	int j = 0;
     while (i < size)
     {
-        ret[i] = readdir(directory);
+		tmp = readdir(directory);
+		if (tmp && tmp->d_type == DT_DIR)
+        	ret[j++] = tmp;
         i++;
     }
-    ret[i] = NULL;
+	i = 0;
+	closedir(directory);
+    opendir(_config.root.c_str());
+	while (i < size)
+    {
+		tmp = readdir(directory);
+		if (tmp && tmp->d_type != DT_DIR)
+        	ret[j++] = tmp;
+        i++;
+    }
+    ret[j] = NULL;
     return (ret);
 }
 
 void        VirtServ::answerAutoindex(std::string fullPath, DIR* directory, int dest_fd)
 {
-    std::string         body;
     std::ostringstream  convert;
-    // struct dirent*       dirent;
     struct dirent**     store;
-    struct stat         attr;
+    struct stat         attr; // utilizzo?????
     std::string         tmpString;
     std::stringstream   output;
     std::string         name;
+
     store = fill_dirent(directory);
     _response.line = "HTTP/1.1 200 OK";
-    body = "<html>\n<head><title>Index of " + _request.line.substr(0, _request.line.find_first_of(" ")) + "</title></head>\n<body>\n<h1>Index of " + _request.line.substr(0, _request.line.find_first_of(" ")) + "</h1><hr><pre>";
+    _response.body = "<html>\n<head><title>Index of " + _request.line.substr(0, _request.line.find_first_of(" ")) + "</title></head>\n<body>\n<h1>Index of " + _request.line.substr(0, _request.line.find_first_of(" ")) + "</h1><hr><pre>";
     int i = 0;
     while (store[i] != NULL)
     {
-        if (store[i]->d_type == DT_DIR)
+        name = std::string((store[i])->d_name);
+        if (std::strncmp(".\0", name.c_str(), 2))
         {
-            name = std::string((store[i])->d_name);
-            if (std::strncmp(".\0", name.c_str(), 2))
+            stat((fullPath + (store[i])->d_name).c_str(), &attr);
+            convert << attr.st_size;
+			if (store[i]->d_type == DT_DIR)
+            	name += "/";
+            _response.body += "<a href=\"" + name + "\">" + name + "</a>";
+            if (std::strncmp("../\0", name.c_str(), 4))
             {
-                stat((fullPath + (store[i])->d_name).c_str(), &attr);
-                convert << attr.st_size;
-                name += "/";
-                body += "<a href=\"" + name + "\">" + name + "</a>";
-                if (std::strncmp("../\0", name.c_str(), 4))
-                {
-                    tmpString = std::string(ctime(&attr.st_mtime)).substr(0, std::string(ctime(&attr.st_mtime)).length() - 1);
-                    for (int i = 0; i < 52 - static_cast<int>(name.length()); i++)
-                        body += " ";
-                    body += tmpString;
-                    for (int i = 0; i < 21 - convert.width(); i++)
-                        body += " ";
-                    body += "-";
-                }
-                body += "\n";
-                convert.str("");
+                tmpString = std::string(ctime(&attr.st_mtime)).substr(0, std::string(ctime(&attr.st_mtime)).length() - 1);
+				_response.body.append(52 - static_cast<int>(name.length()), ' ');
+                _response.body += tmpString; _response.body.append(21 - convert.width(), ' ');
+				_response.body += (store[i]->d_type == DT_DIR) ? "-" : convert.str();
             }
+            _response.body += "\n";
+            convert.str("");
         }
         i++;
     }
-    i = 0;
-    while (store[i] != NULL)
-    {
-        if (store[i]->d_type != DT_DIR)
-        {
-            name = std::string((store[i])->d_name);
-            if (std::strncmp(".\0", name.c_str(), 2))
-            {
-                stat((fullPath + (store[i])->d_name).c_str(), &attr);
-                convert << attr.st_size;
-                body += "<a href=\"" + name + "\">" + name + "</a>";
-                if (std::strncmp("../\0", name.c_str(), 4))
-                {
-                    tmpString = std::string(ctime(&attr.st_mtime)).substr(0, std::string(ctime(&attr.st_mtime)).length() - 1);
-                    for (int i = 0; i < 52 - static_cast<int>(name.length()); i++)
-                        body += " ";
-                    body += tmpString;
-                    for (int i = 0; i < 21 - convert.width(); i++)
-                        body += " ";
-                    body += convert.str();
-                }
-                body += "\n";
-                convert.str("");
-            }
-        }
-        i++;
-    }
-    body += "</pre><hr></body>\n</html>";
-    _response.body = body;
+    _response.body += "</pre><hr></body>\n</html>";
     convert << _response.body.length();
     tmpString = convert.str();
     _response.headers.find("Content-length")->second = tmpString;
     output << _response.line << "\r" << std::endl;
-    std::map<std::string, std::string>::iterator    iter = _response.headers.begin();
-    while (iter != _response.headers.end())
-    {
-        output << (*iter).first << ": " << (*iter).second << "\r" << std::endl;
-        iter++;
-    }
-    output << "\r" << std::endl;
-    output << _response.body;
+	for (std::map<std::string, std::string>::iterator iter = _response.headers.begin(); iter != _response.headers.end(); iter++)
+			output << (*iter).first << ": " << (*iter).second << "\r" << std::endl;
+    output << "\r\n" << _response.body;
     tmpString = output.str();
     send(dest_fd, tmpString.c_str(), tmpString.size(), 0);
-    std::cout << "SENT RESPONSE" << std::endl;
-    std::cout << tmpString << std::endl;
+    std::cout << "SENT RESPONSE" << std::endl; std::cout << tmpString << std::endl;
     delete[](store);
 }
 void		VirtServ::answer(std::string fullPath, struct dirent* dirent, int dest_fd)
