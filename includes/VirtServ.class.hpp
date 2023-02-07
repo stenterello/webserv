@@ -33,7 +33,6 @@ class VirtServ
 	public:
 		// Structors
 		VirtServ(t_config config);
-		VirtServ(const VirtServ & cpy, unsigned short port);
 		~VirtServ();
 
 		// Gets
