@@ -352,20 +352,16 @@ void		VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 		{
 			if (!std::strncmp(convert.str().c_str(), (*it).c_str(), 3))
 			{
-				if (*(tmpConfig.root.end() - 1) == '/'){
+				if (*(tmpConfig.root.end() - 1) == '/')
 					file.open(tmpConfig.root + *it);
-				}
-				else {
+				else 
 					file.open(tmpConfig.root + "/" + *it);
-				}
-				if (file.bad()){
+				if (file.bad())
 					file.close(); defaultAnswerError(500, dest_fd, tmpConfig); return ;
-				}
 				break ;
 			}
 		}
 	}
-
 	switch (err)
 	{
 		case 400: tmpString = "400 Bad Request"; break;
@@ -384,8 +380,7 @@ void		VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 	if (file.is_open())
 	{
 		convert.clear();
-		convert << file.rdbuf();
-		file.close();
+		convert << file.rdbuf(); file.close();
 		_response.body = convert.str();
 		_response.body.erase(0, 3);
 		convert.clear();
@@ -399,7 +394,6 @@ void		VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 		_response.body = "<html>\n<head><title>" + tmpString + "</title></head>\n<body>\n<center><h1>" + tmpString + "</h1></center>\n<hr><center>webserv</center>\n</body>\n</html>\n";
 		convert << _response.body.length();
 		_response.headers.find("Content-length")->second = convert.str();
-
 		tmpString.clear();
 		tmpString = _response.line + "\r\n";
 	}
@@ -412,8 +406,7 @@ void		VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 			tmpString += (*iter).first + ": " + (*iter).second + "\r\n";
 		iter++;
 	}
-	tmpString += "\r\n";
-	tmpString += _response.body;
+	tmpString += "\r\n" + _response.body;
 	send(dest_fd, tmpString.c_str(), tmpString.size(), 0);
 	std::cout << "SENT RESPONSE" << std::endl;
 	std::cout << tmpString << std::endl;
@@ -532,9 +525,7 @@ void		VirtServ::answer(std::string fullPath, struct dirent* dirent, int dest_fd)
 		responseStream << (*iter).first << ": " << (*iter).second << "\r" << std::endl;
 		iter++;
 	}
-	responseStream << "\r" << std::endl;
-	responseStream << _response.body;
-
+	responseStream << "\r\n" << _response.body;
 	responseString = responseStream.str();
 
 	send(dest_fd, responseString.c_str(), responseString.size(), 0);
@@ -549,10 +540,7 @@ t_location*	VirtServ::searchLocationBlock(std::string method, std::string path, 
 	bool								regex = false;
 
 	if (path.at(0) == '~')
-	{
-		path = path.substr(path.find_first_of(" \t"), path.find_first_not_of(" \t"));
 		regex = true;
-	}
 
 	// Exact corrispondence
 	while (iter != _config.locationRules.end() && !regex)
@@ -583,6 +571,7 @@ t_location*	VirtServ::searchLocationBlock(std::string method, std::string path, 
 	// Regex
 	if (regex)
 	{
+		path = path.substr(path.find_first_of(" \t"), path.find_first_not_of(" \t"));
 		iter = _config.locationRules.begin();
 		while (iter != _config.locationRules.end())
 		{
@@ -614,9 +603,7 @@ void		VirtServ::interpretLocationBlock(t_location* location)
 	std::string::iterator	iter = location->text.begin();
 
 	while (location->text.find("$uri") != std::string::npos)
-	{
 		location->text.replace(iter + location->text.find("$uri"), iter + location->text.find("$uri") + 4, uri);
-	}
 }
 
 bool	VirtServ::sendAll(int socket, char*buf, size_t *len)
@@ -637,23 +624,3 @@ bool	VirtServ::sendAll(int socket, char*buf, size_t *len)
 
     return (n == -1 ? false : true);
 }
-
-// void		VirtServ::sendResponse()
-// {
-
-// 	// Questo era un test semplice prendendo come esempio la roba di appunti.
-// 	// Qui andranno trasformate le varie parti di _response in una c_string da inviare con send.
-
-// 	std::string	message;
-// 	std::string	sendMessage;
-// 	long		bytesSent;
-
-// 	message = "FUNCTION sendResponse TEXT:\n\n<!DOCTYPE html><html lang=\"en\"><body><h1> HOME </h1><p> Hello from your Server :) </p></body></html>";
-// 	std::ostringstream ss;
-// 	ss << "HTTP/1.1 200 OK\nContent-Type: text/html\nContent-Length: " << message.size() << "\n\n" << message;
-
-// 	sendMessage = ss.str();
-
-// 	bytesSent = send(_connfd, sendMessage.c_str(), sendMessage.size(), 0);
-// 	(void)bytesSent;
-// }
