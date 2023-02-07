@@ -28,10 +28,7 @@ VirtServ::VirtServ(t_config config) : _config(config)
 		die("Server Failed to Start. Aborting... :(");
 }
 
-VirtServ::~VirtServ()
-{
-	_connfd.clear();
-}
+VirtServ::~VirtServ() { _connfd.clear(); }
 
 //////// Getters & Setters ///////////////////////////////////
 
@@ -146,6 +143,7 @@ void	VirtServ::readRequest(std::string req)
 
 	if (req.find_first_not_of("\n") != std::string::npos)
 		_request.body = req.substr(req.find_first_not_of("\n"));
+
 
 	// Check request parsed
 	std::cout << "PARSED REQUEST CHECKING" << std::endl;
@@ -318,6 +316,7 @@ FILE*		VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int de
 	}
 	if (filename.length())
 	{
+		// dirent = readdir(directory);
 		while ((dirent = readdir(directory)))
 		{
 			if (!filename.compare(dirent->d_name))
@@ -325,14 +324,17 @@ FILE*		VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int de
 				answer(fullPath, dirent, dest_fd);
 				break ;
 			}
+			// dirent = readdir(directory);
 		}
 		if (!dirent)
 			defaultAnswerError(404, dest_fd, tmpConfig);
 	}
-	else if (tmpConfig.autoindex)
+	else if (tmpConfig.autoindex) {
 		answerAutoindex(fullPath, directory, dest_fd);
-	else
+	}
+	else {
 		defaultAnswerError(404, dest_fd, tmpConfig);
+	}
 	closedir(directory);
 	return (NULL);
 }
@@ -350,10 +352,12 @@ void		VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 		{
 			if (!std::strncmp(convert.str().c_str(), (*it).c_str(), 3))
 			{
-				if (*(tmpConfig.root.end() - 1) == '/')
+				if (*(tmpConfig.root.end() - 1) == '/'){
 					file.open(tmpConfig.root + *it);
-				else
+				}
+				else {
 					file.open(tmpConfig.root + "/" + *it);
+				}
 				if (file.bad()){
 					file.close(); defaultAnswerError(500, dest_fd, tmpConfig); return ;
 				}
@@ -439,6 +443,7 @@ void        VirtServ::answerAutoindex(std::string fullPath, DIR* directory, int 
 {
     std::string         body;
     std::ostringstream  convert;
+    // struct dirent*       dirent;
     struct dirent**     store;
     struct stat         attr;
     std::string         tmpString;
@@ -448,18 +453,16 @@ void        VirtServ::answerAutoindex(std::string fullPath, DIR* directory, int 
     _response.line = "HTTP/1.1 200 OK";
     body = "<html>\n<head><title>Index of " + _request.line.substr(0, _request.line.find_first_of(" ")) + "</title></head>\n<body>\n<h1>Index of " + _request.line.substr(0, _request.line.find_first_of(" ")) + "</h1><hr><pre>";
     int i = 0;
-	int j = 1;
-    while (store[i] != NULL && j >= 0)
+    while (store[i] != NULL)
     {
-        if ((j == 1 && store[i]->d_type == DT_DIR) || (j == 0 && store[i]->d_type != DT_DIR))
+        if (store[i]->d_type == DT_DIR)
         {
             name = std::string((store[i])->d_name);
             if (std::strncmp(".\0", name.c_str(), 2))
             {
                 stat((fullPath + (store[i])->d_name).c_str(), &attr);
                 convert << attr.st_size;
-				if ((store[i]->d_type == DT_DIR) & j)
-                	name += "/";
+                name += "/";
                 body += "<a href=\"" + name + "\">" + name + "</a>";
                 if (std::strncmp("../\0", name.c_str(), 4))
                 {
@@ -469,21 +472,40 @@ void        VirtServ::answerAutoindex(std::string fullPath, DIR* directory, int 
                     body += tmpString;
                     for (int i = 0; i < 21 - convert.width(); i++)
                         body += " ";
-					if ((store[i]->d_type == DT_DIR) & j)
-                    	body += "-";
-					else
-						body += convert.str();
+                    body += "-";
                 }
                 body += "\n";
                 convert.str("");
             }
         }
-		if (j == 1 && store[i + 1] == NULL) {
-			j--;
-			i = 0;
-		}
-		else
-        	i++;
+        i++;
+    }
+    i = 0;
+    while (store[i] != NULL)
+    {
+        if (store[i]->d_type != DT_DIR)
+        {
+            name = std::string((store[i])->d_name);
+            if (std::strncmp(".\0", name.c_str(), 2))
+            {
+                stat((fullPath + (store[i])->d_name).c_str(), &attr);
+                convert << attr.st_size;
+                body += "<a href=\"" + name + "\">" + name + "</a>";
+                if (std::strncmp("../\0", name.c_str(), 4))
+                {
+                    tmpString = std::string(ctime(&attr.st_mtime)).substr(0, std::string(ctime(&attr.st_mtime)).length() - 1);
+                    for (int i = 0; i < 52 - static_cast<int>(name.length()); i++)
+                        body += " ";
+                    body += tmpString;
+                    for (int i = 0; i < 21 - convert.width(); i++)
+                        body += " ";
+                    body += convert.str();
+                }
+                body += "\n";
+                convert.str("");
+            }
+        }
+        i++;
     }
     body += "</pre><hr></body>\n</html>";
     _response.body = body;
@@ -501,7 +523,8 @@ void        VirtServ::answerAutoindex(std::string fullPath, DIR* directory, int 
     output << _response.body;
     tmpString = output.str();
     send(dest_fd, tmpString.c_str(), tmpString.size(), 0);
-    std::cout << "SENT RESPONSE" << std::endl; std::cout << tmpString << std::endl;
+    std::cout << "SENT RESPONSE" << std::endl;
+    std::cout << tmpString << std::endl;
     delete[](store);
 }
 void		VirtServ::answer(std::string fullPath, struct dirent* dirent, int dest_fd)
@@ -536,10 +559,14 @@ void		VirtServ::answer(std::string fullPath, struct dirent* dirent, int dest_fd)
 		responseStream << (*iter).first << ": " << (*iter).second << "\r" << std::endl;
 		iter++;
 	}
-	responseStream << "\r\n" + _response.body;
+	responseStream << "\r" << std::endl;
+	responseStream << _response.body;
+
+	responseString = responseStream.str();
 
 	send(dest_fd, responseString.c_str(), responseString.size(), 0);
-	std::cout << "SENT RESPONSE" << std::endl; std::cout << responseString << std::endl;
+	std::cout << "SENT RESPONSE" << std::endl;
+	std::cout << responseString << std::endl;
 }
 
 t_location*	VirtServ::searchLocationBlock(std::string method, std::string path, int dest_fd)
@@ -637,3 +664,23 @@ bool	VirtServ::sendAll(int socket, char*buf, size_t *len)
 
     return (n == -1 ? false : true);
 }
+
+// void		VirtServ::sendResponse()
+// {
+
+// 	// Questo era un test semplice prendendo come esempio la roba di appunti.
+// 	// Qui andranno trasformate le varie parti di _response in una c_string da inviare con send.
+
+// 	std::string	message;
+// 	std::string	sendMessage;
+// 	long		bytesSent;
+
+// 	message = "FUNCTION sendResponse TEXT:\n\n<!DOCTYPE html><html lang=\"en\"><body><h1> HOME </h1><p> Hello from your Server :) </p></body></html>";
+// 	std::ostringstream ss;
+// 	ss << "HTTP/1.1 200 OK\nContent-Type: text/html\nContent-Length: " << message.size() << "\n\n" << message;
+
+// 	sendMessage = ss.str();
+
+// 	bytesSent = send(_connfd, sendMessage.c_str(), sendMessage.size(), 0);
+// 	(void)bytesSent;
+// }

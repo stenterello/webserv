@@ -77,8 +77,7 @@ bool    Server::startListen()
 	}
 
 	for(;;) {
-		std::cout << "START LOOP" << std::endl;  
-		int poll_count = poll(_pfds, fd_count, 30000);
+		int poll_count = poll(_pfds, fd_count, -1);
 		if (poll_count == -1) {
 			perror("poll");
 			exit(1);
