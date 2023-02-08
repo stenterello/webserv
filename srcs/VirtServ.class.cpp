@@ -162,6 +162,7 @@ void		VirtServ::elaborateRequest(int dest_fd)
 	std::string	path;
 	t_location*	location;
 
+	_response.headers.insert(std::make_pair("set-cookie", "ciao=ciao"));
 	method = _request.line.substr(0, _request.line.find_first_of(" "));
 	_request.line = _request.line.substr(method.length() + 1);
 	path = _request.line.substr(0, _request.line.find_first_of(" "));
@@ -272,7 +273,7 @@ void		VirtServ::tryFiles(std::string value, t_config tmpConfig, int dest_fd)
 	{
 		files.push_back(value.substr(0, value.find_first_of(" \t")));
 		value = value.substr(value.find_first_of(" \t"));
-		value = value.find_first_not_of(" \t");
+		value = value.substr(value.find_first_not_of(" \t"));
 	}
 	defaultFile = value;
 
@@ -318,21 +319,8 @@ FILE*		VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int de
 	{
 		while ((dirent = readdir(directory)))
 		{
-			// if (dirent->d_type == DT_DIR) {
-			// 	_request.line = "/";
-			// 	printf("FILENAME: %s\n", filename.c_str());
-			// 	// std::cout << "INDEX OF " << _request.line.substr(0, _request.line.find_first_of(" ")) + "\n";
-			// 	answerAutoindex(fullPath, directory, dest_fd); // qua metteremo la redirection se uno prova ad accedere ad una cartella
-			// 	// return NULL ;
-
-			// }
 			if (!filename.compare(dirent->d_name))
 			{
-				if (dirent->d_type == DT_DIR) {
-					std::cout << "FULL PATH " + fullPath + "\n";
-					answerAutoindex(fullPath, directory, dest_fd);
-					break;
-				}
 				answer(fullPath, dirent, dest_fd);
 				break ;
 			}
@@ -342,6 +330,16 @@ FILE*		VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int de
 	}
 	else if (tmpConfig.autoindex) {
 		answerAutoindex(fullPath, directory, dest_fd);
+	}
+	else if (tmpConfig.index.size()) {
+		closedir(directory);
+		opendir(_config.root.c_str());
+		(dirent = readdir(directory));
+		printf("INDEX %s\n", filename.c_str());
+		while (strcmp(dirent->d_name, "index.html"))
+			(dirent = readdir(directory));
+		filename = "index.html";
+		answer(fullPath, dirent, dest_fd);
 	}
 	else {
 		defaultAnswerError(404, dest_fd, tmpConfig);
@@ -356,7 +354,7 @@ void		VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 	std::ostringstream	convert;
 	std::fstream		file;
 
-	if (tmpConfig.errorPages.size())
+	if (tmpConfig.errorPages.size() && err != 500)
 	{
 		convert << err;
 		for (std::vector<std::string>::iterator it = tmpConfig.errorPages.begin(); it != tmpConfig.errorPages.end(); it++)
