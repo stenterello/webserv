@@ -144,7 +144,6 @@ void	VirtServ::readRequest(std::string req)
 	if (req.find_first_not_of("\n") != std::string::npos)
 		_request.body = req.substr(req.find_first_not_of("\n"));
 
-
 	// Check request parsed
 	std::cout << "PARSED REQUEST CHECKING" << std::endl;
 	std::cout << _request.line << std::endl;
@@ -300,8 +299,9 @@ FILE*		VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int de
 	if (filename.find("/") != std::string::npos)
 	{
 		fullPath += filename.substr(0, filename.find_last_of("/") + 1);
-		if (filename.find_last_of("/") != filename.length() - 1)
+		if (filename.find_last_of("/") != filename.length() - 1){
 			filename = filename.substr(filename.find_last_of("/") + 1);
+		}
 		else
 			filename = "";
 	}
@@ -316,15 +316,26 @@ FILE*		VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int de
 	}
 	if (filename.length())
 	{
-		// dirent = readdir(directory);
 		while ((dirent = readdir(directory)))
 		{
+			// if (dirent->d_type == DT_DIR) {
+			// 	_request.line = "/";
+			// 	printf("FILENAME: %s\n", filename.c_str());
+			// 	// std::cout << "INDEX OF " << _request.line.substr(0, _request.line.find_first_of(" ")) + "\n";
+			// 	answerAutoindex(fullPath, directory, dest_fd); // qua metteremo la redirection se uno prova ad accedere ad una cartella
+			// 	// return NULL ;
+
+			// }
 			if (!filename.compare(dirent->d_name))
 			{
+				if (dirent->d_type == DT_DIR) {
+					std::cout << "FULL PATH " + fullPath + "\n";
+					answerAutoindex(fullPath, directory, dest_fd);
+					break;
+				}
 				answer(fullPath, dirent, dest_fd);
 				break ;
 			}
-			// dirent = readdir(directory);
 		}
 		if (!dirent)
 			defaultAnswerError(404, dest_fd, tmpConfig);
@@ -449,7 +460,7 @@ void        VirtServ::answerAutoindex(std::string fullPath, DIR* directory, int 
 {
     std::ostringstream  convert;
     struct dirent**     store;
-    struct stat         attr; // utilizzo?????
+    struct stat         attr;
     std::string         tmpString;
     std::stringstream   output;
     std::string         name;
@@ -473,7 +484,7 @@ void        VirtServ::answerAutoindex(std::string fullPath, DIR* directory, int 
                 tmpString = std::string(ctime(&attr.st_mtime)).substr(0, std::string(ctime(&attr.st_mtime)).length() - 1);
 				_response.body.append(52 - static_cast<int>(name.length()), ' ');
                 _response.body += tmpString; _response.body.append(21 - convert.width(), ' ');
-				_response.body += (store[i]->d_type == DT_DIR) ? "-" : convert.str();
+				_response.body += store[i]->d_type == DT_DIR ? "-" : convert.str();
             }
             _response.body += "\n";
             convert.str("");
@@ -507,7 +518,7 @@ void		VirtServ::answer(std::string fullPath, struct dirent* dirent, int dest_fd)
 		std::cout << "cannot read file" << std::endl;
 		return ;
 	}
-	_response.line += "200 OK";
+	_response.line += "HTTP/1.1 200 OK";
 	stream << resource.rdbuf();
 	tmpBody = stream.str();
 	stream.str("");
