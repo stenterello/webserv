@@ -289,7 +289,7 @@ void		VirtServ::tryFiles(std::string value, t_config tmpConfig, int dest_fd)
 		// ritorna 404
 }
 
-FILE*		VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int dest_fd)
+bool		VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int dest_fd)
 {
 	std::string		fullPath = tmpConfig.root;
 	DIR*			directory;
@@ -313,7 +313,7 @@ FILE*		VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int de
 			defaultAnswerError(403, dest_fd, tmpConfig);
 		if (errno == ENOENT || errno == ENOTDIR)
 			defaultAnswerError(404, dest_fd, tmpConfig);
-		return (NULL);
+		return (true);
 	}
 	if (filename.length())
 	{
@@ -327,25 +327,20 @@ FILE*		VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int de
 		}
 		if (!dirent)
 			defaultAnswerError(404, dest_fd, tmpConfig);
+		closedir(directory);
+		return (true);
 	}
 	else if (tmpConfig.autoindex) {
 		answerAutoindex(fullPath, directory, dest_fd);
-	}
-	else if (tmpConfig.index.size()) {
 		closedir(directory);
-		opendir(_config.root.c_str());
-		(dirent = readdir(directory));
-		printf("INDEX %s\n", filename.c_str());
-		while (strcmp(dirent->d_name, "index.html"))
-			(dirent = readdir(directory));
-		filename = "index.html";
-		answer(fullPath, dirent, dest_fd);
+		return (true);
 	}
 	else {
 		defaultAnswerError(404, dest_fd, tmpConfig);
+		return (true);
 	}
 	closedir(directory);
-	return (NULL);
+	return (false);
 }
 
 void		VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
@@ -430,7 +425,7 @@ struct dirent**     VirtServ::fill_dirent(DIR *directory)
     while ((tmp = readdir(directory)))
         size++;
     closedir(directory);
-    opendir(_config.root.c_str());
+    directory = opendir(_config.root.c_str());
     ret = (struct dirent**)malloc(sizeof(*ret) * size + 1);
 	int j = 0;
     while (i < size)
@@ -442,7 +437,7 @@ struct dirent**     VirtServ::fill_dirent(DIR *directory)
     }
 	i = 0;
 	closedir(directory);
-    opendir(_config.root.c_str());
+    directory = opendir(_config.root.c_str());
 	while (i < size)
     {
 		tmp = readdir(directory);

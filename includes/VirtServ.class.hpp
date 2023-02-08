@@ -23,7 +23,7 @@ class VirtServ
 		void				interpretLocationBlock(t_location* location);
 		void				executeLocationRules(std::string text, int dest_fd);
 		void				tryFiles(std::string value, t_config tmpConfig, int dest_fd);
-		FILE*				tryGetResource(std::string filename, t_config tmpConfig, int dest_fd);
+		bool				tryGetResource(std::string filename, t_config tmpConfig, int dest_fd);
 		void				answer(std::string fullPath, struct dirent* dirent, int dest_fd);
 		void				answerAutoindex(std::string fullPath, DIR* directory, int dest_fd);
 		void				defaultAnswerError(int err, int dest_fd, t_config tmpConfig);
