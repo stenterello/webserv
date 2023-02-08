@@ -12,7 +12,6 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <sys/time.h>
-#define PORT 8888
 
 //////// Constructors & Destructor //////////////////////////////
 
@@ -44,25 +43,14 @@ bool	VirtServ::startServer()
 
 	_sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (_sockfd == -1)
-	{
-		std::cerr << "Socket error" << std::endl;
-		return (false);
-	}
+		return bool_error("Socket error\n");
 	// fcntl(_sockfd, F_SETFL, O_NONBLOCK);
 	if (setsockopt(_sockfd, SOL_SOCKET, SO_REUSEADDR, (const char *)&i, sizeof(i)) < 0)
-	{
-		std::cerr << "setsockopt() error" << std::endl;
-		return (false);
-	}
+		return bool_error("setsockopt() error\n");
 	if (bind(_sockfd, (struct sockaddr *)&_sin, sizeof(_sin)) != 0)
-	{
-		std::cerr << "Bind error" << std::endl;
-		return (false);
-	}
-	if (listen(_sockfd, 10) == -1) {
-		std::cerr << "Listen error" << std::endl;
-		return (false);
-	}
+		return bool_error("Bind error");
+	if (listen(_sockfd, 10) == -1)
+		return bool_error("Listen error");
 	return (true);
 }
 
@@ -70,11 +58,7 @@ bool	VirtServ::stopServer()
 {
 	_connfd.clear();
 	if (close(_sockfd))
-	{
-		std::cout << "Error closing _sockfd" << std::endl;
-		return (false);
-	}
-	return (true);
+		return bool_error("Error closing _sockfd");
 }
 
 int	VirtServ::acceptConnectionAddFd(int sockfd)
@@ -179,11 +163,8 @@ void	VirtServ::cleanRequest()
 	_request.body = "";
 	std::map<std::string, std::string>::iterator	iter = _request.headers.begin();
 
-	while (iter != _request.headers.end())
-	{
+	for (; iter != _request.headers.end(); iter++)
 		(*iter).second = "";
-		iter++;
-	}
 }
 
 void		VirtServ::executeLocationRules(std::string text, int dest_fd)

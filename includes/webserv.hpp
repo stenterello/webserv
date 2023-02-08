@@ -98,5 +98,6 @@ typedef struct	s_response
 void	die(std::string const err);
 void	die(std::string const err, VirtServ & serv);
 void	usage();
+bool	bool_error(std::string error);
 
 #endif

@@ -22,3 +22,9 @@ void	usage()
 	std::cerr << "Usage\n\t./webserv config_file" << std::endl;
 	exit(1);
 }
+
+bool	bool_error(std::string error)
+{
+	std::cout << error;
+	return false;
+}
