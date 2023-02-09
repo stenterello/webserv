@@ -271,7 +271,7 @@ void		VirtServ::tryFiles(std::string value, t_config tmpConfig, int dest_fd)
 
 void		VirtServ::dirAnswer(std::string fullPath, struct dirent* dirent, int dest_fd, t_config tmpConfig)
 {
-	DIR*	dir;
+	DIR*			dir;
 	std::string		path = fullPath + dirent->d_name + "/";
 	dir = opendir(path.c_str());
 	if (!tmpConfig.autoindex){
@@ -369,7 +369,7 @@ void		VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 			{
 				if (*(tmpConfig.root.end() - 1) == '/')
 					file.open(tmpConfig.root + *it);
-				else 
+				else
 					file.open(tmpConfig.root + "/" + *it);
 				if (file.bad())
 					file.close(); defaultAnswerError(500, dest_fd, tmpConfig); return ;
@@ -377,6 +377,7 @@ void		VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 			}
 		}
 	}
+
 	switch (err)
 	{
 		case 400: tmpString = "400 Bad Request"; break;
