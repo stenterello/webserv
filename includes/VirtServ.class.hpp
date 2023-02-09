@@ -27,7 +27,7 @@ class VirtServ
 		void				answer(std::string fullPath, struct dirent* dirent, int dest_fd);
 		void				answerAutoindex(std::string fullPath, DIR* directory, int dest_fd);
 		void				defaultAnswerError(int err, int dest_fd, t_config tmpConfig);
-		struct dirent**		fill_dirent(DIR* directory);
+		struct dirent**		fill_dirent(DIR* directory, std::string path);
 		void				sendResponse();
 		void				dirAnswer(std::string fullPath, struct dirent* dirent, int dest_fd, t_config tmpConfig);
 

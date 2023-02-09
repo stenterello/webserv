@@ -44,7 +44,7 @@ bool	VirtServ::startServer()
 	_sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (_sockfd == -1)
 		return bool_error("Socket error\n");
-	// fcntl(_sockfd, F_SETFL, O_NONBLOCK);
+	fcntl(_sockfd, F_SETFL, O_NONBLOCK);
 	if (setsockopt(_sockfd, SOL_SOCKET, SO_REUSEADDR, (const char *)&i, sizeof(i)) < 0)
 		return bool_error("setsockopt() error\n");
 	if (bind(_sockfd, (struct sockaddr *)&_sin, sizeof(_sin)) != 0)
@@ -273,23 +273,30 @@ void		VirtServ::dirAnswer(std::string fullPath, struct dirent* dirent, int dest_
 {
 	DIR*			dir;
 	std::string		path = fullPath + dirent->d_name + "/";
+
 	dir = opendir(path.c_str());
 	if (!tmpConfig.autoindex){
 		struct dirent*	tmp;
 		tmp = readdir(dir);
-		while (tmp) {
-			if (!(std::strcmp(tmp->d_name, "index.html")))
-				break ;
+		for (std::vector<std::string>::iterator it = tmpConfig.index.begin(); it != tmpConfig.index.end(); it++) {
+			while (tmp) {
+				if (!(std::strcmp(tmp->d_name, (*it).c_str()))) {
+					answer(path, tmp, dest_fd);
+					return ;
+					}
+				tmp = readdir(dir);
+			}
+			closedir(dir);
+			dir = opendir(path.c_str());
 			tmp = readdir(dir);
 		}
 		if (!tmp) {
 			defaultAnswerError(404, dest_fd, tmpConfig);
 			return ;
 		}
-		answer(path, tmp, dest_fd);
 	}
 	else {
-		answerAutoindex(fullPath, dir, dest_fd);
+		answerAutoindex(path, dir, dest_fd);
 	}
 }
 
@@ -428,16 +435,17 @@ void		VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 	std::cout << tmpString << std::endl;
 }
 
-struct dirent**     VirtServ::fill_dirent(DIR *directory)
+struct dirent**     VirtServ::fill_dirent(DIR *directory, std::string path)
 {
     struct dirent** ret;
     struct dirent*  tmp;
     int             size = 0;
     int             i = 0;
+
     while ((tmp = readdir(directory)))
         size++;
     closedir(directory);
-    directory = opendir(_config.root.c_str());
+    directory = opendir(path.c_str());
     ret = (struct dirent**)malloc(sizeof(*ret) * size + 1);
 	int j = 0;
     while (i < size)
@@ -449,7 +457,7 @@ struct dirent**     VirtServ::fill_dirent(DIR *directory)
     }
 	i = 0;
 	closedir(directory);
-    directory = opendir(_config.root.c_str());
+    directory = opendir(path.c_str());
 	while (i < size)
     {
 		tmp = readdir(directory);
@@ -470,7 +478,7 @@ void        VirtServ::answerAutoindex(std::string fullPath, DIR* directory, int 
     std::stringstream   output;
     std::string         name;
 
-    store = fill_dirent(directory);
+    store = fill_dirent(directory, fullPath);
     _response.line = "HTTP/1.1 200 OK";
     _response.body = "<html>\n<head><title>Index of " + _request.line.substr(0, _request.line.find_first_of(" ")) + "</title></head>\n<body>\n<h1>Index of " + _request.line.substr(0, _request.line.find_first_of(" ")) + "</h1><hr><pre>";
     int i = 0;
