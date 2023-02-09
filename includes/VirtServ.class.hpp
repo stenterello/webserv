@@ -29,6 +29,7 @@ class VirtServ
 		void				defaultAnswerError(int err, int dest_fd, t_config tmpConfig);
 		struct dirent**		fill_dirent(DIR* directory);
 		void				sendResponse();
+		void				dirAnswer(std::string fullPath, struct dirent* dirent, int dest_fd, t_config tmpConfig);
 
 	public:
 		// Structors

@@ -59,6 +59,7 @@ bool	VirtServ::stopServer()
 	_connfd.clear();
 	if (close(_sockfd))
 		return bool_error("Error closing _sockfd");
+	return true;
 }
 
 int	VirtServ::acceptConnectionAddFd(int sockfd)
@@ -106,6 +107,15 @@ int	VirtServ::handleClient(int fd)
 	return (0);
 }
 
+void	VirtServ::cleanRequest()
+{
+	_request.line = "";
+	_request.body = "";
+	std::map<std::string, std::string>::iterator	iter = _request.headers.begin();
+
+	for (; iter != _request.headers.end(); iter++)
+		(*iter).second = "";
+}
 
 void	VirtServ::readRequest(std::string req)
 {
@@ -113,6 +123,7 @@ void	VirtServ::readRequest(std::string req)
 	std::map<std::string, std::string>::iterator	header;
 
 	_request.line = req.substr(0, req.find_first_of("\n"));
+	std::cout << "REQUESTE.LINE " << _request.line << "\n";
 	req = req.substr(req.find_first_of("\n") + 1);
 
 	while (req.find_first_not_of(" \t\n\r") != std::string::npos && std::strncmp(req.c_str(), "\n\n", 2))
@@ -157,16 +168,6 @@ void		VirtServ::elaborateRequest(int dest_fd)
 	executeLocationRules(location->text, dest_fd);
 }
 
-void	VirtServ::cleanRequest()
-{
-	_request.line = "";
-	_request.body = "";
-	std::map<std::string, std::string>::iterator	iter = _request.headers.begin();
-
-	for (; iter != _request.headers.end(); iter++)
-		(*iter).second = "";
-}
-
 void		VirtServ::executeLocationRules(std::string text, int dest_fd)
 {
 	t_config	tmpConfig(_config);
@@ -190,10 +191,8 @@ void		VirtServ::executeLocationRules(std::string text, int dest_fd)
 			die("Location rule without value. Aborting", *this);
 
 		for (i = 0; i < 6; i++)
-		{
 			if (key == toCompare[i])
 				break ;
-		}
 
 		switch (i)
 		{
@@ -270,6 +269,30 @@ void		VirtServ::tryFiles(std::string value, t_config tmpConfig, int dest_fd)
 		// ritorna 404
 }
 
+void		VirtServ::dirAnswer(std::string fullPath, struct dirent* dirent, int dest_fd, t_config tmpConfig)
+{
+	if (!tmpConfig.autoindex){
+		DIR*	dir;
+		struct dirent*	tmp;
+		std::string		path = fullPath + dirent->d_name + "/";
+		dir = opendir(path.c_str());
+		tmp = readdir(dir);
+		while (tmp) {
+			if (!(std::strcmp(tmp->d_name, "index.html")))
+				break ;
+			tmp = readdir(dir);
+		}
+		if (!tmp) {
+			defaultAnswerError(404, dest_fd, tmpConfig);
+			return ;
+		}
+		answer(path, tmp, dest_fd);
+	}
+	else {
+
+	}
+}
+
 bool		VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int dest_fd)
 {
 	std::string		fullPath = tmpConfig.root;
@@ -289,7 +312,6 @@ bool		VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int des
 	}
 	if (!(directory = opendir(fullPath.c_str())))
 	{
-		defaultAnswerError(errno, dest_fd, tmpConfig);
 		if (errno == EACCES)
 			defaultAnswerError(403, dest_fd, tmpConfig);
 		if (errno == ENOENT || errno == ENOTDIR)
@@ -302,6 +324,10 @@ bool		VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int des
 		{
 			if (!filename.compare(dirent->d_name))
 			{
+				if (dirent->d_type == DT_DIR) {
+					dirAnswer(fullPath, dirent, dest_fd, tmpConfig);
+					break ;
+				}
 				answer(fullPath, dirent, dest_fd);
 				break ;
 			}
