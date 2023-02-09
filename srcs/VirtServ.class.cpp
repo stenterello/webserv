@@ -271,11 +271,11 @@ void		VirtServ::tryFiles(std::string value, t_config tmpConfig, int dest_fd)
 
 void		VirtServ::dirAnswer(std::string fullPath, struct dirent* dirent, int dest_fd, t_config tmpConfig)
 {
+	DIR*	dir;
+	std::string		path = fullPath + dirent->d_name + "/";
+	dir = opendir(path.c_str());
 	if (!tmpConfig.autoindex){
-		DIR*	dir;
 		struct dirent*	tmp;
-		std::string		path = fullPath + dirent->d_name + "/";
-		dir = opendir(path.c_str());
 		tmp = readdir(dir);
 		while (tmp) {
 			if (!(std::strcmp(tmp->d_name, "index.html")))
@@ -289,7 +289,7 @@ void		VirtServ::dirAnswer(std::string fullPath, struct dirent* dirent, int dest_
 		answer(path, tmp, dest_fd);
 	}
 	else {
-
+		answerAutoindex(fullPath, dir, dest_fd);
 	}
 }
 
@@ -341,6 +341,10 @@ bool		VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int des
 		answerAutoindex(fullPath, directory, dest_fd);
 		closedir(directory);
 		return (true);
+	}
+	else if (!tmpConfig.autoindex) {
+		dirent = readdir(directory);
+		dirAnswer(fullPath, dirent, dest_fd, tmpConfig);
 	}
 	else {
 		defaultAnswerError(404, dest_fd, tmpConfig);
