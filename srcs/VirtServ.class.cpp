@@ -304,7 +304,7 @@ bool		VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int des
 	if (filename.find("/") != std::string::npos)
 	{
 		fullPath += filename.substr(0, filename.find_last_of("/") + 1);
-		if (filename.find_last_of("/") != filename.length() - 1){
+		if (filename.find_last_of("/") != filename.length() - 1) {
 			filename = filename.substr(filename.find_last_of("/") + 1);
 		}
 		else
@@ -358,7 +358,7 @@ void		VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 {
 	std::string 		tmpString;
 	std::ostringstream	convert;
-	std::fstream		file;
+	std::ifstream		file;
 
 	if (tmpConfig.errorPages.size() && err != 500)
 	{
@@ -367,12 +367,12 @@ void		VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 		{
 			if (!std::strncmp(convert.str().c_str(), (*it).c_str(), 3))
 			{
-				if (*(tmpConfig.root.end() - 1) == '/')
-					file.open(tmpConfig.root + *it);
-				else
-					file.open(tmpConfig.root + "/" + *it);
-				if (file.bad())
+				if (*(tmpConfig.root.end() - 1) != '/')
+					tmpConfig.root.push_back('/');
+				file.open(tmpConfig.root + *it);
+				if (!file) {
 					file.close(); defaultAnswerError(500, dest_fd, tmpConfig); return ;
+				}
 				break ;
 			}
 		}
