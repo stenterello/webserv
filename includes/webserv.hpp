@@ -25,7 +25,7 @@ typedef	struct	s_location
 {
 	bool						regex;		// ~
 	bool						exact_path;	// =
-	std::vector<std::string>	acceptedMethods;
+	std::vector<std::string>	allowedMethods;
 	std::string					location;	// path
 	std::string					text;		// block
 }				t_location;
@@ -40,6 +40,7 @@ typedef struct	s_config
 	std::vector<std::string>	index;					// index
 	std::vector<std::string>	errorPages;				// error_pages
 	unsigned long				client_body_max_size;	// client_body_max_size
+	std::vector<std::string>	allowedMethods;
 	std::vector<t_location>		locationRules;			// location
 
 	s_config() : port(0)
@@ -52,6 +53,7 @@ typedef struct	s_config
 typedef struct	s_request
 {
 	std::string							line;
+	std::string							method;
 	std::map<std::string, std::string>	headers;
 	std::string							body;
 

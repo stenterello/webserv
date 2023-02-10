@@ -153,16 +153,15 @@ void	VirtServ::readRequest(std::string req)
 
 void		VirtServ::elaborateRequest(int dest_fd)
 {
-	std::string	method;
 	std::string	path;
 	t_location*	location;
 
-	_response.headers.insert(std::make_pair("set-cookie", "ciao=ciao"));
-	method = _request.line.substr(0, _request.line.find_first_of(" "));
-	_request.line = _request.line.substr(method.length() + 1);
+	// _response.headers.insert(std::make_pair("set-cookie", "ciao=ciao"));
+	_request.method = _request.line.substr(0, _request.line.find_first_of(" "));
+	_request.line = _request.line.substr(_request.method.length() + 1);
 	path = _request.line.substr(0, _request.line.find_first_of(" "));
 
-	location = searchLocationBlock(method, path, dest_fd);
+	location = searchLocationBlock(_request.method, path, dest_fd);
 	if (!location)
 		return ;
 	executeLocationRules(location->text, dest_fd);
@@ -174,7 +173,7 @@ void		VirtServ::executeLocationRules(std::string text, int dest_fd)
 	std::string	line;
 	std::string	key;
 	std::string	value;
-	std::string toCompare[6] = { "root", "autoindex", "index", "error_pages", "client_body_max_sizes", "try_files" };
+	std::string toCompare[7] = { "root", "autoindex", "index", "error_pages", "client_body_max_sizes", "allowed_methods", "try_files" };
 	int			i;
 
 	while (text.find_first_not_of(" \t\r\n") != std::string::npos)
@@ -236,11 +235,39 @@ void		VirtServ::executeLocationRules(std::string text, int dest_fd)
 			case 4:
 				Parser::checkClientBodyMaxSize(value, tmpConfig); break ;
 			case 5:
+				insertMethod(tmpConfig, value); break ;
+			case 6:
 				tryFiles(value, tmpConfig, dest_fd); return ;
 			default: die("Unrecognized location rule. Aborting", *this);
 		}
 		text = text.substr(text.find("\n") + 1);
 		text = text.substr(text.find_first_not_of(" \t\n"));
+	}
+}
+
+void		VirtServ::insertMethod(t_config & tmpConfig, std::string value)
+{
+	std::string	methods[4] = { "GET", "POST", "DELETE", "PUT" };
+	std::string	tmp;
+	int			i;
+
+	tmpConfig.allowedMethods.clear();
+	while (value.find_first_of(" \t\n") != std::string::npos)
+	{
+		tmp = value.substr(0, value.find_first_of(" \t\n"));
+		tmpConfig.allowedMethods.push_back(tmp);
+		value = value.substr(value.find_first_of(" \t\n"));
+		value = value.substr(value.find_first_not_of(" \t\n"));
+	}
+
+	for (std::vector<std::string>::iterator	iter = tmpConfig.allowedMethods.begin(); iter != tmpConfig.allowedMethods.end(); iter++) {
+		for (i = 0; i < 4; i++)
+		{
+			if (!(*iter).compare(methods[i]))
+				break ;
+		}
+		if (i == 4)
+			die("Method not recognized in location block. Aborting");
 	}
 }
 
@@ -255,6 +282,7 @@ void		VirtServ::tryFiles(std::string value, t_config tmpConfig, int dest_fd)
 		value = value.substr(value.find_first_of(" \t"));
 		value = value.substr(value.find_first_not_of(" \t"));
 	}
+	
 	defaultFile = value;
 
 	std::vector<std::string>::iterator	iter = files.begin();
@@ -264,9 +292,6 @@ void		VirtServ::tryFiles(std::string value, t_config tmpConfig, int dest_fd)
 			return ;
 		iter++;
 	}
-	// resource = tryGetResource(defaultFile, tmpConfig, dest_fd);
-	// if (!resource)
-		// ritorna 404
 }
 
 void		VirtServ::dirAnswer(std::string fullPath, struct dirent* dirent, int dest_fd, t_config tmpConfig)
@@ -305,6 +330,12 @@ bool		VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int des
 	std::string		fullPath = tmpConfig.root;
 	DIR*			directory;
 	struct dirent*	dirent;
+
+	if (tmpConfig.allowedMethods.size() && std::find(tmpConfig.allowedMethods.begin(), tmpConfig.allowedMethods.end(), _request.method) == tmpConfig.allowedMethods.end())
+	{
+		defaultAnswerError(405, dest_fd, _config);
+		return (true);
+	}
 
 	if (!filename.compare("$uri"))
 		filename = _request.line.substr(0, _request.line.find_first_of(" \t"));
@@ -563,6 +594,7 @@ t_location*	VirtServ::searchLocationBlock(std::string method, std::string path, 
 	t_location*							ret = NULL;
 	bool								regex = false;
 
+	(void)method;
 	if (path.at(0) == '~')
 		regex = true;
 
@@ -611,11 +643,6 @@ t_location*	VirtServ::searchLocationBlock(std::string method, std::string path, 
 	if (!ret)
 	{
 		defaultAnswerError(403, dest_fd, _config);
-		return (NULL);
-	}
-	if (ret && ret->acceptedMethods.size() && std::find(ret->acceptedMethods.begin(), ret->acceptedMethods.end(), method) == ret->acceptedMethods.end())
-	{
-		defaultAnswerError(405, dest_fd, _config);
 		return (NULL);
 	}
 	return (ret);

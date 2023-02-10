@@ -328,15 +328,46 @@ void		Parser::checkClientBodyMaxSize(std::string value, t_config & conf)
 	conf.client_body_max_size = size;
 }
 
+void		Parser::checkMethods(std::string value, t_config & conf)
+{
+	std::string	methods[4] = { "GET", "POST", "DELETE", "PUT" };
+	std::string	tmp;
+	int i;
+
+	if (value.find(" \t\n") != std::string::npos)
+	{
+		while (value.find_first_of(" \t\n") != std::string::npos)
+		{
+			tmp = value.substr(0, value.find_first_of(" \t\n"));
+			conf.allowedMethods.push_back(tmp);
+			value = value.substr(value.find_first_of(" \t\n"));
+			value = value.substr(value.find_first_not_of(" \t\n"));
+		}
+	}
+	else
+		conf.allowedMethods.push_back(value);
+
+	for (std::vector<std::string>::iterator	iter = conf.allowedMethods.begin(); iter != conf.allowedMethods.end(); iter++)
+	{
+		for (i = 0; i < 4; i++)
+		{
+			if (!(*iter).compare(methods[i]))
+				break ;
+		}
+		if (i == 4)
+			die("Method in configuration not recognized. Aborting");
+	}
+}
+
 void		Parser::fillConf(std::string key, std::string value, t_config & conf)
 {
 	int 		i;
-	std::string	toCompare[8] = { "listen", "server_name", "root", "autoindex", "index", "error_pages", "client_body_max_size", "location" };
+	std::string	toCompare[9] = { "listen", "server_name", "root", "autoindex", "index", "error_pages", "client_body_max_size", "allowed_methods", "location" };
 
-	for (i = 0; i < 8; i++)
+	for (i = 0; i < 9; i++)
 		if (!toCompare[i].compare(key))
 			break ;
-	if (i == 8)
+	if (i == 9)
 		die("Directive not recognized: " + key + ". Aborting.");
 
 	switch (i)
@@ -356,6 +387,8 @@ void		Parser::fillConf(std::string key, std::string value, t_config & conf)
 		case 6: // client_body_max_size
 			checkClientBodyMaxSize(value, conf); break ;
 		case 7:
+			checkMethods(value, conf); break ;
+		case 8:
 			break ;
 		default:
 			die("Unrecognized rule. Aborting");
