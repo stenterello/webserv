@@ -47,6 +47,7 @@ typedef struct	s_config
 	{
 		root = "";
 		host = "0.0.0.0";
+		client_body_max_size = 1048576;
 	}
 }				t_config;
 
@@ -70,6 +71,7 @@ typedef struct	s_request
 		headers.insert(std::make_pair("Sec-Fetch-Mode", ""));
 		headers.insert(std::make_pair("Sec-Fetch-Site", ""));
 		headers.insert(std::make_pair("Sec-Fetch-User", ""));
+		headers.insert(std::make_pair("Content-Type", ""));
 	}
 }				t_request;
 

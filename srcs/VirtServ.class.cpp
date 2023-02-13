@@ -140,7 +140,15 @@ void VirtServ::readRequest(std::string req)
 		header = _request.headers.find(key);
 		if (header != _request.headers.end())
 			(*header).second = req.substr(0, req.find_first_of("\n"));
+		if (!std::strncmp(req.substr(req.find_first_of("\r")).c_str(), "\r\n\r\n", 4))
+			break ;
 		req = req.substr(req.find_first_of("\n") + 1);
+	}
+
+	if (!std::strncmp(req.substr(req.find_first_of("\r")).c_str(), "\r\n\r\n", 4))
+	{
+		req = req.substr(req.find_first_of("\r") + 4);
+		_request.body = req;
 	}
 
 	if (req.find_first_not_of("\n") != std::string::npos)
@@ -181,7 +189,7 @@ void VirtServ::executeLocationRules(std::string text, int dest_fd)
 	std::string line;
 	std::string key;
 	std::string value;
-	std::string toCompare[7] = {"root", "autoindex", "index", "error_pages", "client_body_max_sizes", "allowed_methods", "try_files"};
+	std::string toCompare[8] = {"root", "autoindex", "index", "error_pages", "client_body_max_sizes", "allowed_methods", "client_body_max_size", "try_files"};
 	int i;
 
 	while (text.find_first_not_of(" \t\r\n") != std::string::npos)
@@ -197,7 +205,7 @@ void VirtServ::executeLocationRules(std::string text, int dest_fd)
 		if (value.find_first_not_of(" \t\n") == std::string::npos)
 			die("Location rule without value. Aborting", *this);
 
-		for (i = 0; i < 6; i++)
+		for (i = 0; i < 8; i++)
 			if (key == toCompare[i])
 				break;
 
@@ -246,8 +254,11 @@ void VirtServ::executeLocationRules(std::string text, int dest_fd)
 				break;
 			case 5:
 				insertMethod(tmpConfig, value);
-				break;
+				break ;
 			case 6:
+				Parser::checkClientBodyMaxSize(value, tmpConfig);
+				break ;
+			case 7:
 				tryFiles(value, tmpConfig, dest_fd);
 				return;
 			default:
@@ -289,6 +300,12 @@ void VirtServ::tryFiles(std::string value, t_config tmpConfig, int dest_fd)
 {
 	std::vector<std::string> files;
 	std::string defaultFile;
+
+	if (tmpConfig.client_body_max_size && std::strlen(_request.body.c_str()) > tmpConfig.client_body_max_size)
+	{
+		defaultAnswerError(413, dest_fd, tmpConfig);
+		return ;
+	}
 
 	while (value.find_first_of(" \t") != std::string::npos)
 	{
@@ -453,6 +470,7 @@ void VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 		case 404: tmpString = "404 Not Found"; break;
 		case 405: tmpString = "405 Method Not Allowed"; break;
 		case 406: tmpString = "406 Not Acceptable"; break;
+		case 413: tmpString = "413 Request Entity Too Large"; break ;
 		case 500: tmpString = "500 Internal Server Error"; break;
 		default: break;
 	}
