@@ -101,7 +101,7 @@ int VirtServ::handleClient(int fd)
 		{
 			perror("recv");
 		}
-		close(fd);
+		// close(fd);
 		return (1);
 	}
 	else
@@ -110,6 +110,8 @@ int VirtServ::handleClient(int fd)
 		this->readRequest(buf);
 		this->elaborateRequest(fd);
 		_connfd.erase(it);
+		close(fd);
+		std::cout << "END CLIENT\n";
 	}
 	return (0);
 }
@@ -130,7 +132,6 @@ void VirtServ::readRequest(std::string req)
 	std::map<std::string, std::string>::iterator header;
 
 	_request.line = req.substr(0, req.find_first_of("\n"));
-	std::cout << "REQUESTE.LINE " << _request.line << "\n";
 	req = req.substr(req.find_first_of("\n") + 1);
 
 	while (req.find_first_not_of(" \t\n\r") != std::string::npos && std::strncmp(req.c_str(), "\n\n", 2))
@@ -152,10 +153,9 @@ void VirtServ::readRequest(std::string req)
 	}
 
 	if (req.find_first_not_of("\n") != std::string::npos)
-		_request.body = req.substr(req.find_first_not_of("\n"));
+		_request.body = req.substr(req.find_first_not_of("\r\n"));
 
 	// Check request parsed
-	std::cout << "PARSED REQUEST CHECKING" << std::endl;
 	std::cout << _request.line << std::endl;
 	std::map<std::string, std::string>::iterator iter = _request.headers.begin();
 	while (iter != _request.headers.end())
@@ -252,9 +252,11 @@ void VirtServ::executeLocationRules(std::string text, int dest_fd)
 			case 4:
 				Parser::checkClientBodyMaxSize(value, tmpConfig);
 				break;
-			case 5:
+			case 5: {
+				std::cout << "INSERT METHOD\n";
 				insertMethod(tmpConfig, value);
 				break ;
+			}
 			case 6:
 				Parser::checkClientBodyMaxSize(value, tmpConfig);
 				break ;
@@ -283,7 +285,6 @@ void VirtServ::insertMethod(t_config &tmpConfig, std::string value)
 		value = value.substr(value.find_first_of(" \t\n"));
 		value = value.substr(value.find_first_not_of(" \t\n"));
 	}
-
 	for (std::vector<std::string>::iterator iter = tmpConfig.allowedMethods.begin(); iter != tmpConfig.allowedMethods.end(); iter++)
 	{
 		for (i = 0; i < 4; i++)
@@ -306,7 +307,6 @@ void VirtServ::tryFiles(std::string value, t_config tmpConfig, int dest_fd)
 		defaultAnswerError(413, dest_fd, tmpConfig);
 		return ;
 	}
-
 	while (value.find_first_of(" \t") != std::string::npos)
 	{
 		files.push_back(value.substr(0, value.find_first_of(" \t")));
@@ -362,6 +362,39 @@ void VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_f
 	}
 }
 
+bool	VirtServ::execPost(int sock)
+{
+	std::string filename;
+	std::cout << "REQUEST LINE " << _request.line << std::endl;
+	filename = _request.line.substr(0, _request.line.find_first_of(" "));
+	std::ofstream ofs;
+	// int	buffSize = 
+    ofs.open("42.png", std::ofstream::binary | std::ofstream::trunc);
+    char buffer[8000] = {0};
+    size_t length = 0;
+    if (ofs.is_open()) {
+        // //  clear buffer
+		// length = recv(sock, buffer, sizeof(buffer), 0);
+		// std::cout << "RECV FUORI LOOP " << buffer << "FINE BUFFER" << std::endl;
+        memset(buffer, 0, sizeof(buffer));
+		std::cout << "START LOOP\n";
+        while ((length = recv(sock, buffer, sizeof(buffer), 0)) > 0) {
+            //  write data
+			std::cout << "RECV " << buffer << std::endl;
+            if (length < sizeof(buffer)) {
+                break;
+            }
+        }
+		std::cout << "END LOOP\n";
+        std::cout << "Save file: " << filename << std::endl;
+        ofs.close();
+    } else {
+        std::cout << "Failed to save file: " << filename << std::endl;
+        return false;
+    }
+	return true;
+}
+
 bool VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int dest_fd)
 {
 	std::string fullPath = tmpConfig.root;
@@ -373,7 +406,10 @@ bool VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int dest
 		defaultAnswerError(405, dest_fd, _config);
 		return (true);
 	}
-
+	if (_request.method == "POST") {
+		execPost(dest_fd);
+		return true;
+	}
 	if (!filename.compare("$uri"))
 		filename = _request.line.substr(0, _request.line.find_first_of(" \t"));
 	if (filename.find("/") != std::string::npos)
