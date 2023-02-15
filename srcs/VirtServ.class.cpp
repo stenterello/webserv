@@ -101,7 +101,7 @@ int VirtServ::handleClient(int fd)
 		{
 			perror("recv");
 		}
-		// close(fd);
+		close(fd);
 		return (1);
 	}
 	else
@@ -110,7 +110,6 @@ int VirtServ::handleClient(int fd)
 		this->readRequest(buf);
 		this->elaborateRequest(fd);
 		_connfd.erase(it);
-		close(fd);
 		std::cout << "END CLIENT\n";
 	}
 	return (0);
@@ -364,35 +363,47 @@ void VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_f
 
 bool	VirtServ::execPost(int sock)
 {
-	std::string filename;
-	std::cout << "REQUEST LINE " << _request.line << std::endl;
-	filename = _request.line.substr(0, _request.line.find_first_of(" "));
 	std::ofstream ofs;
-	// int	buffSize = 
-    ofs.open("42.png", std::ofstream::binary | std::ofstream::trunc);
-    char buffer[8000] = {0};
+	std::string	store = "";
+    // ofs.open("prova", std::ofstream::binary | std::ofstream::trunc);
+    char buffer[10] = {0};
     size_t length = 0;
-    if (ofs.is_open()) {
-        // //  clear buffer
-		// length = recv(sock, buffer, sizeof(buffer), 0);
-		// std::cout << "RECV FUORI LOOP " << buffer << "FINE BUFFER" << std::endl;
-        memset(buffer, 0, sizeof(buffer));
-		std::cout << "START LOOP\n";
-        while ((length = recv(sock, buffer, sizeof(buffer), 0)) > 0) {
-            //  write data
-			std::cout << "RECV " << buffer << std::endl;
-            if (length < sizeof(buffer)) {
-                break;
-            }
+	size_t write_lenght = 0;
+	// length = recv(sock, buffer, sizeof(buffer), 0);
+	// std::cout << "RECV FUORI LOOP " << buffer << "FINE BUFFER" << std::endl;
+    // //  clear buffer
+    memset(buffer, 0, sizeof(buffer));
+	std::cout << "START LOOP\n";
+    while ((length = recv(sock, buffer, sizeof(buffer), 0)) > 0) {
+        //  write data
+        // ofs.write(buffer, length);
+		store += buffer;
+		write_lenght += length;
+        if (length < sizeof(buffer)) {
+            break;
         }
-		std::cout << "END LOOP\n";
-        std::cout << "Save file: " << filename << std::endl;
-        ofs.close();
-    } else {
-        std::cout << "Failed to save file: " << filename << std::endl;
-        return false;
     }
-	return true;
+	std::cout << "STORE " << store << std::endl;
+	std::string filename = store.substr(store.find("filename"), store.max_size());
+	std::cout << "FILENAME " << filename << std::endl;
+	filename = filename.substr(filename.find_first_of("\"") + 1, filename.find_first_of("\n"));
+	filename = filename.substr(0, filename.find_first_of("\""));
+	// std::cout << "FILENAME " << filename << std::endl;
+	ofs.open(filename.c_str(), std::ofstream::binary | std::ofstream::trunc);
+	if (ofs.is_open()) {
+		std::string cmp = store.substr(0, store.find_first_of("\n"));
+		for (int i = 4; i > 0; i--)
+			store = store.substr(store.find_first_of("\n") + 1, store.size());
+		cmp.append("--");
+		store = store.substr(0, store.find(cmp));
+		std::cout << "STORE " + store << std::endl;
+		std::cout << "CMP " + cmp << std::endl;
+		ofs.write(store.c_str(), write_lenght);
+    	std::cout << "Save file: " << filename << std::endl;
+    	ofs.close();
+		return true;
+	}
+	return false;
 }
 
 bool VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int dest_fd)
