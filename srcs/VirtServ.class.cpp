@@ -91,6 +91,7 @@ int VirtServ::handleClient(int fd)
 	if (it == _connfd.end())
 		return (1);
 	int nbytes = recv(fd, buf, sizeof buf, 0);
+	std::cout << buf << std::endl;
 	if (nbytes <= 0)
 	{
 		if (nbytes == 0)
@@ -107,7 +108,10 @@ int VirtServ::handleClient(int fd)
 	else
 	{
 		this->cleanRequest();
-		this->readRequest(buf);
+		while (this->readRequest(buf))
+		{
+			nbytes = recv(fd, buf, sizeof buf, 0);
+		};
 		this->elaborateRequest(fd);
 		_connfd.erase(it);
 		std::cout << "END CLIENT\n";
@@ -125,10 +129,10 @@ void VirtServ::cleanRequest()
 		(*iter).second = "";
 }
 
-void VirtServ::readRequest(std::string req)
+int VirtServ::readRequest(std::string req)
 {
-	std::string key;
-	std::map<std::string, std::string>::iterator header;
+	std::string										key;
+	std::map<std::string, std::string>::iterator	header;
 
 	_request.line = req.substr(0, req.find_first_of("\n"));
 	req = req.substr(req.find_first_of("\n") + 1);
@@ -139,7 +143,7 @@ void VirtServ::readRequest(std::string req)
 		req = req.substr(req.find_first_of(":") + 2);
 		header = _request.headers.find(key);
 		if (header != _request.headers.end())
-			(*header).second = req.substr(0, req.find_first_of("\n"));
+			(*header).second = req.substr(0, req.find_first_of("\r\n"));
 		if (!std::strncmp(req.substr(req.find_first_of("\r")).c_str(), "\r\n\r\n", 4))
 			break ;
 		req = req.substr(req.find_first_of("\n") + 1);
@@ -147,6 +151,8 @@ void VirtServ::readRequest(std::string req)
 
 	if (!std::strncmp(req.substr(req.find_first_of("\r")).c_str(), "\r\n\r\n", 4))
 	{
+		if (header != _request.headers.end())
+			(*header).second = req.substr(0, req.find_first_of("\r\n"));
 		req = req.substr(req.find_first_of("\r") + 4);
 		_request.body = req;
 	}
@@ -154,6 +160,10 @@ void VirtServ::readRequest(std::string req)
 	if (req.find_first_not_of("\n") != std::string::npos)
 		_request.body = req.substr(req.find_first_not_of("\r\n"));
 
+	if (_request.headers.find("Expect") != _request.headers.end())
+	{
+		return (1);
+	}
 	// Check request parsed
 	std::cout << _request.line << std::endl;
 	std::map<std::string, std::string>::iterator iter = _request.headers.begin();
@@ -163,6 +173,7 @@ void VirtServ::readRequest(std::string req)
 		iter++;
 	}
 	std::cout << _request.body << std::endl;
+	return (0);
 }
 
 void VirtServ::elaborateRequest(int dest_fd)
@@ -188,7 +199,7 @@ void VirtServ::executeLocationRules(std::string text, int dest_fd)
 	std::string line;
 	std::string key;
 	std::string value;
-	std::string toCompare[8] = {"root", "autoindex", "index", "error_pages", "client_body_max_sizes", "allowed_methods", "client_body_max_size", "try_files"};
+	std::string toCompare[8] = {"root", "autoindex", "index", "error_page", "client_max_body_sizes", "allowed_methods", "client_max_body_size", "try_files"};
 	int i;
 
 	while (text.find_first_not_of(" \t\r\n") != std::string::npos)
@@ -236,7 +247,7 @@ void VirtServ::executeLocationRules(std::string text, int dest_fd)
 			}
 			case 3:
 			{
-				// Error_pages
+				// error_page
 				tmpConfig.errorPages.clear();
 				while (value.find_first_not_of(" \n\t") != std::string::npos)
 				{
@@ -301,7 +312,7 @@ void VirtServ::tryFiles(std::string value, t_config tmpConfig, int dest_fd)
 	std::vector<std::string> files;
 	std::string defaultFile;
 
-	if (tmpConfig.client_body_max_size && std::strlen(_request.body.c_str()) > tmpConfig.client_body_max_size)
+	if (tmpConfig.client_max_body_size && std::strlen(_request.body.c_str()) > tmpConfig.client_max_body_size)
 	{
 		defaultAnswerError(413, dest_fd, tmpConfig);
 		return ;
@@ -501,6 +512,7 @@ void VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 
 	switch (err)
 	{
+		case 100: tmpString = ""; break ;
 		case 400: tmpString = "400 Bad Request"; break;
 		case 401: tmpString = "401 Unauthorized"; break;
 		case 402: tmpString = "402 Payment Required"; break;

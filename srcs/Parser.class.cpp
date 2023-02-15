@@ -315,7 +315,7 @@ void		Parser::checkClientBodyMaxSize(std::string value, t_config & conf)
 	if (idx != std::string::npos)
 	{
 		if (value.c_str()[idx + 1] != '\0')
-			die("Write client_body_max_size in an acceptable way. Aborting");
+			die("Write client_max_body_size in an acceptable way. Aborting");
 		if (value.at(idx) == 'K')
 			size *= 1024;
 		else if (value.at(idx) == 'M')
@@ -323,9 +323,9 @@ void		Parser::checkClientBodyMaxSize(std::string value, t_config & conf)
 		else if (value.at(idx) == 'B')
 			;
 		else
-			die("Correct units for client_body_max_size are B (bit), K (kilobit), M (megabit). Aborting");
+			die("Correct units for client_max_body_size are B (bit), K (kilobit), M (megabit). Aborting");
 	}
-	conf.client_body_max_size = size;
+	conf.client_max_body_size = size;
 }
 
 void		Parser::checkMethods(std::string value, t_config & conf)
@@ -362,7 +362,7 @@ void		Parser::checkMethods(std::string value, t_config & conf)
 void		Parser::fillConf(std::string key, std::string value, t_config & conf)
 {
 	int 		i;
-	std::string	toCompare[9] = { "listen", "server_name", "root", "autoindex", "index", "error_pages", "client_body_max_size", "allowed_methods", "location" };
+	std::string	toCompare[9] = { "listen", "server_name", "root", "autoindex", "index", "error_page", "client_max_body_size", "allowed_methods", "location" };
 
 	for (i = 0; i < 9; i++)
 		if (!toCompare[i].compare(key))
@@ -382,9 +382,9 @@ void		Parser::fillConf(std::string key, std::string value, t_config & conf)
 			checkAutoIndex(value, conf); break ;
 		case 4: // index
 			checkIndex(value, conf); break ;
-		case 5: // error_pages
+		case 5: // error_page
 			checkErrorPages(value, conf); break ;
-		case 6: // client_body_max_size
+		case 6: // client_max_body_size
 			checkClientBodyMaxSize(value, conf); break ;
 		case 7:
 			checkMethods(value, conf); break ;

@@ -38,8 +38,8 @@ typedef struct	s_config
 	std::string					root;					// root
 	bool						autoindex;				// autoindex
 	std::vector<std::string>	index;					// index
-	std::vector<std::string>	errorPages;				// error_pages
-	unsigned long				client_body_max_size;	// client_body_max_size
+	std::vector<std::string>	errorPages;				// error_page
+	unsigned long				client_max_body_size;	// client_max_body_size
 	std::vector<std::string>	allowedMethods;
 	std::vector<t_location>		locationRules;			// location
 
@@ -47,7 +47,7 @@ typedef struct	s_config
 	{
 		root = "";
 		host = "0.0.0.0";
-		client_body_max_size = 1048576;
+		client_max_body_size = 1048576;
 	}
 }				t_config;
 
@@ -72,6 +72,7 @@ typedef struct	s_request
 		headers.insert(std::make_pair("Sec-Fetch-Site", ""));
 		headers.insert(std::make_pair("Sec-Fetch-User", ""));
 		headers.insert(std::make_pair("Content-Type", ""));
+		headers.insert(std::make_pair("Expect", ""));
 	}
 }				t_request;
 

@@ -44,7 +44,7 @@ class VirtServ
 		
 		// Communication Functions
 		void				cleanRequest();
-		void				readRequest(std::string req);
+		int					readRequest(std::string req);
 		void				elaborateRequest(int dest_fd);
 		int					acceptConnectionAddFd(int sockfd);
 		int					handleClient(int fd);
