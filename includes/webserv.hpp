@@ -71,6 +71,7 @@ typedef struct	s_request
 		headers.insert(std::make_pair("Sec-Fetch-Mode", ""));
 		headers.insert(std::make_pair("Sec-Fetch-Site", ""));
 		headers.insert(std::make_pair("Sec-Fetch-User", ""));
+		headers.insert(std::make_pair("Content-Length", ""));
 		headers.insert(std::make_pair("Content-Type", ""));
 		headers.insert(std::make_pair("Expect", ""));
 	}

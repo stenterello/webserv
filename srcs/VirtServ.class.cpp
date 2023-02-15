@@ -12,6 +12,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <sys/time.h>
+#include <string>
+#include <iostream>
 
 //////// Constructors & Destructor //////////////////////////////
 
@@ -95,23 +97,18 @@ int VirtServ::handleClient(int fd)
 	if (nbytes <= 0)
 	{
 		if (nbytes == 0)
-		{
 			printf("pollserver: socket %d hung up\n", fd);
-		}
 		else
-		{
 			perror("recv");
-		}
 		close(fd);
 		return (1);
 	}
 	else
 	{
 		this->cleanRequest();
-		while (this->readRequest(buf))
-		{
-			nbytes = recv(fd, buf, sizeof buf, 0);
-		};
+		this->readRequest(buf);
+		// for (std::map<std::string, std::string>::iterator it = _request.headers.begin(); it != _request.headers.end(); it++)
+		// 	std::cout << "REQUEST HEADER " << it->first << it->second << std::endl;
 		this->elaborateRequest(fd);
 		_connfd.erase(it);
 		std::cout << "END CLIENT\n";
@@ -165,7 +162,7 @@ int VirtServ::readRequest(std::string req)
 		return (1);
 	}
 	// Check request parsed
-	std::cout << _request.line << std::endl;
+	std::cout << "REQUEST LINE " + _request.line << std::endl;
 	std::map<std::string, std::string>::iterator iter = _request.headers.begin();
 	while (iter != _request.headers.end())
 	{
@@ -202,6 +199,7 @@ void VirtServ::executeLocationRules(std::string text, int dest_fd)
 	std::string toCompare[8] = {"root", "autoindex", "index", "error_page", "client_max_body_sizes", "allowed_methods", "client_max_body_size", "try_files"};
 	int i;
 
+	std::cout << "EXECUTE LOCATION RULES\n";
 	while (text.find_first_not_of(" \t\r\n") != std::string::npos)
 	{
 		line = text.substr(0, text.find("\n"));
@@ -374,33 +372,36 @@ void VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_f
 
 bool	VirtServ::execPost(int sock)
 {
+	std::string _contentLength = _request.headers.find("Content-Length")->second;
+	std::stringstream ss;
+	int	_totalLength;
+	ss << _contentLength;
+	ss >> _totalLength;
+	std::cout << "TOTAL LENGTH " << _totalLength << std::endl;
 	std::ofstream ofs;
 	std::string	store = "";
-    char buffer[10] = {0};
+    char buffer[_totalLength] = {0};
     size_t length = 0;
-	size_t write_lenght = 0;
-    memset(buffer, 0, sizeof(buffer));
-    while ((length = recv(sock, buffer, sizeof(buffer), 0)) > 0) {
-        //  write data
-		store += buffer;
-		write_lenght += length;
-        if (length < sizeof(buffer)) {
-            break;
-        }
-    }
+    if ((length = recv(sock, buffer, _totalLength, 0)) <= 0)
+		bool_error("Failed to recv\n");
+    
+	printf("LENGHT %ld\n", length);
+	printf("BUFFER %s END BUFFER\n", buffer);
+
+	store += buffer;
 	std::string filename = store.substr(store.find("filename"), store.max_size());
 	filename = filename.substr(filename.find_first_of("\"") + 1, filename.find_first_of("\n"));
 	filename = filename.substr(0, filename.find_first_of("\""));
 	// std::cout << "FILENAME " << filename << std::endl;
 	ofs.open(filename.c_str(), std::ofstream::binary | std::ofstream::trunc);
 	if (ofs.is_open()) {
-		std::string cmp = store.substr(0, store.find_first_of("\n") - 1);
-		cmp.append("--");
-		store = store.substr(store.find_first_of("\n", store.find("Content-Type: ")), store.npos);
-		store = store.substr(store.find_first_of("\n") + 1, store.npos);
-		store = store.substr(store.find_first_of("\n") + 1, store.find(cmp));
-		store = store.substr(0, store.find_last_of("\n") - 1);
-		ofs.write(store.c_str(), store.size());
+		// std::string cmp = store.substr(0, store.find_first_of("\n") - 1);
+		// cmp.append("--");
+		// store = store.substr(store.find_first_of("\n", store.find("Content-Type: ")), store.npos);
+		// store = store.substr(store.find_first_of("\n") + 1, store.npos);
+		// store = store.substr(store.find_first_of("\n") + 1, store.find(cmp));
+		// store = store.substr(0, store.find_last_of("\n") - 1);
+		ofs.write(buffer, length);
     	std::cout << "Save file: " << filename << std::endl;
     	ofs.close();
 		return true;
