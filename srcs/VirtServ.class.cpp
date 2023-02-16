@@ -40,6 +40,12 @@ std::vector<int> VirtServ::getConnfd() { return _connfd; };
 
 //////// Main Functions //////////////////////////////////////
 
+
+
+/*
+	Inizializza il socket, lo setta come non-blocking, lo binda e lo mette in listen per massimo 10 client;
+*/
+
 bool VirtServ::startServer()
 {
 	int i = 1;
@@ -57,6 +63,11 @@ bool VirtServ::startServer()
 	return (true);
 }
 
+
+/*
+	Fa il clear del vettore delle connessioni e chiude il socket;
+*/
+
 bool VirtServ::stopServer()
 {
 	_connfd.clear();
@@ -65,12 +76,16 @@ bool VirtServ::stopServer()
 	return true;
 }
 
+
+/*
+	Dopo poll, accetta la connessione del client e la salva nel vettore delle connessioni del server. Ritorna il valore dell'fd della connessione;
+*/
+
 int VirtServ::acceptConnectionAddFd(int sockfd)
 {
 	socklen_t addrlen;
 	struct sockaddr_storage remoteaddr;
 
-	// If listener is ready to read, handle new connection
 	addrlen = sizeof remoteaddr;
 	if (_connfd.size() == _connfd.capacity())
 		_connfd.reserve(1);
@@ -85,6 +100,16 @@ int VirtServ::acceptConnectionAddFd(int sockfd)
 	}
 	return (_connfd.back());
 }
+
+
+/*
+	Inizia la gestione della richiesta del client;
+		- recv sull'fd, salvataggio in buf (char [256]);
+		- pulisce la variabile privata request di VirtServ;
+		- riempie la struttura request (readRequest());
+		- lancia la funzione di elaborazione della richiesta (elaborateRequest());
+		- chiude la connessione e libera il valore nel vettore delle connessioni;
+*/
 
 int VirtServ::handleClient(int fd)
 {
@@ -108,14 +133,16 @@ int VirtServ::handleClient(int fd)
 	{
 		this->cleanRequest();
 		this->readRequest(buf);
-		// for (std::map<std::string, std::string>::iterator it = _request.headers.begin(); it != _request.headers.end(); it++)
-		// 	std::cout << "REQUEST HEADER " << it->first << it->second << std::endl;
 		this->elaborateRequest(fd);
 		_connfd.erase(it);
-		std::cout << "END CLIENT\n";
 	}
 	return (0);
 }
+
+
+/*
+	Pulisce la variabile privata _request;
+*/
 
 void VirtServ::cleanRequest()
 {
@@ -126,6 +153,11 @@ void VirtServ::cleanRequest()
 	for (; iter != _request.headers.end(); iter++)
 		(*iter).second = "";
 }
+
+
+/*
+	Parsing della richiesta letta dal client;
+*/
 
 int VirtServ::readRequest(std::string req)
 {
@@ -174,6 +206,11 @@ int VirtServ::readRequest(std::string req)
 	return (0);
 }
 
+
+/*
+	Cerca il location block corretto nella configurazione del virtual server e lancia la funzione executeLocationRules;
+*/
+
 void VirtServ::elaborateRequest(int dest_fd)
 {
 	std::string path;
@@ -188,8 +225,12 @@ void VirtServ::elaborateRequest(int dest_fd)
 	if (!location)
 		return;
 	executeLocationRules(location->text, dest_fd);
-	// close(dest_fd);
 }
+
+
+/*
+	Elabora il location block implementando le diverse configurazioni espresse nel location block, andando a cercare quando deve il file.
+*/
 
 void VirtServ::executeLocationRules(std::string text, int dest_fd)
 {
@@ -197,7 +238,7 @@ void VirtServ::executeLocationRules(std::string text, int dest_fd)
 	std::string line;
 	std::string key;
 	std::string value;
-	std::string toCompare[8] = {"root", "autoindex", "index", "error_page", "client_max_body_sizes", "allowed_methods", "client_max_body_size", "try_files"};
+	std::string toCompare[7] = {"root", "autoindex", "index", "error_page", "client_max_body_sizes", "allowed_methods", "try_files"};
 	int i;
 
 	std::cout << "EXECUTE LOCATION RULES\n";
@@ -214,7 +255,7 @@ void VirtServ::executeLocationRules(std::string text, int dest_fd)
 		if (value.find_first_not_of(" \t\n") == std::string::npos)
 			die("Location rule without value. Aborting", *this);
 
-		for (i = 0; i < 8; i++)
+		for (i = 0; i < 7; i++)
 			if (key == toCompare[i])
 				break;
 
@@ -267,9 +308,6 @@ void VirtServ::executeLocationRules(std::string text, int dest_fd)
 				break ;
 			}
 			case 6:
-				Parser::checkClientBodyMaxSize(value, tmpConfig);
-				break ;
-			case 7:
 				tryFiles(value, tmpConfig, dest_fd);
 				return;
 			default:
@@ -279,6 +317,11 @@ void VirtServ::executeLocationRules(std::string text, int dest_fd)
 		text = text.substr(text.find_first_not_of(" \t\n"));
 	}
 }
+
+
+/*
+	Parsing del location block:> modifica dei metodi permessi.
+*/
 
 void VirtServ::insertMethod(t_config &tmpConfig, std::string value)
 {
@@ -305,6 +348,11 @@ void VirtServ::insertMethod(t_config &tmpConfig, std::string value)
 			die("Method not recognized in location block. Aborting");
 	}
 }
+
+
+/*
+	Parsing del location block:> effettiva ricerca del file con try_file.
+*/
 
 void VirtServ::tryFiles(std::string value, t_config tmpConfig, int dest_fd)
 {
@@ -333,6 +381,12 @@ void VirtServ::tryFiles(std::string value, t_config tmpConfig, int dest_fd)
 		iter++;
 	}
 }
+
+
+/*
+	Apre la cartella di riferimento: se l'autoindex è su off, cerca il file di default (tmpConfig.index [vector]), ritorna 404 in caso non sia presente.
+									 se l'autoindex è su on, ritorna l'autoindex della cartella.
+*/
 
 void VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_fd, t_config tmpConfig)
 {
@@ -370,6 +424,14 @@ void VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_f
 		answerAutoindex(path, dir, dest_fd);
 	}
 }
+
+
+/*
+	Prende il valore Content-Length dalla richiesta e lo usa come benchmark per la lettura del file da uploadare. 
+	Apre il file (deve inserire corretttamente il nome)
+	Riceve e contestualmente scrive il body ricevuto nel file
+	Chiude il file e la connessione
+*/
 
 bool	VirtServ::execPost(int sock)
 {
@@ -424,6 +486,22 @@ bool	VirtServ::execPost(int sock)
 	// }
 	return false;
 }
+
+
+/*
+	Funzione principale di indirizzamento della gestione della richiesta: da qui il server decide effettivamente cosa tornare al client.
+
+	Cerca il filename.
+	Crea il path completo del file per verificarne permessi e accessibilità
+	Controlli effettuati:
+		- Se il metodo non è permesso, ritorna errore 405;
+		- Se il metodo utilizzato è POST, chiama la funzione execPost() e ritorna;
+		- Se il file richiesto non presenta permessi adatti per l'utente ritorna 403;
+		- Se il file richiesto non è presente nella cartella, ritorna 404;
+		- Se il filename è definito, lo cerca nella directory prevista;
+		- Se il filename non è definito e l'autoindex è settato su on, restituisce l'autoindex;
+		- In caso contrario ritorna 404;
+*/
 
 bool VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int dest_fd)
 {
@@ -499,6 +577,12 @@ bool VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int dest
 	closedir(directory);
 	return (false);
 }
+
+
+/*
+	Funzione di restituizione della pagina di errore: prima verifica la presenza di pagine custom di errore e, in caso, torna quelle;
+	altrimenti opera un crafting manuale delle stesse, per poi tornarle.
+*/
 
 void VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 {
@@ -581,6 +665,11 @@ void VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 	std::cout << tmpString << std::endl;
 }
 
+
+/*
+	Funzione di lettura e riempimenot in struttura dei file letti all'interno di una directory;
+*/
+
 struct dirent **VirtServ::fill_dirent(DIR *directory, std::string path)
 {
 	struct dirent **ret;
@@ -614,6 +703,11 @@ struct dirent **VirtServ::fill_dirent(DIR *directory, std::string path)
 	ret[j] = NULL;
 	return (ret);
 }
+
+
+/*
+	Funzione di crafting manuale dell'autoindex, che ritorna al termine lo stesso autoindex;
+*/
 
 void VirtServ::answerAutoindex(std::string fullPath, DIR *directory, int dest_fd)
 {
@@ -666,6 +760,12 @@ void VirtServ::answerAutoindex(std::string fullPath, DIR *directory, int dest_fd
 	std::cout << tmpString << std::endl;
 	delete[] (store);
 }
+
+
+/*
+	Funzione di default per rispondere al client con file specifico, trovato nella root del virtual server;
+*/
+
 void VirtServ::answer(std::string fullPath, struct dirent *dirent, int dest_fd)
 {
 	std::stringstream stream;
@@ -767,6 +867,11 @@ t_location *VirtServ::searchLocationBlock(std::string method, std::string path, 
 	return (ret);
 }
 
+
+/*
+	Funzione di sostituzione della variabile $uri con l'url richiesto;
+*/
+
 void VirtServ::interpretLocationBlock(t_location *location)
 {
 	std::string uri = _request.line.substr(0, _request.line.find_first_of(" \t"));
@@ -775,6 +880,11 @@ void VirtServ::interpretLocationBlock(t_location *location)
 	while (location->text.find("$uri") != std::string::npos)
 		location->text.replace(iter + location->text.find("$uri"), iter + location->text.find("$uri") + 4, uri);
 }
+
+
+/*
+	don't know
+*/
 
 bool VirtServ::sendAll(int socket, char *buf, size_t *len)
 {
