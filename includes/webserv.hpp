@@ -5,6 +5,7 @@
 # include <sstream>
 # include <vector>
 # include <map>
+# include <tr1/unordered_map>
 # include <fstream>
 # include <cstring>
 # include <cstdlib>
@@ -19,6 +20,7 @@
 # include <netinet/in.h>
 # include <arpa/inet.h>
 # include <fcntl.h>
+# include <ctime>
 
 
 typedef	struct	s_location
@@ -53,10 +55,10 @@ typedef struct	s_config
 
 typedef struct	s_request
 {
-	std::string							line;
-	std::string							method;
-	std::map<std::string, std::string>	headers;
-	std::string							body;
+	std::string										line;
+	std::string										method;
+	std::tr1::unordered_map<std::string, std::string>	headers;
+	std::string										body;
 
 	s_request()
 	{
@@ -79,9 +81,9 @@ typedef struct	s_request
 
 typedef struct	s_response
 {
-	std::string							line;
-	std::map<std::string, std::string>	headers;
-	std::string							body;
+	std::string										line;
+	std::tr1::unordered_map<std::string, std::string>	headers;
+	std::string										body;
 
 	s_response()
 	{

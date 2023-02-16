@@ -148,7 +148,7 @@ void VirtServ::cleanRequest()
 {
 	_request.line = "";
 	_request.body = "";
-	std::map<std::string, std::string>::iterator iter = _request.headers.begin();
+	std::tr1::unordered_map<std::string, std::string>::iterator iter = _request.headers.begin();
 
 	for (; iter != _request.headers.end(); iter++)
 		(*iter).second = "";
@@ -162,7 +162,7 @@ void VirtServ::cleanRequest()
 int VirtServ::readRequest(std::string req)
 {
 	std::string										key;
-	std::map<std::string, std::string>::iterator	header;
+	std::tr1::unordered_map<std::string, std::string>::iterator	header;
 
 	_request.line = req.substr(0, req.find_first_of("\n"));
 	req = req.substr(req.find_first_of("\n") + 1);
@@ -196,7 +196,7 @@ int VirtServ::readRequest(std::string req)
 	}
 	// Check request parsed
 	std::cout << "REQUEST LINE " + _request.line << std::endl;
-	std::map<std::string, std::string>::iterator iter = _request.headers.begin();
+	std::tr1::unordered_map<std::string, std::string>::iterator iter = _request.headers.begin();
 	while (iter != _request.headers.end())
 	{
 		std::cout << (*iter).first << ": " << (*iter).second << std::endl;
@@ -593,7 +593,7 @@ void VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 
 	switch (err)
 	{
-		case 100: tmpString = ""; break ;
+		case 100: tmpString = "100 Continue"; break ;
 		case 400: tmpString = "400 Bad Request"; break;
 		case 401: tmpString = "401 Unauthorized"; break;
 		case 402: tmpString = "402 Payment Required"; break;
@@ -631,7 +631,7 @@ void VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 		tmpString = _response.line + "\r\n";
 	}
 
-	std::map<std::string, std::string>::iterator iter = _response.headers.begin();
+	std::tr1::unordered_map<std::string, std::string>::iterator iter = _response.headers.begin();
 
 	while (iter != _response.headers.end())
 	{
@@ -689,9 +689,13 @@ struct dirent **VirtServ::fill_dirent(DIR *directory, std::string path)
 	Funzione che costruisce il campo dell'header 'Date' di ogni risposta
 */
 
-std::string	getDateTime()
+std::string	VirtServ::getDateTime()
 {
-	time_t	time;
+	time_t	tm;
+
+	tm = time(NULL);
+	std::cout << "Time " << tm << std::endl;
+	return ("ciao");
 }
 
 
@@ -740,14 +744,14 @@ void VirtServ::answerAutoindex(std::string fullPath, DIR *directory, int dest_fd
 	tmpString = convert.str();
 	_response.headers.find("Content-length")->second = tmpString;
 	output << _response.line << "\r" << std::endl;
-	for (std::map<std::string, std::string>::iterator iter = _response.headers.begin(); iter != _response.headers.end(); iter++) {
+	_response.headers.find("Date")->second = getDateTime();
+	for (std::tr1::unordered_map<std::string, std::string>::iterator iter = _response.headers.begin(); iter != _response.headers.end(); iter++) {
 		if ((*iter).second.length())
 			output << (*iter).first << ": " << (*iter).second << "\r" << std::endl;
 	}
 	output << "\r\n"
 		   << _response.body;
 	tmpString = output.str();
-	_response.headers.find("Date")->second = getDateTime();
 	send(dest_fd, tmpString.c_str(), tmpString.size(), 0);
 	std::cout << "SENT RESPONSE" << std::endl;
 	std::cout << tmpString << std::endl;
@@ -777,14 +781,14 @@ void VirtServ::answer(std::string fullPath, struct dirent *dirent, int dest_fd)
 	stream << resource.rdbuf();
 	tmpBody = stream.str();
 	stream.str("");
-	std::map<std::string, std::string>::iterator iter2 = _response.headers.find("Content-length");
+	std::tr1::unordered_map<std::string, std::string>::iterator iter2 = _response.headers.find("Content-length");
 	stream << tmpBody.length();
 	stream >> tmpString;
 	(*iter2).second = tmpString;
 	_response.body = tmpBody;
 
 	responseStream << _response.line << "\r" << std::endl;
-	std::map<std::string, std::string>::iterator iter = _response.headers.begin();
+	std::tr1::unordered_map<std::string, std::string>::iterator iter = _response.headers.begin();
 
 	while (iter != _response.headers.end())
 	{
