@@ -14,6 +14,7 @@
 #include <sys/time.h>
 #include <string>
 #include <iostream>
+#include <stdio.h>
 
 //////// Constructors & Destructor //////////////////////////////
 
@@ -374,38 +375,53 @@ bool	VirtServ::execPost(int sock)
 {
 	std::string _contentLength = _request.headers.find("Content-Length")->second;
 	std::stringstream ss;
-	int	_totalLength;
+	size_t	_totalLength;
 	ss << _contentLength;
 	ss >> _totalLength;
 	std::cout << "TOTAL LENGTH " << _totalLength << std::endl;
-	std::ofstream ofs;
+	FILE *ofs;
 	std::string	store = "";
-    char buffer[_totalLength] = {0};
-    size_t length = 0;
-    if ((length = recv(sock, buffer, _totalLength, 0)) <= 0)
-		bool_error("Failed to recv\n");
-    
-	printf("LENGHT %ld\n", length);
+    unsigned char buffer[512] = {0};
+    // size_t length = 0;
+    // if ((length = recv(sock, buffer, _totalLength, 0)) <= 0)
+	// 	bool_error("Failed to recv\n");
+	ofs = fopen("42.png", "wb");
+	size_t nb;
+	while ( 1 ) {
+		(nb = recv(sock, buffer, sizeof(buffer), 0 ));
+		std::cout << "NB " << nb << std::endl;
+		if (nb == 0) break ;
+		fwrite(buffer, nb, 1, ofs);
+		if (nb < sizeof(buffer))
+			break;
+	}
+	printf("END LOOP\n");
+	/* send an ack here */
+	if ( close( sock ) == -1 ) perror( "socket close failed" );
+	if ( fclose( ofs )) perror( "file close failed" );
+
 	printf("BUFFER %s END BUFFER\n", buffer);
 
-	store += buffer;
-	std::string filename = store.substr(store.find("filename"), store.max_size());
-	filename = filename.substr(filename.find_first_of("\"") + 1, filename.find_first_of("\n"));
-	filename = filename.substr(0, filename.find_first_of("\""));
+	// store += buffer;
+	// std::string filename = store.substr(store.find("filename"), store.max_size());
+	// filename = filename.substr(filename.find_first_of("\"") + 1, filename.find_first_of("\n"));
+	// filename = filename.substr(0, filename.find_first_of("\""));
 	// std::cout << "FILENAME " << filename << std::endl;
-	ofs.open(filename.c_str(), std::ofstream::binary | std::ofstream::trunc);
-	if (ofs.is_open()) {
-		// std::string cmp = store.substr(0, store.find_first_of("\n") - 1);
-		// cmp.append("--");
-		// store = store.substr(store.find_first_of("\n", store.find("Content-Type: ")), store.npos);
-		// store = store.substr(store.find_first_of("\n") + 1, store.npos);
-		// store = store.substr(store.find_first_of("\n") + 1, store.find(cmp));
-		// store = store.substr(0, store.find_last_of("\n") - 1);
-		ofs.write(buffer, length);
-    	std::cout << "Save file: " << filename << std::endl;
-    	ofs.close();
-		return true;
-	}
+	// ofs = open("prova.jpg", std::ofstream::binary | std::ofstream::trunc);
+	// if (ofs) {
+	// 	// std::string cmp = store.substr(0, store.find_first_of("\n") - 1);
+	// 	// cmp.append("--");
+	// 	// store = store.substr(store.find_first_of("\n", store.find("Content-Type: ")), store.npos);
+	// 	// store = store.substr(store.find_first_of("\n") + 1, store.npos);
+	// 	// store = store.substr(store.find_first_of("\n") + 1, store.find(cmp));
+	// 	// store = store.substr(0, store.find_last_of("\n") - 1);
+	// 	for (size_t i = 0; i < length; i++) {
+	// 		send(ofs, (char *)&buffer[i], 1, 0);
+	// 	}
+    // 	// std::cout << "Save file: " << filename << std::endl;
+    // 	close(ofs);
+	// 	return true;
+	// }
 	return false;
 }
 
