@@ -443,7 +443,8 @@ bool    VirtServ::execPost(int sock)
     ss >> _totalLength;
     std::cout << "TOTAL LENGTH " << _totalLength << std::endl;
     FILE *ofs;
-    char buffer[_totalLength] = {0};
+    char buffer[_totalLength];
+	buffer[0] = 0;
     recv(sock, buffer, _totalLength, 0 );
     std::string store(reinterpret_cast<char*>(buffer));
     std::string filename = store.substr(store.find("filename"), store.max_size());
