@@ -34,9 +34,9 @@ VirtServ::~VirtServ() { _connfd.clear(); }
 
 //////// Getters & Setters ///////////////////////////////////
 
-int VirtServ::getSocket() { return (_sockfd); }
-t_config VirtServ::getConfig() const { return _config; }
-std::vector<int> VirtServ::getConnfd() { return _connfd; };
+int					VirtServ::getSocket() { return (_sockfd); }
+t_config			VirtServ::getConfig() const { return _config; }
+std::vector<int>	VirtServ::getConnfd() { return _connfd; };
 
 //////// Main Functions //////////////////////////////////////
 
@@ -433,58 +433,37 @@ void VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_f
 	Chiude il file e la connessione
 */
 
-bool	VirtServ::execPost(int sock)
+bool    VirtServ::execPost(int sock)
 {
-	std::string _contentLength = _request.headers.find("Content-Length")->second;
-	std::stringstream ss;
-	size_t	_totalLength;
-	ss << _contentLength;
-	ss >> _totalLength;
-	std::cout << "TOTAL LENGTH " << _totalLength << std::endl;
-	FILE *ofs;
-	std::string	store = "";
-    unsigned char buffer[512] = {0};
-    // size_t length = 0;
-    // if ((length = recv(sock, buffer, _totalLength, 0)) <= 0)
-	// 	bool_error("Failed to recv\n");
-	ofs = fopen("42.png", "wb");
-	size_t nb;
-	while ( 1 ) {
-		(nb = recv(sock, buffer, sizeof(buffer), 0 ));
-		std::cout << "NB " << nb << std::endl;
-		if (nb == 0) break ;
-		fwrite(buffer, nb, 1, ofs);
-		if (nb < sizeof(buffer))
-			break;
-	}
-	printf("END LOOP\n");
-	/* send an ack here */
-	if ( close( sock ) == -1 ) perror( "socket close failed" );
-	if ( fclose( ofs )) perror( "file close failed" );
-
-	printf("BUFFER %s END BUFFER\n", buffer);
-
-	// store += buffer;
-	// std::string filename = store.substr(store.find("filename"), store.max_size());
-	// filename = filename.substr(filename.find_first_of("\"") + 1, filename.find_first_of("\n"));
-	// filename = filename.substr(0, filename.find_first_of("\""));
-	// std::cout << "FILENAME " << filename << std::endl;
-	// ofs = open("prova.jpg", std::ofstream::binary | std::ofstream::trunc);
-	// if (ofs) {
-	// 	// std::string cmp = store.substr(0, store.find_first_of("\n") - 1);
-	// 	// cmp.append("--");
-	// 	// store = store.substr(store.find_first_of("\n", store.find("Content-Type: ")), store.npos);
-	// 	// store = store.substr(store.find_first_of("\n") + 1, store.npos);
-	// 	// store = store.substr(store.find_first_of("\n") + 1, store.find(cmp));
-	// 	// store = store.substr(0, store.find_last_of("\n") - 1);
-	// 	for (size_t i = 0; i < length; i++) {
-	// 		send(ofs, (char *)&buffer[i], 1, 0);
-	// 	}
-    // 	// std::cout << "Save file: " << filename << std::endl;
-    // 	close(ofs);
-	// 	return true;
-	// }
-	return false;
+    std::string _contentLength = _request.headers.find("Content-Length")->second;
+    std::stringstream ss;
+    size_t  _totalLength;
+	_totalLength = 0;
+    ss << _contentLength;
+    ss >> _totalLength;
+    std::cout << "TOTAL LENGTH " << _totalLength << std::endl;
+    FILE *ofs;
+    char buffer[_totalLength] = {0};
+    recv(sock, buffer, _totalLength, 0 );
+    std::string store(reinterpret_cast<char*>(buffer));
+    std::string filename = store.substr(store.find("filename"), store.max_size());
+    filename = filename.substr(filename.find_first_of("\"") + 1, filename.find_first_of("\n"));
+    filename = filename.substr(0, filename.find_first_of("\""));
+    ofs = fopen(filename.c_str(), "wb");
+    if (ofs) {
+        std::string cmp = store.substr(0, store.find_first_of("\n") - 1);
+        cmp.append("--\n");
+        size_t i = 0;
+        for (; i < _totalLength; i++) {
+            if (!(strncmp(&buffer[i], "\r\n\r\n", 4)))
+                break;
+        }
+        fwrite(buffer + (i + 4), 1, _totalLength - (cmp.size() + 3) - (i + 4), ofs);
+        std::cout << "Save file: " << filename << std::endl;
+        fclose(ofs);
+        return true;
+    }
+    return false;
 }
 
 
