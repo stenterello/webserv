@@ -686,6 +686,16 @@ struct dirent **VirtServ::fill_dirent(DIR *directory, std::string path)
 
 
 /*
+	Funzione che costruisce il campo dell'header 'Date' di ogni risposta
+*/
+
+std::string	getDateTime()
+{
+	time_t	time;
+}
+
+
+/*
 	Funzione di crafting manuale dell'autoindex, che ritorna al termine lo stesso autoindex;
 */
 
@@ -730,11 +740,14 @@ void VirtServ::answerAutoindex(std::string fullPath, DIR *directory, int dest_fd
 	tmpString = convert.str();
 	_response.headers.find("Content-length")->second = tmpString;
 	output << _response.line << "\r" << std::endl;
-	for (std::map<std::string, std::string>::iterator iter = _response.headers.begin(); iter != _response.headers.end(); iter++)
-		output << (*iter).first << ": " << (*iter).second << "\r" << std::endl;
+	for (std::map<std::string, std::string>::iterator iter = _response.headers.begin(); iter != _response.headers.end(); iter++) {
+		if ((*iter).second.length())
+			output << (*iter).first << ": " << (*iter).second << "\r" << std::endl;
+	}
 	output << "\r\n"
 		   << _response.body;
 	tmpString = output.str();
+	_response.headers.find("Date")->second = getDateTime();
 	send(dest_fd, tmpString.c_str(), tmpString.size(), 0);
 	std::cout << "SENT RESPONSE" << std::endl;
 	std::cout << tmpString << std::endl;
@@ -775,7 +788,8 @@ void VirtServ::answer(std::string fullPath, struct dirent *dirent, int dest_fd)
 
 	while (iter != _response.headers.end())
 	{
-		responseStream << (*iter).first << ": " << (*iter).second << "\r" << std::endl;
+		if ((*iter).second.length())
+			responseStream << (*iter).first << ": " << (*iter).second << "\r" << std::endl;
 		iter++;
 	}
 	responseStream << "\r\n"

@@ -96,6 +96,7 @@ typedef struct	s_response
 		headers.insert(std::make_pair("Protocol", ""));
 		headers.insert(std::make_pair("Status-Code", ""));
 		headers.insert(std::make_pair("Reason-Phrase", ""));
+		headers.insert(std::make_pair("Date", ""));
 	}
 }				t_response;
 

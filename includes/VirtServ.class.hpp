@@ -31,6 +31,7 @@ class VirtServ
 		struct dirent**		fill_dirent(DIR* directory, std::string path);
 		void				sendResponse();
 		void				dirAnswer(std::string fullPath, struct dirent* dirent, int dest_fd, t_config tmpConfig);
+		std::string			getDateTime();
 
 	public:
 		// Structors
