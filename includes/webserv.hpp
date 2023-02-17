@@ -20,7 +20,7 @@
 # include <netinet/in.h>
 # include <arpa/inet.h>
 # include <fcntl.h>
-# include <ctime>
+# include <time.h>
 
 
 typedef	struct	s_location

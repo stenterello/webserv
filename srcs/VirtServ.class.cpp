@@ -691,11 +691,16 @@ struct dirent **VirtServ::fill_dirent(DIR *directory, std::string path)
 
 std::string	VirtServ::getDateTime()
 {
-	time_t	tm;
+	time_t		tm;
+	struct tm*	buf;
+	std::string	ret;
 
 	tm = time(NULL);
-	std::cout << "Time " << tm << std::endl;
-	return ("ciao");
+	buf = gmtime(&tm);
+	ret = asctime(buf);
+	ret = ret.substr(0, ret.length() - 1);
+	ret += " GMT";
+	return (ret);
 }
 
 
