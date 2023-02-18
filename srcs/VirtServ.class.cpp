@@ -403,7 +403,7 @@ void VirtServ::tryFiles(std::string value, t_config tmpConfig, int dest_fd)
 void VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_fd, t_config tmpConfig)
 {
 	DIR *dir;
-	std::string path = fullPath + dirent->d_name + "/";
+	std::string path = dirent != NULL ? fullPath + dirent->d_name + "/" : fullPath + "/";
 
 	dir = opendir(path.c_str());
 	if (!tmpConfig.autoindex)
@@ -566,10 +566,7 @@ bool VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int dest
 		return (true);
 	}
 	else if (!tmpConfig.autoindex)
-	{
-		dirent = readdir(directory);
-		dirAnswer(fullPath, dirent, dest_fd, tmpConfig);
-	}
+		dirAnswer(fullPath, NULL, dest_fd, tmpConfig);
 	else
 	{
 		defaultAnswerError(404, dest_fd, tmpConfig);
