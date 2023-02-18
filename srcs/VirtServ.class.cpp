@@ -242,9 +242,7 @@ void VirtServ::executeLocationRules(std::string text, int dest_fd)
 	int i;
 
 	std::cout << "EXECUTE LOCATION RULES\n";
-	for (std::tr1::unordered_map<std::string, std::string>::iterator it = _request.headers.begin(); it !=_request.headers.end(); it++) {
-		std::cout << it->first << " " << it->second << std::endl;
-	}
+	printMap(_request.headers);
 	while (text.find_first_not_of(" \t\r\n") != std::string::npos)
 	{
 		line = text.substr(0, text.find("\n"));

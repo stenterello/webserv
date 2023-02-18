@@ -108,5 +108,6 @@ void	die(std::string const err);
 void	die(std::string const err, VirtServ & serv);
 void	usage();
 bool	bool_error(std::string error);
+void	printMap(std::tr1::unordered_map<std::string, std::string> & map);
 
 #endif

@@ -28,3 +28,12 @@ bool	bool_error(std::string error)
 	std::cout << error;
 	return false;
 }
+
+void	printMap(std::tr1::unordered_map<std::string, std::string> & map)
+{
+	std::cout << "------PRINTING HEADER------" << std::endl;
+	for (std::tr1::unordered_map<std::string, std::string>::iterator it = map.begin(); it != map.end(); it++) {
+		std::cout << it->first << " " << it->second << std::endl;
+	}
+	std::cout << "------END PRINTING------" << std::endl;
+}
