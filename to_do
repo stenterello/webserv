@@ -1,24 +1,5 @@
-- immettere il check, alla fine del parser, per la presenza o meno delle regole fondamentali
-{
-	- port - FATTO
-	- root - FATTO
-	- altro?
-}
-
-- testare tanto (non eccessivamente) il parser
-
-Appunti generali per quanto riguarda la gestione della richiesta HTTP:
-
-	1. riceve la t_request
-	2. cerca nelle location block disponibili quella più adatta (l'ordine di priorità in teoria parte dalle corrispondenze precise di locazione, per poi passare a quelle invece definite da un suffisso o prefisso)
-	3. scelta la location, sostituisce i termini speciali all'interno della location (es. $uri). [scegliere se questa sostituzione sia più comodo avvenga prima dell'elaborazione vera e propria della richiesta oppure no]
-	4. esecuzione, linea per linea, delle istruzioni contenute nella location block (terminando quando si incontra un return o un try_files);
-	5. costruzione della t_response e, contestualmente, invio del file risultante dall'esecuzione del location block
-
-- Le location block scritte in maniera errata (per esempio senza un ';' al termine della riga), generano un errore critica (exit code 1) soltanto nel momento in cui vengono elaborate (ovvero nella funzione void		VirtServ::executeLocationRules(std::string text), VirtServ.class.cpp, riga 184)
-
-- I campi dell'header della response sono quelli che ho notato facendo la prova con curl. Non so come siano invece per un browser comune. (Ho aggiunto gli header che venivano inizializzati nel costruttore di VirtServ alla fine degli header che ho immesso nella struct t_response)
-
 - Segmentation fault se si tenta di accedere in HTTPS!!!
 
 - Il valore di ritorno della funzione tryGetResource non ha senso
+
+- Aggiungere la funzione return nel parser delle location block
