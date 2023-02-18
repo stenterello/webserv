@@ -159,7 +159,7 @@ void VirtServ::cleanRequest()
 {
 	_request.line = "";
 	_request.body = "";
-	std::tr1::unordered_map<std::string, std::string>::iterator iter = _request.headers.begin();
+	std::vector<std::pair<std::string, std::string> >::iterator iter = _request.headers.begin();
 
 	for (; iter != _request.headers.end(); iter++)
 		(*iter).second = "";
@@ -172,8 +172,8 @@ void VirtServ::cleanRequest()
 
 int VirtServ::readRequest(std::string req)
 {
-	std::string										key;
-	std::tr1::unordered_map<std::string, std::string>::iterator	header;
+	std::string													key;
+	std::vector<std::pair<std::string, std::string> >::iterator	header;
 
 	_request.line = req.substr(0, req.find_first_of("\n"));
 	req = req.substr(req.find_first_of("\n") + 1);
@@ -182,7 +182,7 @@ int VirtServ::readRequest(std::string req)
 	{
 		key = req.substr(0, req.find_first_of(":"));
 		req = req.substr(req.find_first_of(":") + 2);
-		header = _request.headers.find(key);
+		header = findKey(_response.headers, key);
 		if (header != _request.headers.end())
 			(*header).second = req.substr(0, req.find_first_of("\r\n"));
 		if (!std::strncmp(req.substr(req.find_first_of("\r")).c_str(), "\r\n\r\n", 4))
@@ -201,13 +201,13 @@ int VirtServ::readRequest(std::string req)
 	if (req.find_first_not_of("\n") != std::string::npos)
 		_request.body = req.substr(req.find_first_not_of("\r\n"));
 
-	if (_request.headers.find("Expect") != _request.headers.end())
+	if (findKey(_response.headers, "Expect") != _request.headers.end())
 	{
 		return (1);
 	}
 	// Check request parsed
 	std::cout << "REQUEST LINE " + _request.line << std::endl;
-	std::tr1::unordered_map<std::string, std::string>::iterator iter = _request.headers.begin();
+	std::vector<std::pair<std::string, std::string> >::iterator iter = _request.headers.begin();
 	while (iter != _request.headers.end())
 	{
 		std::cout << (*iter).first << ": " << (*iter).second << std::endl;
@@ -253,7 +253,7 @@ void VirtServ::executeLocationRules(std::string text, int dest_fd)
 	int i;
 
 	std::cout << "EXECUTE LOCATION RULES\n";
-	printMap(_request.headers);
+	// printMap(_request.headers);
 	while (text.find_first_not_of(" \t\r\n") != std::string::npos)
 	{
 		line = text.substr(0, text.find("\n"));
@@ -447,7 +447,7 @@ void VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_f
 
 bool    VirtServ::execPost(int sock)
 {
-    std::string _contentLength = _request.headers.find("Content-Length")->second;
+    std::string _contentLength = findKey(_response.headers, "Content-length")->second;
     std::stringstream ss;
     size_t  _totalLength;
 	_totalLength = 0;
@@ -628,7 +628,7 @@ void VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 		_response.body.erase(0, 3);
 		convert.clear();
 		convert << _response.body.length();
-		_response.headers.find("Content-length")->second = convert.str();
+		findKey(_response.headers, "Content-length")->second = convert.str();
 		tmpString.clear();
 		tmpString = _response.line + "\r\n";
 	}
@@ -637,12 +637,12 @@ void VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 		_response.body = "<html>\n<head><title>" + tmpString + "</title></head>\n<body>\n<center><h1>" + tmpString + "</h1></center>\n<hr><center>webserv</center>\n</body>\n</html>\n";
 		convert.str("");
 		convert << _response.body.length();
-		_response.headers.find("Content-length")->second = convert.str();
+		findKey(_response.headers, "Content-length")->second = convert.str();
 		tmpString.clear();
 		tmpString = _response.line + "\r\n";
 	}
 
-	std::tr1::unordered_map<std::string, std::string>::iterator iter = _response.headers.begin();
+	std::vector<std::pair<std::string, std::string> >::iterator iter = _response.headers.begin();
 
 	while (iter != _response.headers.end())
 	{
@@ -758,10 +758,10 @@ void VirtServ::answerAutoindex(std::string fullPath, DIR *directory, int dest_fd
 	_response.body += "</pre><hr></body>\n</html>";
 	convert << _response.body.length();
 	tmpString = convert.str();
-	_response.headers.find("Content-length")->second = tmpString;
+	findKey(_response.headers, "Content-length")->second = tmpString;
 	output << _response.line << "\r" << std::endl;
-	_response.headers.find("Date")->second = getDateTime();
-	for (std::tr1::unordered_map<std::string, std::string>::iterator iter = _response.headers.begin(); iter != _response.headers.end(); iter++) {
+	findKey(_response.headers, "Date")->second = getDateTime();
+	for (std::vector<std::pair<std::string, std::string> >::iterator iter = _response.headers.begin(); iter != _response.headers.end(); iter++) {
 		if ((*iter).second.length())
 			output << (*iter).first << ": " << (*iter).second << "\r" << std::endl;
 	}
@@ -797,14 +797,14 @@ void VirtServ::answer(std::string fullPath, struct dirent *dirent, int dest_fd)
 	stream << resource.rdbuf();
 	tmpBody = stream.str();
 	stream.str("");
-	std::tr1::unordered_map<std::string, std::string>::iterator iter2 = _response.headers.find("Content-length");
+	std::vector<std::pair<std::string, std::string> >::iterator iter2 = findKey(_response.headers,  "Content-length");
 	stream << tmpBody.length();
 	stream >> tmpString;
 	(*iter2).second = tmpString;
 	_response.body = tmpBody;
 
 	responseStream << _response.line << "\r" << std::endl;
-	std::tr1::unordered_map<std::string, std::string>::iterator iter = _response.headers.begin();
+	std::vector<std::pair<std::string, std::string> >::iterator iter = _response.headers.begin();
 
 	while (iter != _response.headers.end())
 	{
@@ -918,4 +918,21 @@ bool VirtServ::sendAll(int socket, char *buf, size_t *len)
 	*len = total; // return number actually sent here
 
 	return (n == -1 ? false : true);
+}
+
+
+/*
+	Find function translated for vector
+*/
+
+std::vector<std::pair<std::string, std::string> >::iterator	VirtServ::findKey(std::vector<std::pair<std::string, std::string> > vector, std::string key)
+{
+	std::vector<std::pair<std::string, std::string> >::iterator	iter = vector.begin();
+
+	for (; iter != vector.end(); iter++)
+	{
+		if ((*iter).first == key)
+			break ;
+	}
+	return iter;
 }

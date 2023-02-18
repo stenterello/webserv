@@ -5,7 +5,6 @@
 # include <sstream>
 # include <vector>
 # include <map>
-# include <tr1/unordered_map>
 # include <fstream>
 # include <cstring>
 # include <cstdlib>
@@ -55,50 +54,49 @@ typedef struct	s_config
 
 typedef struct	s_request
 {
-	std::string										line;
-	std::string										method;
-	std::tr1::unordered_map<std::string, std::string>	headers;
-	std::string										body;
+	std::string											line;
+	std::string											method;
+	std::vector<std::pair<std::string, std::string> >	headers;
+	std::string											body;
 
 	s_request()
 	{
-		headers.insert(std::make_pair("Host", ""));
-		headers.insert(std::make_pair("User-Agent", ""));
-		headers.insert(std::make_pair("Accept", ""));
-		headers.insert(std::make_pair("Accept-Language", ""));
-		headers.insert(std::make_pair("Accept-Encoding", ""));
-		headers.insert(std::make_pair("Connection", ""));
-		headers.insert(std::make_pair("Upgrade-Insecure-Requests", ""));
-		headers.insert(std::make_pair("Sec-Fetch-Dest", ""));
-		headers.insert(std::make_pair("Sec-Fetch-Mode", ""));
-		headers.insert(std::make_pair("Sec-Fetch-Site", ""));
-		headers.insert(std::make_pair("Sec-Fetch-User", ""));
-		headers.insert(std::make_pair("Content-Length", ""));
-		headers.insert(std::make_pair("Content-Type", ""));
-		headers.insert(std::make_pair("Expect", ""));
+		headers.push_back(std::make_pair("Host", ""));
+		headers.push_back(std::make_pair("User-Agent", ""));
+		headers.push_back(std::make_pair("Accept", ""));
+		headers.push_back(std::make_pair("Accept-Language", ""));
+		headers.push_back(std::make_pair("Accept-Encoding", ""));
+		headers.push_back(std::make_pair("Connection", ""));
+		headers.push_back(std::make_pair("Upgrade-Insecure-Requests", ""));
+		headers.push_back(std::make_pair("Sec-Fetch-Dest", ""));
+		headers.push_back(std::make_pair("Sec-Fetch-Mode", ""));
+		headers.push_back(std::make_pair("Sec-Fetch-Site", ""));
+		headers.push_back(std::make_pair("Sec-Fetch-User", ""));
+		headers.push_back(std::make_pair("Content-Length", ""));
+		headers.push_back(std::make_pair("Content-Type", ""));
+		headers.push_back(std::make_pair("Expect", ""));
 	}
 }				t_request;
 
 typedef struct	s_response
 {
-	std::string										line;
-	std::tr1::unordered_map<std::string, std::string>	headers;
-	std::string										body;
+	std::string											line;
+	std::vector<std::pair<std::string, std::string> >	headers;
+	std::string											body;
 
 	s_response()
 	{
-		headers.insert(std::make_pair("Server", "webserv"));
-		headers.insert(std::make_pair("Date", ""));
-		headers.insert(std::make_pair("Content-type", ""));
-		headers.insert(std::make_pair("Content-length", ""));
-		headers.insert(std::make_pair("Last-Modified", ""));
-		headers.insert(std::make_pair("Connection", ""));
-		headers.insert(std::make_pair("ETag", ""));
-		headers.insert(std::make_pair("Accept-Ranges", ""));
-		headers.insert(std::make_pair("Protocol", ""));
-		headers.insert(std::make_pair("Status-Code", ""));
-		headers.insert(std::make_pair("Reason-Phrase", ""));
-		headers.insert(std::make_pair("Date", ""));
+		headers.push_back(std::make_pair("Server", "webserv"));
+		headers.push_back(std::make_pair("Date", ""));
+		headers.push_back(std::make_pair("Content-type", ""));
+		headers.push_back(std::make_pair("Content-length", ""));
+		headers.push_back(std::make_pair("Last-Modified", ""));
+		headers.push_back(std::make_pair("Connection", ""));
+		headers.push_back(std::make_pair("ETag", ""));
+		headers.push_back(std::make_pair("Accept-Ranges", ""));
+		headers.push_back(std::make_pair("Protocol", ""));
+		headers.push_back(std::make_pair("Status-Code", ""));
+		headers.push_back(std::make_pair("Reason-Phrase", ""));
 	}
 }				t_response;
 
@@ -108,6 +106,6 @@ void	die(std::string const err);
 void	die(std::string const err, VirtServ & serv);
 void	usage();
 bool	bool_error(std::string error);
-void	printMap(std::tr1::unordered_map<std::string, std::string> & map);
+// void	printMap(std::tr1::unordered_map<std::string, std::string> & map);
 
 #endif

@@ -7,6 +7,7 @@
 class VirtServ
 {
 	private:
+		typedef std::vector<std::pair<std::string, std::string> >::iterator	iterator;
 		VirtServ();
 
 		t_config			_config;
@@ -32,6 +33,7 @@ class VirtServ
 		void				sendResponse();
 		void				dirAnswer(std::string fullPath, struct dirent* dirent, int dest_fd, t_config tmpConfig);
 		std::string			getDateTime();
+		iterator			findKey(std::vector<std::pair<std::string, std::string> > vector, std::string key);
 
 	public:
 		// Structors
