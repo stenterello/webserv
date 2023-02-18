@@ -113,13 +113,24 @@ int VirtServ::acceptConnectionAddFd(int sockfd)
 
 int VirtServ::handleClient(int fd)
 {
-	char buf[4096];
+	char buf[256];
+	char tmp[2048];
 
 	std::vector<int>::iterator it = std::find(_connfd.begin(), _connfd.end(), fd);
 	if (it == _connfd.end())
 		return (1);
-	int nbytes = recv(fd, buf, sizeof buf, 0);
-	std::cout << buf << std::endl;
+	size_t nbytes = 0;
+	size_t i, c = 0;
+	while (1) {
+		nbytes = recv(fd, buf, sizeof buf, 0);
+		for (i = 0; i < nbytes; i++, c++)
+			tmp[c] = buf[i];
+		memset(buf, 0, 256);
+		if (nbytes < sizeof buf)
+			break;
+	}
+	tmp[c] = '\0';
+	printf("TMP %s\n", tmp);
 	if (nbytes <= 0)
 	{
 		if (nbytes == 0)
@@ -132,7 +143,7 @@ int VirtServ::handleClient(int fd)
 	else
 	{
 		this->cleanRequest();
-		this->readRequest(buf);
+		this->readRequest(tmp);
 		this->elaborateRequest(fd);
 		_connfd.erase(it);
 	}
