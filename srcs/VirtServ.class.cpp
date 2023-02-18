@@ -447,17 +447,27 @@ void VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_f
 
 bool    VirtServ::execPost(int sock)
 {
-    std::string _contentLength = findKey(_response.headers, "Content-length")->second;
+    std::string _contentLength = findKey(_request.headers, "Content-Length")->second;
     std::stringstream ss;
     size_t  _totalLength;
 	_totalLength = 0;
     ss << _contentLength;
     ss >> _totalLength;
     FILE *ofs;
-    char buffer[_totalLength];
-	buffer[0] = 0;
-    recv(sock, buffer, _totalLength, 0 );
-    std::string store(reinterpret_cast<char*>(buffer));
+    char totalBuffer[_totalLength];
+	char buffer[512];
+	// totalBuffer[0] = 0;
+	size_t dataRead = 0;
+	size_t i, c = 0;
+    while (1) {
+		dataRead = recv(sock, buffer, sizeof buffer, 0);
+		for (i = 0; i < dataRead; i++, c++)
+			totalBuffer[c] = buffer[i];
+		memset(buffer, 0, sizeof buffer);
+		if (dataRead < sizeof buffer)
+			break;
+	}
+    std::string store(reinterpret_cast<char*>(totalBuffer));
     std::string filename = store.substr(store.find("filename"), store.max_size());
     filename = filename.substr(filename.find_first_of("\"") + 1, filename.find_first_of("\n"));
     filename = filename.substr(0, filename.find_first_of("\""));
@@ -465,12 +475,12 @@ bool    VirtServ::execPost(int sock)
     if (ofs) {
         std::string cmp = store.substr(0, store.find_first_of("\n") - 1);
         cmp.append("--\n");
-        size_t i = 0;
+        i = 0;
         for (; i < _totalLength; i++) {
-            if (!(strncmp(&buffer[i], "\r\n\r\n", 4)))
+            if (!(strncmp(&totalBuffer[i], "\r\n\r\n", 4)))
                 break;
         }
-        fwrite(buffer + (i + 4), 1, _totalLength - (cmp.size() + 3) - (i + 4), ofs);
+        fwrite(totalBuffer + (i + 4), 1, _totalLength - (cmp.size() + 3) - (i + 4), ofs);
         std::cout << "Save file: " << filename << std::endl;
         fclose(ofs);
         return true;
