@@ -33,7 +33,8 @@ class VirtServ
 		void				sendResponse();
 		void				dirAnswer(std::string fullPath, struct dirent* dirent, int dest_fd, t_config tmpConfig);
 		std::string			getDateTime();
-		iterator			findKey(std::vector<std::pair<std::string, std::string> > vector, std::string key);
+		iterator			findKey(std::vector<std::pair<std::string, std::string> > & vector, std::string key);
+		std::string			defineFileType(char* filename);
 
 	public:
 		// Structors

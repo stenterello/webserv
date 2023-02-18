@@ -88,10 +88,9 @@ typedef struct	s_response
 	{
 		headers.push_back(std::make_pair("Server", "webserv"));
 		headers.push_back(std::make_pair("Date", ""));
-		headers.push_back(std::make_pair("Content-type", ""));
-		headers.push_back(std::make_pair("Content-length", ""));
+		headers.push_back(std::make_pair("Content-Type", ""));
+		headers.push_back(std::make_pair("Content-Length", ""));
 		headers.push_back(std::make_pair("Last-Modified", ""));
-		headers.push_back(std::make_pair("Connection", ""));
 		headers.push_back(std::make_pair("ETag", ""));
 		headers.push_back(std::make_pair("Accept-Ranges", ""));
 		headers.push_back(std::make_pair("Protocol", ""));

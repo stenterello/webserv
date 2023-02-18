@@ -182,7 +182,7 @@ int VirtServ::readRequest(std::string req)
 	{
 		key = req.substr(0, req.find_first_of(":"));
 		req = req.substr(req.find_first_of(":") + 2);
-		header = findKey(_response.headers, key);
+		header = findKey(_request.headers, key);
 		if (header != _request.headers.end())
 			(*header).second = req.substr(0, req.find_first_of("\r\n"));
 		if (!std::strncmp(req.substr(req.find_first_of("\r")).c_str(), "\r\n\r\n", 4))
@@ -201,7 +201,7 @@ int VirtServ::readRequest(std::string req)
 	if (req.find_first_not_of("\n") != std::string::npos)
 		_request.body = req.substr(req.find_first_not_of("\r\n"));
 
-	if (findKey(_response.headers, "Expect") != _request.headers.end())
+	if (findKey(_request.headers, "Expect") != _request.headers.end())
 	{
 		return (1);
 	}
@@ -628,7 +628,7 @@ void VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 		_response.body.erase(0, 3);
 		convert.clear();
 		convert << _response.body.length();
-		findKey(_response.headers, "Content-length")->second = convert.str();
+		findKey(_response.headers, "Content-Length")->second = convert.str();
 		tmpString.clear();
 		tmpString = _response.line + "\r\n";
 	}
@@ -637,7 +637,7 @@ void VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 		_response.body = "<html>\n<head><title>" + tmpString + "</title></head>\n<body>\n<center><h1>" + tmpString + "</h1></center>\n<hr><center>webserv</center>\n</body>\n</html>\n";
 		convert.str("");
 		convert << _response.body.length();
-		findKey(_response.headers, "Content-length")->second = convert.str();
+		findKey(_response.headers, "Content-Length")->second = convert.str();
 		tmpString.clear();
 		tmpString = _response.line + "\r\n";
 	}
@@ -758,17 +758,23 @@ void VirtServ::answerAutoindex(std::string fullPath, DIR *directory, int dest_fd
 	_response.body += "</pre><hr></body>\n</html>";
 	convert << _response.body.length();
 	tmpString = convert.str();
-	findKey(_response.headers, "Content-length")->second = tmpString;
 	output << _response.line << "\r" << std::endl;
+
+	findKey(_response.headers, "Content-Length")->second = tmpString;
 	findKey(_response.headers, "Date")->second = getDateTime();
+	findKey(_response.headers, "Content-Type")->second = "text/html";
+
 	for (std::vector<std::pair<std::string, std::string> >::iterator iter = _response.headers.begin(); iter != _response.headers.end(); iter++) {
 		if ((*iter).second.length())
 			output << (*iter).first << ": " << (*iter).second << "\r" << std::endl;
 	}
+
 	output << "\r\n"
 		   << _response.body;
 	tmpString = output.str();
+
 	send(dest_fd, tmpString.c_str(), tmpString.size(), 0);
+
 	std::cout << "SENT RESPONSE" << std::endl;
 	std::cout << tmpString << std::endl;
 	delete[] (store);
@@ -797,10 +803,11 @@ void VirtServ::answer(std::string fullPath, struct dirent *dirent, int dest_fd)
 	stream << resource.rdbuf();
 	tmpBody = stream.str();
 	stream.str("");
-	std::vector<std::pair<std::string, std::string> >::iterator iter2 = findKey(_response.headers,  "Content-length");
+	std::vector<std::pair<std::string, std::string> >::iterator iter2 = findKey(_response.headers,  "Content-Length");
 	stream << tmpBody.length();
 	stream >> tmpString;
 	(*iter2).second = tmpString;
+	findKey(_response.headers,  "Content-Type")->second = defineFileType(dirent->d_name);
 	_response.body = tmpBody;
 
 	responseStream << _response.line << "\r" << std::endl;
@@ -925,7 +932,7 @@ bool VirtServ::sendAll(int socket, char *buf, size_t *len)
 	Find function translated for vector
 */
 
-std::vector<std::pair<std::string, std::string> >::iterator	VirtServ::findKey(std::vector<std::pair<std::string, std::string> > vector, std::string key)
+std::vector<std::pair<std::string, std::string> >::iterator	VirtServ::findKey(std::vector<std::pair<std::string, std::string> > & vector, std::string key)
 {
 	std::vector<std::pair<std::string, std::string> >::iterator	iter = vector.begin();
 
@@ -935,4 +942,77 @@ std::vector<std::pair<std::string, std::string> >::iterator	VirtServ::findKey(st
 			break ;
 	}
 	return iter;
+}
+
+
+/*
+	Define Filetype for "Content-type" header
+*/
+
+std::string	VirtServ::defineFileType(char* filename)
+{
+	std::string	toCompareText[4] = { ".html", ".css", ".csv", ".xml" };
+	std::string	toCompareImage[6] = { ".gif", ".jpeg", ".jpg", ".png", ".tiff", ".ico" };
+	std::string	toCompareApp[3] = { ".js", ".zip", ".pdf" };
+	std::string	fileExtension = std::string(filename);
+	size_t		i;
+	
+	fileExtension = fileExtension.substr(fileExtension.find_last_of("."));
+
+	for (i = 0; i < toCompareText->size(); i++)
+	{
+		if (!fileExtension.compare(toCompareText[i]))
+			break ;
+	}
+
+	if (i != toCompareText->size())
+	{
+		switch (i)
+		{
+			case 0: return ("text/html");
+			case 1: return ("text/css");
+			case 2: return ("text/csv");
+			case 3: return ("text/xml");
+			default: break ;
+		}
+	}
+
+	for (i = 0; i < toCompareImage->size(); i++)
+	{
+		if (!fileExtension.compare(toCompareImage[i]))
+			break ;
+	}
+
+	if (i != toCompareImage->size())
+	{
+		switch (i)
+		{
+			case 0: return ("image/gif");
+			case 1:
+			case 2: return ("image/jpeg");
+			case 3: return ("image/png");
+			case 4: return ("image/tiff");
+			case 5: return ("image/x-icon");
+			default: break ;
+		}
+	}
+
+	for (i = 0; i < toCompareApp->size(); i++)
+	{
+		if (!fileExtension.compare(toCompareApp[i]))
+			break ;
+	}
+
+	if (i != toCompareApp->size())
+	{
+		switch (i)
+		{
+			case 0: return ("application/javascript");
+			case 1: return ("application/zip");
+			case 2: return ("application/pdf");
+			default: break ;
+		}
+	}
+
+	return ("text/plain");
 }
