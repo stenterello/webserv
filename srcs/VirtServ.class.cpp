@@ -143,6 +143,7 @@ int VirtServ::handleClient(int fd)
 	else
 	{
 		this->cleanRequest();
+		this->cleanResponse();
 		this->readRequest(tmp);
 		this->elaborateRequest(fd);
 		_connfd.erase(it);
@@ -162,6 +163,21 @@ void VirtServ::cleanRequest()
 	std::vector<std::pair<std::string, std::string> >::iterator iter = _request.headers.begin();
 
 	for (; iter != _request.headers.end(); iter++)
+		(*iter).second = "";
+}
+
+
+/*
+	Pulisce la variabile privata _response;
+*/
+
+void VirtServ::cleanResponse()
+{
+	_response.line = "";
+	_response.body = "";
+	std::vector<std::pair<std::string, std::string> >::iterator iter = _response.headers.begin();
+
+	for (; iter != _response.headers.end(); iter++)
 		(*iter).second = "";
 }
 
@@ -236,6 +252,7 @@ void VirtServ::elaborateRequest(int dest_fd)
 	if (!location)
 		return;
 	executeLocationRules(location->text, dest_fd);
+	close(dest_fd);
 }
 
 
@@ -445,7 +462,7 @@ void VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_f
 	Chiude il file e la connessione
 */
 
-bool    VirtServ::execPost(int sock)
+bool    VirtServ::execPost(int dest_fd, t_config tmpConfig)
 {
     std::string _contentLength = findKey(_request.headers, "Content-Length")->second;
     std::stringstream ss;
@@ -460,7 +477,7 @@ bool    VirtServ::execPost(int sock)
 	size_t dataRead = 0;
 	size_t i, c = 0;
     while (1) {
-		dataRead = recv(sock, buffer, sizeof buffer, 0);
+		dataRead = recv(dest_fd, buffer, sizeof buffer, 0);
 		for (i = 0; i < dataRead; i++, c++)
 			totalBuffer[c] = buffer[i];
 		memset(buffer, 0, sizeof buffer);
@@ -470,7 +487,13 @@ bool    VirtServ::execPost(int sock)
     std::string store(reinterpret_cast<char*>(totalBuffer));
     std::string filename = store.substr(store.find("filename"), store.max_size());
     filename = filename.substr(filename.find_first_of("\"") + 1, filename.find_first_of("\n"));
-    filename = filename.substr(0, filename.find_first_of("\""));
+    filename = tmpConfig.root + "/uploads/" + filename.substr(0, filename.find_first_of("\""));
+	if (FILE* file = fopen(filename.c_str(), "r"))
+	{
+		fclose(file);
+		defaultAnswerError(205, dest_fd, tmpConfig);
+		return true;
+	}
     ofs = fopen(filename.c_str(), "wb");
     if (ofs) {
         std::string cmp = store.substr(0, store.find_first_of("\n") - 1);
@@ -483,6 +506,7 @@ bool    VirtServ::execPost(int sock)
         fwrite(totalBuffer + (i + 4), 1, _totalLength - (cmp.size() + 3) - (i + 4), ofs);
         std::cout << "Save file: " << filename << std::endl;
         fclose(ofs);
+		defaultAnswerError(201, dest_fd, tmpConfig);
         return true;
     }
     return false;
@@ -516,7 +540,7 @@ bool VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int dest
 		return (true);
 	}
 	if (_request.method == "POST") {
-		execPost(dest_fd);
+		execPost(dest_fd, tmpConfig);
 		return true;
 	}
 	if (!filename.compare("$uri"))
@@ -612,6 +636,8 @@ void VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 	switch (err)
 	{
 		case 100: tmpString = "100 Continue"; break ;
+		case 201: tmpString = "201 Created"; break ;
+		case 205: tmpString = "205 Reset Content"; break ;
 		case 400: tmpString = "400 Bad Request"; break;
 		case 401: tmpString = "401 Unauthorized"; break;
 		case 402: tmpString = "402 Payment Required"; break;

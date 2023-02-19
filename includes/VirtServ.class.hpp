@@ -48,11 +48,12 @@ class VirtServ
 		
 		// Communication Functions
 		void				cleanRequest();
+		void				cleanResponse();
 		int					readRequest(std::string req);
 		void				elaborateRequest(int dest_fd);
 		int					acceptConnectionAddFd(int sockfd);
 		int					handleClient(int fd);
-		bool				execPost(int sock);
+		bool				execPost(int dest_fd, t_config tmpConfig);
 		bool				sendAll(int socket, char *buf, size_t *len);
 };
 

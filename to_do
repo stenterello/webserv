@@ -3,3 +3,5 @@
 - Il valore di ritorno della funzione tryGetResource non ha senso
 
 - Aggiungere la funzione return nel parser delle location block
+
+- Fare il check se con una root che termina con "/" la funzione di execPost funziona ancora
