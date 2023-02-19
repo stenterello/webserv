@@ -5,3 +5,5 @@
 - Aggiungere la funzione return nel parser delle location block
 
 - Fare il check se con una root che termina con "/" la funzione di execPost funziona ancora
+
+- Da aggiungere questione cookies
