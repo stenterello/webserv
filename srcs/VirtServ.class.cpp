@@ -860,11 +860,23 @@ void VirtServ::answer(std::string fullPath, struct dirent *dirent, int dest_fd)
 			responseStream << (*iter).first << ": " << (*iter).second << "\r" << std::endl;
 		iter++;
 	}
+
 	responseStream << "\r\n"
 				   << _response.body;
+
 	responseString = responseStream.str();
 
-	send(dest_fd, responseString.c_str(), responseString.size(), 0);
+	if (responseString.size() > IOV_MAX)
+	{
+		while (responseString.size() > IOV_MAX)
+		{
+			send(dest_fd, responseString.c_str(), IOV_MAX, 0);
+			responseString = responseString.substr(IOV_MAX);
+		}
+		send(dest_fd, responseString.c_str(), responseString.size(), 0);
+	}
+	else
+		send(dest_fd, responseString.c_str(), responseString.size(), 0);
 	std::cout << "SENT RESPONSE" << std::endl;
 	std::cout << responseString << std::endl;
 }
