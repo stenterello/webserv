@@ -120,14 +120,18 @@ int VirtServ::handleClient(int fd)
 	if (it == _connfd.end())
 		return (1);
 	size_t nbytes = 0;
-	size_t i, c = 0;
+	size_t i = 0;
+	size_t c = 0;
 	while (1) {
 		nbytes = recv(fd, buf, sizeof buf, 0);
-		for (i = 0; i < nbytes; i++, c++)
-			tmp[c] = buf[i];
-		memset(buf, 0, 256);
-		if (nbytes < sizeof buf)
-			break;
+		if (static_cast<int>(nbytes) != -1)
+		{
+			for (i = 0; i < nbytes; i++, c++)
+				tmp[c] = buf[i];
+			memset(buf, 0, 256);
+			if (nbytes < sizeof buf)
+				break;
+		}
 	}
 	tmp[c] = '\0';
 	printf("TMP %s\n", tmp);
@@ -417,7 +421,7 @@ void VirtServ::tryFiles(std::string value, t_config tmpConfig, int dest_fd)
 									 se l'autoindex è su on, ritorna l'autoindex della cartella.
 */
 
-void VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_fd, t_config tmpConfig)
+DIR* VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_fd, t_config tmpConfig)
 {
 	DIR *dir;
 	std::string path = dirent != NULL ? fullPath + dirent->d_name + "/" : fullPath + "/";
@@ -434,7 +438,7 @@ void VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_f
 				if (!(std::strcmp(tmp->d_name, (*it).c_str())))
 				{
 					answer(path, tmp, dest_fd);
-					return;
+					return dir;
 				}
 				tmp = readdir(dir);
 			}
@@ -445,13 +449,14 @@ void VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_f
 		if (!tmp)
 		{
 			defaultAnswerError(404, dest_fd, tmpConfig);
-			return;
+			return dir;
 		}
 	}
 	else
 	{
 		answerAutoindex(path, dir, dest_fd);
 	}
+	return (dir);
 }
 
 
@@ -590,7 +595,10 @@ bool VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int dest
 		return (true);
 	}
 	else if (!tmpConfig.autoindex)
-		dirAnswer(fullPath, NULL, dest_fd, tmpConfig);
+	{
+		closedir(directory);
+		directory = dirAnswer(fullPath, NULL, dest_fd, tmpConfig);
+	}
 	else
 	{
 		defaultAnswerError(404, dest_fd, tmpConfig);
