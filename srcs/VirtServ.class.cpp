@@ -270,7 +270,7 @@ void VirtServ::executeLocationRules(std::string text, int dest_fd)
 	std::string line;
 	std::string key;
 	std::string value;
-	std::string toCompare[7] = {"root", "autoindex", "index", "error_page", "client_max_body_sizes", "allowed_methods", "try_files"};
+	std::string toCompare[8] = {"root", "autoindex", "index", "error_page", "client_max_body_sizes", "allowed_methods", "try_files", "return"};
 	int i;
 
 	std::cout << "EXECUTE LOCATION RULES\n";
@@ -288,7 +288,7 @@ void VirtServ::executeLocationRules(std::string text, int dest_fd)
 		if (value.find_first_not_of(" \t\n") == std::string::npos)
 			die("Location rule without value. Aborting", *this);
 
-		for (i = 0; i < 7; i++)
+		for (i = 0; i < 8; i++)
 			if (key == toCompare[i])
 				break;
 
@@ -343,12 +343,69 @@ void VirtServ::executeLocationRules(std::string text, int dest_fd)
 			case 6:
 				tryFiles(value, tmpConfig, dest_fd);
 				return;
+			case 7:
+				checkAndRedirect(value, dest_fd); return;
 			default:
 				die("Unrecognized location rule. Aborting", *this);
 		}
 		text = text.substr(text.find("\n") + 1);
 		text = text.substr(text.find_first_not_of(" \t\n"));
 	}
+}
+
+
+/*
+	Handle redirection
+*/
+
+void	VirtServ::checkAndRedirect(std::string value, int dest_fd)
+{
+	std::string			code;
+	std::string			phrase;
+	std::string			phrases[1] = { "301" };
+	std::string			tmpString;
+	std::stringstream	output;
+	size_t				i;
+
+	if (value.find_first_of(" \t") == std::string::npos)
+		die("Return rule must be written as: 'return code address'. Aborting");
+	
+	code = value.substr(0, value.find_first_of(" \t"));
+
+	for (i = 0; i < phrases->size(); i++)
+	{
+		if (!code.compare(phrases[i]))
+			break ;
+	}
+
+	if (i == phrases->size())
+		die("Return code unrecognized. Aborting");
+
+	switch (i)
+	{
+		case 0: phrase = "Moved Permanently"; break;
+		default: break ;
+	}
+
+	value = value.substr(value.find_first_of(" \t"));
+	value = value.substr(value.find_first_not_of(" \t"));
+	if (std::strncmp("http://", value.c_str(), 7))
+		die("Protocol HTTP is not specified in the given redirection address. Aborting");
+	
+	_response.line = "HTTP/1.1 " + code + " " + phrase;
+	findKey(_response.headers, "Location")->second = value;
+
+	output << _response.line << "\r" << std::endl;
+	for (std::vector<std::pair<std::string, std::string> >::iterator iter = _response.headers.begin(); iter != _response.headers.end(); iter++) {
+		if ((*iter).second.length())
+			output << (*iter).first << ": " << (*iter).second << "\r" << std::endl;
+	}
+	output << "\r\n"
+		   << _response.body;
+
+	tmpString = output.str();
+
+	send(dest_fd, tmpString.c_str(), tmpString.size(), 0);
 }
 
 

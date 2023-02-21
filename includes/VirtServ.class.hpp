@@ -34,6 +34,7 @@ class VirtServ
 		std::string			getDateTime();
 		iterator			findKey(std::vector<std::pair<std::string, std::string> > & vector, std::string key);
 		std::string			defineFileType(char* filename);
+		void				checkAndRedirect(std::string value, int dest_fd);
 
 	public:
 		// Structors
