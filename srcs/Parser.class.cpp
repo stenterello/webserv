@@ -330,32 +330,46 @@ void		Parser::checkClientBodyMaxSize(std::string value, t_config & conf)
 
 void		Parser::checkMethods(std::string value, t_config & conf)
 {
-	std::string	methods[4] = { "GET", "POST", "DELETE", "PUT" };
+	std::string	methods[5] = { "GET", "POST", "DELETE", "PUT", "HEAD" };
 	std::string	tmp;
 	int i;
 
-	if (value.find(" \t\n") != std::string::npos)
+	if (value.find_first_of(" \t\n") != std::string::npos)
 	{
-		while (value.find_first_of(" \t\n") != std::string::npos)
+		while (value.length())
 		{
 			tmp = value.substr(0, value.find_first_of(" \t\n"));
+			for (std::vector<std::string>::iterator	iter = conf.allowedMethods.begin(); iter != conf.allowedMethods.end(); iter++)
+			{
+				for (i = 0; i < 5; i++)
+				{
+					if (!(*iter).compare(methods[i]))
+						break ;
+				}
+				if (i == 5)
+					die("Method in configuration not recognized. Aborting");
+			}
 			conf.allowedMethods.push_back(tmp);
+			if (value.find_first_of(" \t\n") == std::string::npos)
+				break ;
 			value = value.substr(value.find_first_of(" \t\n"));
 			value = value.substr(value.find_first_not_of(" \t\n"));
 		}
 	}
 	else
+	{
 		conf.allowedMethods.push_back(value);
 
-	for (std::vector<std::string>::iterator	iter = conf.allowedMethods.begin(); iter != conf.allowedMethods.end(); iter++)
-	{
-		for (i = 0; i < 4; i++)
+		for (std::vector<std::string>::iterator	iter = conf.allowedMethods.begin(); iter != conf.allowedMethods.end(); iter++)
 		{
-			if (!(*iter).compare(methods[i]))
-				break ;
+			for (i = 0; i < 5; i++)
+			{
+				if (!(*iter).compare(methods[i]))
+					break ;
+			}
+			if (i == 5)
+				die("Method in configuration not recognized. Aborting");
 		}
-		if (i == 4)
-			die("Method in configuration not recognized. Aborting");
 	}
 }
 

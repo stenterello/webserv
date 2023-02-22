@@ -945,8 +945,13 @@ void VirtServ::answer(std::string fullPath, struct dirent *dirent, int dest_fd)
 		iter++;
 	}
 
-	responseStream << "\r\n"
-				   << _response.body;
+	if (_request.method != "HEAD")
+	{
+		responseStream << "\r\n"
+					   << _response.body;
+	}
+	else
+		responseStream << "\r\n";
 
 	responseString = responseStream.str();
 
