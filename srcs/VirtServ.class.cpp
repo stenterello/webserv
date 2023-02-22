@@ -205,12 +205,12 @@ int VirtServ::readRequest(std::string req)
 		header = findKey(_request.headers, key);
 		if (header != _request.headers.end())
 			(*header).second = req.substr(0, req.find_first_of("\r\n"));
-		if (!std::strncmp(req.substr(req.find_first_of("\r")).c_str(), "\r\n\r\n", 4))
+		if (req.find_first_of("\r") != std::string::npos && std::strlen(req.substr(req.find_first_of("\r")).c_str()) > 4 && !std::strncmp(req.substr(req.find_first_of("\r")).c_str(), "\r\n\r\n", 4))
 			break ;
 		req = req.substr(req.find_first_of("\n") + 1);
 	}
 
-	if (!std::strncmp(req.substr(req.find_first_of("\r")).c_str(), "\r\n\r\n", 4))
+	if (req.find_first_of("\r") != std::string::npos && std::strlen(req.substr(req.find_first_of("\r")).c_str()) > 4 && !std::strncmp(req.substr(req.find_first_of("\r")).c_str(), "\r\n\r\n", 4))
 	{
 		if (header != _request.headers.end())
 			(*header).second = req.substr(0, req.find_first_of("\r\n"));
@@ -218,7 +218,7 @@ int VirtServ::readRequest(std::string req)
 		_request.body = req;
 	}
 
-	if (req.find_first_not_of("\n") != std::string::npos)
+	if (req.find_first_not_of("\r\n") != std::string::npos)
 		_request.body = req.substr(req.find_first_not_of("\r\n"));
 
 	if (findKey(_request.headers, "Expect") != _request.headers.end())
@@ -249,8 +249,16 @@ void VirtServ::elaborateRequest(int dest_fd)
 
 	// _response.headers.insert(std::make_pair("set-cookie", "ciao=ciao"));
 	_request.method = _request.line.substr(0, _request.line.find_first_of(" "));
-	_request.line = _request.line.substr(_request.method.length() + 1);
-	path = _request.line.substr(0, _request.line.find_first_of(" "));
+	if (std::strlen(_request.method.c_str()) < std::strlen(_request.line.c_str()))
+	{
+		_request.line = _request.line.substr(_request.method.length() + 1);
+		path = _request.line.substr(0, _request.line.find_first_of(" "));
+	}
+	else
+	{
+		_request.line = _request.method;
+		path = "/";
+	}
 
 	location = searchLocationBlock(_request.method, path, dest_fd);
 	if (!location)
@@ -701,17 +709,23 @@ void VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 	switch (err)
 	{
 		case 100: tmpString = "100 Continue"; break ;
+		case 200: tmpString = "200 OK"; break ;
 		case 201: tmpString = "201 Created"; break ;
+		case 202: tmpString = "202 Accepted"; break ;
+		case 203: tmpString = "203 Non-Authoritative Information"; break ;
+		case 204: tmpString = "204 No content"; break ;
 		case 205: tmpString = "205 Reset Content"; break ;
-		case 400: tmpString = "400 Bad Request"; break;
-		case 401: tmpString = "401 Unauthorized"; break;
-		case 402: tmpString = "402 Payment Required"; break;
-		case 403: tmpString = "403 Forbidden"; break;
-		case 404: tmpString = "404 Not Found"; break;
-		case 405: tmpString = "405 Method Not Allowed"; break;
-		case 406: tmpString = "406 Not Acceptable"; break;
+		case 400: tmpString = "400 Bad Request"; break ;
+		case 401: tmpString = "401 Unauthorized"; break ;
+		case 402: tmpString = "402 Payment Required"; break ;
+		case 403: tmpString = "403 Forbidden"; break ;
+		case 404: tmpString = "404 Not Found"; break ;
+		case 405: tmpString = "405 Method Not Allowed"; break ;
+		case 406: tmpString = "406 Not Acceptable"; break ;
+		case 411: tmpString = "411 Length Required"; break ;
 		case 413: tmpString = "413 Request Entity Too Large"; break ;
-		case 500: tmpString = "500 Internal Server Error"; break;
+		case 500: tmpString = "500 Internal Server Error"; break ;
+		case 501: tmpString = "501 Not Implemented"; break ;
 		default: break;
 	}
 
@@ -724,22 +738,37 @@ void VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 		file.close();
 		_response.body = convert.str();
 		_response.body.erase(0, 3);
-		convert.clear();
+		convert.str("");
 		convert << _response.body.length();
 		findKey(_response.headers, "Content-Length")->second = convert.str();
 		tmpString.clear();
-		tmpString = _response.line + "\r\n";
 	}
-	else
+	else if (err != 100)
 	{
 		_response.body = "<html>\n<head><title>" + tmpString + "</title></head>\n<body>\n<center><h1>" + tmpString + "</h1></center>\n<hr><center>webserv</center>\n</body>\n</html>\n";
 		convert.str("");
 		convert << _response.body.length();
 		findKey(_response.headers, "Content-Length")->second = convert.str();
 		tmpString.clear();
-		tmpString = _response.line + "\r\n";
 	}
 
+	if (err == 405)
+	{
+		for (std::vector<std::string>::iterator	iter = tmpConfig.allowedMethods.begin(); iter != tmpConfig.allowedMethods.end(); iter++)
+		{
+			if (findKey(_response.headers, "Allow")->second.length())
+				findKey(_response.headers, "Allow")->second += " " + *iter;
+			else
+				findKey(_response.headers, "Allow")->second += *iter;
+		}
+	}
+	
+	if (_request.method == "HEAD")
+	{
+		findKey(_response.headers, "Connection")->second = "keep-alive";
+	}
+
+	tmpString = _response.line + "\r\n";
 	std::vector<std::pair<std::string, std::string> >::iterator iter = _response.headers.begin();
 
 	while (iter != _response.headers.end())
@@ -748,7 +777,8 @@ void VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 			tmpString += (*iter).first + ": " + (*iter).second + "\r\n";
 		iter++;
 	}
-	tmpString += "\r\n" + _response.body;
+	if (err != 100 && _request.method != "HEAD")
+		tmpString += "\r\n" + _response.body;
 	send(dest_fd, tmpString.c_str(), tmpString.size(), 0);
 	std::cout << "SENT RESPONSE" << std::endl;
 	std::cout << tmpString << std::endl;
