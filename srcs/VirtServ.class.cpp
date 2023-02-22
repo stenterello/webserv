@@ -762,11 +762,6 @@ void VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 				findKey(_response.headers, "Allow")->second += *iter;
 		}
 	}
-	
-	if (_request.method == "HEAD")
-	{
-		findKey(_response.headers, "Connection")->second = "keep-alive";
-	}
 
 	tmpString = _response.line + "\r\n";
 	std::vector<std::pair<std::string, std::string> >::iterator iter = _response.headers.begin();
@@ -779,6 +774,8 @@ void VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 	}
 	if (err != 100 && _request.method != "HEAD")
 		tmpString += "\r\n" + _response.body;
+	else
+		tmpString += "\r\n";
 	send(dest_fd, tmpString.c_str(), tmpString.size(), 0);
 	std::cout << "SENT RESPONSE" << std::endl;
 	std::cout << tmpString << std::endl;
@@ -786,7 +783,7 @@ void VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 
 
 /*
-	Funzione di lettura e riempimenot in struttura dei file letti all'interno di una directory;
+	Funzione di lettura e riempimento in struttura dei file letti all'interno di una directory;
 */
 
 struct dirent **VirtServ::fill_dirent(DIR *directory, std::string path)
