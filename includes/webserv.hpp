@@ -98,6 +98,7 @@ typedef struct	s_response
 		headers.push_back(std::make_pair("Reason-Phrase", ""));
 		headers.push_back(std::make_pair("Location", ""));
 		headers.push_back(std::make_pair("Connection", ""));
+		headers.push_back(std::make_pair("Allow", ""));
 	}
 }				t_response;
 

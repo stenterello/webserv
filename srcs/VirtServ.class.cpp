@@ -200,15 +200,15 @@ int VirtServ::readRequest(std::string req)
 {
 	std::string													key;
 	std::vector<std::pair<std::string, std::string> >::iterator	header;
-	std::string comp[] = {"GET", "POST", "DELETE", "PUT"};
+	std::string comp[] = {"GET", "POST", "DELETE", "PUT", "HEAD"};
 
 	_request.line = req.substr(0, req.find_first_of("\n"));
 	int i;
-	for (i = 0; i < 4; i++) {
+	for (i = 0; i < 5; i++) {
 		if (_request.line.find(comp[i]) != std::string::npos)
 			break ;
 		}
-	if (i == 4)
+	if (i == 5)
 		return 0;
 	req = req.substr(req.find_first_of("\n") + 1);
 
@@ -322,6 +322,7 @@ void VirtServ::executeLocationRules(std::string text, int dest_fd)
 			}
 			case 1:
 			{
+				std::cout << "------CASE 1------\n";
 				if (!value.compare("on"))
 					tmpConfig.autoindex = true;
 				else if (!value.compare("off"))
@@ -332,9 +333,13 @@ void VirtServ::executeLocationRules(std::string text, int dest_fd)
 			}
 			case 2:
 			{
+				// sistemare questo caso
+				break ;
+				std::cout << "------CASE 2------\n";
 				tmpConfig.index.clear();
 				while (value.find_first_not_of(" \n\t") != std::string::npos)
 				{
+					printf("CICLO WHILE\n");
 					tmpConfig.index.push_back(value.substr(0, value.find_first_of(" \t")));
 					value = value.substr(value.find_first_of(" \t"));
 					value = value.substr(value.find_first_not_of(" \t"));
@@ -344,6 +349,7 @@ void VirtServ::executeLocationRules(std::string text, int dest_fd)
 			case 3:
 			{
 				// error_page
+				std::cout << "------CASE 3------\n";
 				tmpConfig.errorPages.clear();
 				while (value.find_first_not_of(" \n\t") != std::string::npos)
 				{
@@ -356,11 +362,12 @@ void VirtServ::executeLocationRules(std::string text, int dest_fd)
 				break;
 			}
 			case 4: {
+				std::cout << "------CHECK CLIENT BODY MAX SIZE------\n";
 				Parser::checkClientBodyMaxSize(value, tmpConfig);
 				break;
 			}
 			case 5: {
-				std::cout << "INSERT METHOD\n";
+				std::cout << "------INSERT METHOD------\n";
 				insertMethod(tmpConfig, value);
 				break ;
 			}
@@ -459,7 +466,7 @@ void VirtServ::insertMethod(t_config &tmpConfig, std::string value)
 	{
 		for (i = 0; i < 4; i++)
 		{
-			if (!(*iter).compare(methods[i]))
+			if (*iter == methods[i])
 				break;
 		}
 		if (i == 4)
@@ -510,9 +517,11 @@ DIR* VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_f
 {
 	std::cout << "------DIR ANSWER------\n";
 	DIR *dir;
+
 	std::string path = dirent != NULL ? fullPath + dirent->d_name + "/" : fullPath + "/";
 
 	dir = opendir(path.c_str());
+	printf("SEGFAULT\n");
 	if (!tmpConfig.autoindex)
 	{
 		struct dirent *tmp;
@@ -573,7 +582,7 @@ bool    VirtServ::execPost(int dest_fd, t_config tmpConfig)
 	int i, c = 0;
 	// fcntl(dest_fd, F_SETFL, O_NONBLOCK);
     while (1) {
-		dataRead = recv(dest_fd, buffer, sizeof buffer, MSG_DONTWAIT);
+		dataRead = recv(dest_fd, buffer, sizeof buffer, 0);
 		std::cout << "DATA READ " << dataRead << std::endl;
 		std::cout << "BUFFER " << buffer << std::endl;
 		if (dataRead <= 0)
@@ -584,8 +593,13 @@ bool    VirtServ::execPost(int dest_fd, t_config tmpConfig)
 		if (dataRead < static_cast<int>(sizeof buffer))
 			break;
 	}
+	if (tmpConfig.allowedMethods.size() && std::find(tmpConfig.allowedMethods.begin(), tmpConfig.allowedMethods.end(), _request.method) == tmpConfig.allowedMethods.end())
+	{
+		defaultAnswerError(405, dest_fd, _config);
+		return (true);
+	}
 	if (dataRead <= 0) {
-		defaultAnswerError(201, dest_fd, tmpConfig);
+		defaultAnswerError(405, dest_fd, tmpConfig);
 		return false;
 	}
     std::string store(reinterpret_cast<char*>(totalBuffer));
@@ -593,7 +607,7 @@ bool    VirtServ::execPost(int dest_fd, t_config tmpConfig)
 	if (store.find("filename") != std::string::npos)
 		filename = store.substr(store.find("filename"), std::string::npos);
 	else {
-		defaultAnswerError(202, dest_fd, tmpConfig);
+		defaultAnswerError(405, dest_fd, tmpConfig);
 		return false;
 	}
     filename = filename.substr(filename.find_first_of("\"") + 1, filename.find_first_of("\n"));
@@ -648,14 +662,14 @@ bool VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int dest
 
 	tmpConfig.root.copy(rootPath, tmpConfig.root.size());
 	rootPath[tmpConfig.root.size()] = '\0';
+	if (_request.method == "POST") {
+		execPost(dest_fd, tmpConfig);
+		return true;
+	}
 	if (tmpConfig.allowedMethods.size() && std::find(tmpConfig.allowedMethods.begin(), tmpConfig.allowedMethods.end(), _request.method) == tmpConfig.allowedMethods.end())
 	{
 		defaultAnswerError(405, dest_fd, _config);
 		return (true);
-	}
-	if (_request.method == "POST") {
-		execPost(dest_fd, tmpConfig);
-		return true;
 	}
 	if (!filename.compare("$uri"))
 		filename = _request.line.substr(0, _request.line.find_first_of(" \t"));
@@ -679,13 +693,16 @@ bool VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int dest
 	}
 	if (filename.length())
 	{
-		std::cout << "FILENAME.LENGHT()\n";
+		std::cout << "FILENAME " << filename << std::endl;
 		while ((dirent = readdir(directory)))
 		{
-			if (!filename.compare(dirent->d_name))
+			if (!filename.compare(dirent->d_name) || !(filename.compare("directory")))
 			{
-				if (dirent->d_type == DT_DIR)
-				{
+				if (!(filename.compare("directory"))) {
+					dirAnswer(rootPath, NULL, dest_fd, tmpConfig);
+					break;
+				}
+				if (dirent->d_type == DT_DIR) {
 					dirAnswer(rootPath, dirent, dest_fd, tmpConfig);
 					break;
 				}
@@ -830,11 +847,8 @@ void VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 	else
 		tmpString += "\r\n";
 	send(dest_fd, tmpString.c_str(), tmpString.size(), 0);
-	// size_t sendLen = tmpString.size();
-	// sendAll(dest_fd, tmpString.c_str(), &sendLen);
 	std::cout << "SENT RESPONSE" << std::endl;
-	std::cout << tmpString.substr(0, tmpString.find_first_of("\n")) << std::endl;
-	// close(dest_fd);
+	std::cout << tmpString << std::endl;
 }
 
 
