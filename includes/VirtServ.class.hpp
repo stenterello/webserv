@@ -53,7 +53,7 @@ class VirtServ
 		void				elaborateRequest(int dest_fd);
 		int					acceptConnectionAddFd(int sockfd);
 		int					handleClient(int fd);
-		bool				execPost(int dest_fd, t_config tmpConfig);
+		bool				execPost(int dest_fd);
 		bool				sendAll(int socket, const char *buf, size_t *len);
 		int 				keepConnectionAlive(int fd);
 };

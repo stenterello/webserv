@@ -124,26 +124,29 @@ int VirtServ::handleClient(int fd)
 	int nbytes, i = 0;
 	fcntl(fd, F_SETFL, O_NONBLOCK);
 	while (1) {
-			std::cout << "------START RECV------\n";
-			nbytes = recv(fd, buf, 512, 0);
-			std::cout << "NBYTES READ " << nbytes << std::endl;
-			if (nbytes <= 0)
-			{
-				if (nbytes == 0)
-					printf("pollserver: socket %d hung up\n", fd);
-				else
-					perror("recv");
-				_connfd.erase(it);
-				return (1);
-			}
+		if (_request.method == "POST") {
+			execPost(fd);
+			return 0;
+		}
+		nbytes = recv(fd, buf, 512, 0);
+		std::cout << "NBYTES READ " << nbytes << std::endl;
+		if (nbytes <= 0)
+		{
+			if (nbytes == 0)
+				printf("pollserver: socket %d hung up\n", fd);
 			else
-			{
-				for (i = 0; i < nbytes; i++, c++)
-					tmp[c] = buf[i];
-				memset(buf, 0, 512);
-			}
-			if (nbytes < static_cast<int>(sizeof buf))
-				break ;
+				perror("recv");
+			_connfd.erase(it);
+			return (1);
+		}
+		else
+		{
+			for (i = 0; i < nbytes; i++, c++)
+				tmp[c] = buf[i];
+			memset(buf, 0, 512);
+		}
+		if (nbytes < static_cast<int>(sizeof buf))
+			break ;
 	}
 	if (strstr(tmp, "\r\n\r\n") == NULL) {
 		return 0;
@@ -170,6 +173,7 @@ void VirtServ::cleanRequest()
 {
 	_request.line = "";
 	_request.body = "";
+	_request.method = "";
 	std::vector<std::pair<std::string, std::string> >::iterator iter = _request.headers.begin();
 
 	for (; iter != _request.headers.end(); iter++)
@@ -524,6 +528,7 @@ DIR* VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_f
 	printf("SEGFAULT\n");
 	if (!tmpConfig.autoindex)
 	{
+		std::cout << "INSIDE !TMP.AUTOINDEX\n";
 		struct dirent *tmp;
 		tmp = readdir(dir);
 		for (std::vector<std::string>::iterator it = tmpConfig.index.begin(); it != tmpConfig.index.end(); it++)
@@ -561,7 +566,7 @@ DIR* VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_f
 	Chiude il file e la connessione
 */
 
-bool    VirtServ::execPost(int dest_fd, t_config tmpConfig)
+bool    VirtServ::execPost(int dest_fd)
 {
 	std::cout << "------EXEC POST------\n";
     std::string _contentLength = findKey(_request.headers, "Content-Length")->second;
@@ -593,13 +598,17 @@ bool    VirtServ::execPost(int dest_fd, t_config tmpConfig)
 		if (dataRead < static_cast<int>(sizeof buffer))
 			break;
 	}
-	if (tmpConfig.allowedMethods.size() && std::find(tmpConfig.allowedMethods.begin(), tmpConfig.allowedMethods.end(), _request.method) == tmpConfig.allowedMethods.end())
+	if (strstr(totalBuffer, "\r\n\r\n") == NULL) {
+		return 0;
+	}
+	if (_config.allowedMethods.size() && std::find(_config.allowedMethods.begin(), _config.allowedMethods.end(), "POST") == _config.allowedMethods.end())
 	{
 		defaultAnswerError(405, dest_fd, _config);
+		this->cleanRequest();
 		return (true);
 	}
 	if (dataRead <= 0) {
-		defaultAnswerError(405, dest_fd, tmpConfig);
+		defaultAnswerError(205, dest_fd, _config);
 		return false;
 	}
     std::string store(reinterpret_cast<char*>(totalBuffer));
@@ -607,15 +616,15 @@ bool    VirtServ::execPost(int dest_fd, t_config tmpConfig)
 	if (store.find("filename") != std::string::npos)
 		filename = store.substr(store.find("filename"), std::string::npos);
 	else {
-		defaultAnswerError(405, dest_fd, tmpConfig);
+		defaultAnswerError(205, dest_fd, _config);
 		return false;
 	}
     filename = filename.substr(filename.find_first_of("\"") + 1, filename.find_first_of("\n"));
-    filename = tmpConfig.root + "/uploads/" + filename.substr(0, filename.find_first_of("\""));
+    filename = _config.root + "/uploads/" + filename.substr(0, filename.find_first_of("\""));
 	if (FILE* file = fopen(filename.c_str(), "r"))
 	{
 		fclose(file);
-		defaultAnswerError(202, dest_fd, tmpConfig);
+		defaultAnswerError(202, dest_fd, _config);
 		return true;
 	}
     ofs = fopen(filename.c_str(), "wb");
@@ -630,7 +639,7 @@ bool    VirtServ::execPost(int dest_fd, t_config tmpConfig)
         fwrite(totalBuffer + (i + 4), 1, _totalLength - (cmp.size() + 3) - (i + 4), ofs);
         std::cout << "Save file: " << filename << std::endl;
         fclose(ofs);
-		defaultAnswerError(201, dest_fd, tmpConfig);
+		defaultAnswerError(201, dest_fd, _config);
         return true;
     }
     return false;
@@ -663,7 +672,6 @@ bool VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int dest
 	tmpConfig.root.copy(rootPath, tmpConfig.root.size());
 	rootPath[tmpConfig.root.size()] = '\0';
 	if (_request.method == "POST") {
-		execPost(dest_fd, tmpConfig);
 		return true;
 	}
 	if (tmpConfig.allowedMethods.size() && std::find(tmpConfig.allowedMethods.begin(), tmpConfig.allowedMethods.end(), _request.method) == tmpConfig.allowedMethods.end())
