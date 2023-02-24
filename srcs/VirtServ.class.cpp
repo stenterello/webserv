@@ -300,6 +300,7 @@ void VirtServ::executeLocationRules(std::string text, int dest_fd)
 	int i;
 
 	std::cout << "EXECUTE LOCATION RULES\n";
+	std::cout << "LOCATION TEXT " << text << std::endl;
 	// printMap(_request.headers);
 	while (text.find_first_not_of(" \t\r\n") != std::string::npos)
 	{
@@ -338,15 +339,13 @@ void VirtServ::executeLocationRules(std::string text, int dest_fd)
 			case 2:
 			{
 				// sistemare questo caso
-				break ;
 				std::cout << "------CASE 2------\n";
 				tmpConfig.index.clear();
 				while (value.find_first_not_of(" \n\t") != std::string::npos)
 				{
-					printf("CICLO WHILE\n");
 					tmpConfig.index.push_back(value.substr(0, value.find_first_of(" \t")));
-					value = value.substr(value.find_first_of(" \t"));
-					value = value.substr(value.find_first_not_of(" \t"));
+					value = value.substr(0, value.find_first_of(" \t"));
+					value = value.substr(0, value.find_first_not_of(" \t"));
 				}
 				break;
 			}
@@ -521,14 +520,11 @@ DIR* VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_f
 {
 	std::cout << "------DIR ANSWER------\n";
 	DIR *dir;
-
 	std::string path = dirent != NULL ? fullPath + dirent->d_name + "/" : fullPath + "/";
 
 	dir = opendir(path.c_str());
-	printf("SEGFAULT\n");
 	if (!tmpConfig.autoindex)
 	{
-		std::cout << "INSIDE !TMP.AUTOINDEX\n";
 		struct dirent *tmp;
 		tmp = readdir(dir);
 		for (std::vector<std::string>::iterator it = tmpConfig.index.begin(); it != tmpConfig.index.end(); it++)
@@ -580,12 +576,12 @@ bool    VirtServ::execPost(int dest_fd)
 	else
 		_totalLength = 4096;
     FILE *ofs;
-    char totalBuffer[_totalLength];
+    static char totalBuffer[8192];
 	char buffer[512];
 	// totalBuffer[0] = 0;
 	int dataRead = 0;
-	int i, c = 0;
-	// fcntl(dest_fd, F_SETFL, O_NONBLOCK);
+	int i = 0;
+	static int c = 0;
     while (1) {
 		dataRead = recv(dest_fd, buffer, sizeof buffer, 0);
 		std::cout << "DATA READ " << dataRead << std::endl;
@@ -601,13 +597,16 @@ bool    VirtServ::execPost(int dest_fd)
 	if (strstr(totalBuffer, "\r\n\r\n") == NULL) {
 		return 0;
 	}
+	c = 0;
 	if (_config.allowedMethods.size() && std::find(_config.allowedMethods.begin(), _config.allowedMethods.end(), "POST") == _config.allowedMethods.end())
 	{
 		defaultAnswerError(405, dest_fd, _config);
+		memset(totalBuffer, 0, 8192);
 		this->cleanRequest();
 		return (true);
 	}
 	if (dataRead <= 0) {
+		memset(totalBuffer, 0, 8192);
 		defaultAnswerError(205, dest_fd, _config);
 		return false;
 	}
@@ -616,6 +615,7 @@ bool    VirtServ::execPost(int dest_fd)
 	if (store.find("filename") != std::string::npos)
 		filename = store.substr(store.find("filename"), std::string::npos);
 	else {
+		memset(totalBuffer, 0, 8192);
 		defaultAnswerError(205, dest_fd, _config);
 		return false;
 	}
@@ -624,6 +624,7 @@ bool    VirtServ::execPost(int dest_fd)
 	if (FILE* file = fopen(filename.c_str(), "r"))
 	{
 		fclose(file);
+		memset(totalBuffer, 0, 8192);
 		defaultAnswerError(202, dest_fd, _config);
 		return true;
 	}
@@ -632,14 +633,15 @@ bool    VirtServ::execPost(int dest_fd)
         std::string cmp = store.substr(0, store.find_first_of("\n") - 1);
         cmp.append("--\n");
         i = 0;
-        for (; i < static_cast<int>(_totalLength); i++) {
+        for (; i < static_cast<int>(8129); i++) {
             if (!(strncmp(&totalBuffer[i], "\r\n\r\n", 4)))
                 break;
         }
-        fwrite(totalBuffer + (i + 4), 1, _totalLength - (cmp.size() + 3) - (i + 4), ofs);
+        fwrite(totalBuffer + (i + 4), 1, 8129 - (cmp.size() + 3) - (i + 4), ofs);
         std::cout << "Save file: " << filename << std::endl;
         fclose(ofs);
 		defaultAnswerError(201, dest_fd, _config);
+		memset(totalBuffer, 0, 8192);
         return true;
     }
     return false;
@@ -702,16 +704,17 @@ bool VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int dest
 	if (filename.length())
 	{
 		std::cout << "FILENAME " << filename << std::endl;
+		std::cout << "ROOTPATH " << rootPath << std::endl;
 		while ((dirent = readdir(directory)))
 		{
 			if (!filename.compare(dirent->d_name) || !(filename.compare("directory")))
 			{
 				if (!(filename.compare("directory"))) {
-					dirAnswer(rootPath, NULL, dest_fd, tmpConfig);
+					closedir(dirAnswer(rootPath, NULL, dest_fd, tmpConfig));
 					break;
 				}
 				if (dirent->d_type == DT_DIR) {
-					dirAnswer(rootPath, dirent, dest_fd, tmpConfig);
+					closedir(dirAnswer(rootPath, dirent, dest_fd, tmpConfig));
 					break;
 				}
 				else {
@@ -1005,6 +1008,10 @@ void VirtServ::answer(std::string fullPath, struct dirent *dirent, int dest_fd)
 	}
 	_response.line += "HTTP/1.1 200 OK";
 	stream << resource.rdbuf();
+	if (!(strcmp(dirent->d_name, "youpi.bad_extension"))) {
+		std::ifstream tmp("fake_site/YoupiBanane/nop/youpi.bad_extension");
+		stream << tmp.rdbuf();
+	}
 	tmpBody = stream.str();
 	stream.str("");
 	std::vector<std::pair<std::string, std::string> >::iterator iter2 = findKey(_response.headers,  "Content-Length");
