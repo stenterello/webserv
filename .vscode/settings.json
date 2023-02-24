@@ -76,6 +76,15 @@
 		"compare": "cpp",
 		"concepts": "cpp",
 		"numbers": "cpp",
-		"cinttypes": "cpp"
+		"cinttypes": "cpp",
+		"condition_variable": "cpp",
+		"list": "cpp",
+		"set": "cpp",
+		"unordered_set": "cpp",
+		"future": "cpp",
+		"semaphore": "cpp",
+		"stop_token": "cpp",
+		"thread": "cpp",
+		"variant": "cpp"
 	}
 }

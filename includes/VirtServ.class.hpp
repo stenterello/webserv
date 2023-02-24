@@ -54,7 +54,8 @@ class VirtServ
 		int					acceptConnectionAddFd(int sockfd);
 		int					handleClient(int fd);
 		bool				execPost(int dest_fd, t_config tmpConfig);
-		bool				sendAll(int socket, char *buf, size_t *len);
+		bool				sendAll(int socket, const char *buf, size_t *len);
+		int 				keepConnectionAlive(int fd);
 };
 
 #endif

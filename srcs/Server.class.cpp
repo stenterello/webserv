@@ -82,21 +82,20 @@ bool    Server::startListen()
 			perror("poll");
 			exit(1);
 		}
-		if (poll_count == 0) {
-			perror("Timeout");
-			exit(1);
-		}
 		for (int i = 0; i < fd_count; i++) {
 			for (std::vector<VirtServ>::iterator it = _virtServs.begin(); it != _virtServs.end(); it++) {
 				if (_pfds[i].revents & POLLIN) {
 					if (_pfds[i].fd == it->getSocket()) {
 						int tmpfd = it->acceptConnectionAddFd(it->getSocket());
-						if (tmpfd != -1)
+						if (tmpfd != -1) {
 							this->add_to_pfds(&_pfds, tmpfd, &fd_count, &fd_size);
-					}
-				} else {
-					if (it->handleClient(_pfds[i].fd) == 0) {
-						del_from_pfds(_pfds, i, &fd_count);
+						}
+					} else {
+						if (it->handleClient(_pfds[i].fd) == 1) {
+							std::cout << "DELETING FD FROM PFDS\n";
+							close(_pfds[i].fd);
+							del_from_pfds(_pfds, i, &fd_count);
+						}
 					}
 				}
 			}

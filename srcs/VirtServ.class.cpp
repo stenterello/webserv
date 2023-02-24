@@ -15,6 +15,7 @@
 #include <string>
 #include <iostream>
 #include <stdio.h>
+#define IOV_MAX 1024
 
 //////// Constructors & Destructor //////////////////////////////
 
@@ -113,45 +114,50 @@ int VirtServ::acceptConnectionAddFd(int sockfd)
 
 int VirtServ::handleClient(int fd)
 {
-	char buf[256];
-	char tmp[2048];
+	char buf[512];
+	static char tmp[2048];
 
 	std::vector<int>::iterator it = std::find(_connfd.begin(), _connfd.end(), fd);
 	if (it == _connfd.end())
-		return (1);
-	size_t nbytes = 0;
-	size_t i = 0;
-	size_t c = 0;
+		return (0);
+	static int c = 0;
+	int nbytes, i = 0;
+	fcntl(fd, F_SETFL, O_NONBLOCK);
 	while (1) {
-		nbytes = recv(fd, buf, sizeof buf, 0);
-		if (static_cast<int>(nbytes) != -1)
-		{
-			for (i = 0; i < nbytes; i++, c++)
-				tmp[c] = buf[i];
-			memset(buf, 0, 256);
-			if (nbytes < sizeof buf)
-				break;
-		}
+			std::cout << "------START RECV------\n";
+			nbytes = recv(fd, buf, 512, 0);
+			std::cout << "NBYTES READ " << nbytes << std::endl;
+			if (nbytes <= 0)
+			{
+				if (nbytes == 0)
+					printf("pollserver: socket %d hung up\n", fd);
+				else
+					perror("recv");
+				_connfd.erase(it);
+				return (1);
+			}
+			else
+			{
+				for (i = 0; i < nbytes; i++, c++)
+					tmp[c] = buf[i];
+				memset(buf, 0, 512);
+			}
+			if (nbytes < static_cast<int>(sizeof buf))
+				break ;
+	}
+	if (strstr(tmp, "\r\n\r\n") == NULL) {
+		return 0;
 	}
 	tmp[c] = '\0';
-	printf("TMP %s\n", tmp);
-	if (nbytes <= 0)
-	{
-		if (nbytes == 0)
-			printf("pollserver: socket %d hung up\n", fd);
-		else
-			perror("recv");
-		close(fd);
-		return (1);
-	}
-	else
-	{
-		this->cleanRequest();
-		this->cleanResponse();
-		this->readRequest(tmp);
+	printf("------TMP------\n%s\n------END TMP------\n", tmp);
+	this->cleanRequest();
+	this->cleanResponse();
+	if (this->readRequest(tmp))
 		this->elaborateRequest(fd);
-		_connfd.erase(it);
-	}
+	else
+		defaultAnswerError(400, fd, _config);
+	c = 0;
+	memset(tmp, 0, 2048);
 	return (0);
 }
 
@@ -194,8 +200,16 @@ int VirtServ::readRequest(std::string req)
 {
 	std::string													key;
 	std::vector<std::pair<std::string, std::string> >::iterator	header;
+	std::string comp[] = {"GET", "POST", "DELETE", "PUT"};
 
 	_request.line = req.substr(0, req.find_first_of("\n"));
+	int i;
+	for (i = 0; i < 4; i++) {
+		if (_request.line.find(comp[i]) != std::string::npos)
+			break ;
+		}
+	if (i == 4)
+		return 0;
 	req = req.substr(req.find_first_of("\n") + 1);
 
 	while (req.find_first_not_of(" \t\n\r") != std::string::npos && std::strncmp(req.c_str(), "\n\n", 2))
@@ -264,7 +278,7 @@ void VirtServ::elaborateRequest(int dest_fd)
 	if (!location)
 		return;
 	executeLocationRules(location->text, dest_fd);
-	close(dest_fd);
+	// close(dest_fd);
 }
 
 
@@ -302,9 +316,10 @@ void VirtServ::executeLocationRules(std::string text, int dest_fd)
 
 		switch (i)
 		{
-			case 0:
+			case 0: {
 				tmpConfig.root = value;
 				break;
+			}
 			case 1:
 			{
 				if (!value.compare("on"))
@@ -340,19 +355,24 @@ void VirtServ::executeLocationRules(std::string text, int dest_fd)
 				}
 				break;
 			}
-			case 4:
+			case 4: {
 				Parser::checkClientBodyMaxSize(value, tmpConfig);
 				break;
+			}
 			case 5: {
 				std::cout << "INSERT METHOD\n";
 				insertMethod(tmpConfig, value);
 				break ;
 			}
-			case 6:
+			case 6: {
+				std::cout << "------TRY FILES------\n";
 				tryFiles(value, tmpConfig, dest_fd);
 				return;
-			case 7:
+			}
+			case 7: {
+				std::cout << "------CHECK AND REDIRECT------\n";
 				checkAndRedirect(value, dest_fd); return;
+			}
 			default:
 				die("Unrecognized location rule. Aborting", *this);
 		}
@@ -488,6 +508,7 @@ void VirtServ::tryFiles(std::string value, t_config tmpConfig, int dest_fd)
 
 DIR* VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_fd, t_config tmpConfig)
 {
+	std::cout << "------DIR ANSWER------\n";
 	DIR *dir;
 	std::string path = dirent != NULL ? fullPath + dirent->d_name + "/" : fullPath + "/";
 
@@ -524,7 +545,6 @@ DIR* VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_f
 	return (dir);
 }
 
-
 /*
 	Prende il valore Content-Length dalla richiesta e lo usa come benchmark per la lettura del file da uploadare. 
 	Apre il file (deve inserire corretttamente il nome)
@@ -534,34 +554,54 @@ DIR* VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_f
 
 bool    VirtServ::execPost(int dest_fd, t_config tmpConfig)
 {
+	std::cout << "------EXEC POST------\n";
     std::string _contentLength = findKey(_request.headers, "Content-Length")->second;
     std::stringstream ss;
     size_t  _totalLength;
 	_totalLength = 0;
-    ss << _contentLength;
-    ss >> _totalLength;
+	if (_contentLength != "") {
+    	ss << _contentLength;
+    	ss >> _totalLength;		
+	}
+	else
+		_totalLength = 4096;
     FILE *ofs;
     char totalBuffer[_totalLength];
 	char buffer[512];
 	// totalBuffer[0] = 0;
-	size_t dataRead = 0;
-	size_t i, c = 0;
+	int dataRead = 0;
+	int i, c = 0;
+	// fcntl(dest_fd, F_SETFL, O_NONBLOCK);
     while (1) {
-		dataRead = recv(dest_fd, buffer, sizeof buffer, 0);
+		dataRead = recv(dest_fd, buffer, sizeof buffer, MSG_DONTWAIT);
+		std::cout << "DATA READ " << dataRead << std::endl;
+		std::cout << "BUFFER " << buffer << std::endl;
+		if (dataRead <= 0)
+			break ;
 		for (i = 0; i < dataRead; i++, c++)
 			totalBuffer[c] = buffer[i];
 		memset(buffer, 0, sizeof buffer);
-		if (dataRead < sizeof buffer)
+		if (dataRead < static_cast<int>(sizeof buffer))
 			break;
 	}
+	if (dataRead <= 0) {
+		defaultAnswerError(201, dest_fd, tmpConfig);
+		return false;
+	}
     std::string store(reinterpret_cast<char*>(totalBuffer));
-    std::string filename = store.substr(store.find("filename"), store.max_size());
+	std::string filename;
+	if (store.find("filename") != std::string::npos)
+		filename = store.substr(store.find("filename"), std::string::npos);
+	else {
+		defaultAnswerError(202, dest_fd, tmpConfig);
+		return false;
+	}
     filename = filename.substr(filename.find_first_of("\"") + 1, filename.find_first_of("\n"));
     filename = tmpConfig.root + "/uploads/" + filename.substr(0, filename.find_first_of("\""));
 	if (FILE* file = fopen(filename.c_str(), "r"))
 	{
 		fclose(file);
-		defaultAnswerError(205, dest_fd, tmpConfig);
+		defaultAnswerError(202, dest_fd, tmpConfig);
 		return true;
 	}
     ofs = fopen(filename.c_str(), "wb");
@@ -569,7 +609,7 @@ bool    VirtServ::execPost(int dest_fd, t_config tmpConfig)
         std::string cmp = store.substr(0, store.find_first_of("\n") - 1);
         cmp.append("--\n");
         i = 0;
-        for (; i < _totalLength; i++) {
+        for (; i < static_cast<int>(_totalLength); i++) {
             if (!(strncmp(&totalBuffer[i], "\r\n\r\n", 4)))
                 break;
         }
@@ -600,10 +640,14 @@ bool    VirtServ::execPost(int dest_fd, t_config tmpConfig)
 
 bool VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int dest_fd)
 {
+	std::cout << "------TRY GET RESOURCE------\n";
 	std::string fullPath = tmpConfig.root;
+	char rootPath[tmpConfig.root.size()];
 	DIR *directory;
 	struct dirent *dirent;
 
+	tmpConfig.root.copy(rootPath, tmpConfig.root.size());
+	rootPath[tmpConfig.root.size()] = '\0';
 	if (tmpConfig.allowedMethods.size() && std::find(tmpConfig.allowedMethods.begin(), tmpConfig.allowedMethods.end(), _request.method) == tmpConfig.allowedMethods.end())
 	{
 		defaultAnswerError(405, dest_fd, _config);
@@ -625,7 +669,7 @@ bool VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int dest
 		else
 			filename = "";
 	}
-	if (!(directory = opendir(fullPath.c_str())))
+	if (!(directory = opendir(rootPath)))
 	{
 		if (errno == EACCES)
 			defaultAnswerError(403, dest_fd, tmpConfig);
@@ -635,17 +679,20 @@ bool VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int dest
 	}
 	if (filename.length())
 	{
+		std::cout << "FILENAME.LENGHT()\n";
 		while ((dirent = readdir(directory)))
 		{
 			if (!filename.compare(dirent->d_name))
 			{
 				if (dirent->d_type == DT_DIR)
 				{
-					dirAnswer(fullPath, dirent, dest_fd, tmpConfig);
+					dirAnswer(rootPath, dirent, dest_fd, tmpConfig);
 					break;
 				}
-				answer(fullPath, dirent, dest_fd);
-				break;
+				else {
+					answer(rootPath, dirent, dest_fd);
+					break;
+				}
 			}
 		}
 		if (!dirent)
@@ -655,17 +702,20 @@ bool VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int dest
 	}
 	else if (tmpConfig.autoindex)
 	{
-		answerAutoindex(fullPath, directory, dest_fd);
+		answerAutoindex(rootPath, directory, dest_fd);
 		closedir(directory);
 		return (true);
 	}
 	else if (!tmpConfig.autoindex)
 	{
 		closedir(directory);
-		directory = dirAnswer(fullPath, NULL, dest_fd, tmpConfig);
+		directory = dirAnswer(rootPath, NULL, dest_fd, tmpConfig);
+		closedir(directory);
+		return true;
 	}
 	else
 	{
+		std::cout << "LAST ELSE\n";
 		defaultAnswerError(404, dest_fd, tmpConfig);
 		return (true);
 	}
@@ -685,6 +735,7 @@ void VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 	std::stringstream	convert;
 	std::ifstream 		file;
 
+	std::cout << "------DEFAULT ANSWER ERROR------\n";
 	if (tmpConfig.errorPages.size() && err != 500)
 	{
 		convert << err;
@@ -708,24 +759,26 @@ void VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 
 	switch (err)
 	{
-		case 100: tmpString = "100 Continue"; break ;
-		case 200: tmpString = "200 OK"; break ;
-		case 201: tmpString = "201 Created"; break ;
-		case 202: tmpString = "202 Accepted"; break ;
-		case 203: tmpString = "203 Non-Authoritative Information"; break ;
-		case 204: tmpString = "204 No content"; break ;
-		case 205: tmpString = "205 Reset Content"; break ;
-		case 400: tmpString = "400 Bad Request"; break ;
-		case 401: tmpString = "401 Unauthorized"; break ;
-		case 402: tmpString = "402 Payment Required"; break ;
-		case 403: tmpString = "403 Forbidden"; break ;
-		case 404: tmpString = "404 Not Found"; break ;
-		case 405: tmpString = "405 Method Not Allowed"; break ;
-		case 406: tmpString = "406 Not Acceptable"; break ;
-		case 411: tmpString = "411 Length Required"; break ;
-		case 413: tmpString = "413 Request Entity Too Large"; break ;
-		case 500: tmpString = "500 Internal Server Error"; break ;
-		case 501: tmpString = "501 Not Implemented"; break ;
+		case 100: { tmpString = "100 Continue"; break ; }
+		case 200: { tmpString = "200 OK"; break ; }
+		case 201: { tmpString = "201 Created"; break ; }
+		case 202: { tmpString = "202 Accepted"; break ; }
+		case 203: { tmpString = "203 Non-Authoritative Information"; break ; }
+		case 204: { tmpString = "204 No content"; break ; }
+		case 205: { tmpString = "205 Reset Content"; break ; }
+		case 206: { tmpString = "206 Partial Content"; break ; }
+		case 400: { tmpString = "400 Bad Request"; break ; }
+		case 401: { tmpString = "401 Unauthorized"; break ; }
+		case 402: { tmpString = "402 Payment Required"; break ; }
+		case 403: { tmpString = "403 Forbidden"; break ; }
+		case 404: { tmpString = "404 Not Found"; break ; }
+		case 405: { tmpString = "405 Method Not Allowed"; break ; }
+		case 406: { tmpString = "406 Not Acceptable"; break ; }
+		case 411: { tmpString = "411 Length Required"; break ; }
+		case 413: { tmpString = "413 Request Entity Too Large"; break ; }
+		case 500: { tmpString = "500 Internal Server Error"; break ; }
+		case 501: { tmpString = "501 Not Implemented"; break ; }
+		case 510: { tmpString = "510 Not Extended"; break ; }
 		default: break;
 	}
 
@@ -777,8 +830,11 @@ void VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 	else
 		tmpString += "\r\n";
 	send(dest_fd, tmpString.c_str(), tmpString.size(), 0);
+	// size_t sendLen = tmpString.size();
+	// sendAll(dest_fd, tmpString.c_str(), &sendLen);
 	std::cout << "SENT RESPONSE" << std::endl;
-	std::cout << tmpString << std::endl;
+	std::cout << tmpString.substr(0, tmpString.find_first_of("\n")) << std::endl;
+	// close(dest_fd);
 }
 
 
@@ -912,6 +968,7 @@ void VirtServ::answerAutoindex(std::string fullPath, DIR *directory, int dest_fd
 
 void VirtServ::answer(std::string fullPath, struct dirent *dirent, int dest_fd)
 {
+	std::cout << "------ANSWER------\n";
 	std::stringstream stream;
 	std::string tmpString;
 	std::string tmpBody;
@@ -1049,7 +1106,7 @@ void VirtServ::interpretLocationBlock(t_location *location)
 	don't know
 */
 
-bool VirtServ::sendAll(int socket, char *buf, size_t *len)
+bool VirtServ::sendAll(int socket, const char *buf, size_t *len)
 {
 	size_t total = 0;	  // how many bytes we've sent
 	int bytesleft = *len; // how many we have left to send
