@@ -300,7 +300,6 @@ void VirtServ::executeLocationRules(std::string text, int dest_fd)
 	int i;
 
 	std::cout << "EXECUTE LOCATION RULES\n";
-	std::cout << "LOCATION TEXT " << text << std::endl;
 	// printMap(_request.headers);
 	while (text.find_first_not_of(" \t\r\n") != std::string::npos)
 	{
@@ -533,6 +532,8 @@ DIR* VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_f
 			{
 				if (!(std::strcmp(tmp->d_name, (*it).c_str())))
 				{
+					std::cout << "PATH " << path << std::endl;
+					std::cout << "TMP->DIR NAME " << tmp->d_name << std::endl;
 					answer(path, tmp, dest_fd);
 					return dir;
 				}
@@ -743,7 +744,6 @@ bool VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int dest
 	}
 	else
 	{
-		std::cout << "LAST ELSE\n";
 		defaultAnswerError(404, dest_fd, tmpConfig);
 		return (true);
 	}
@@ -1000,6 +1000,10 @@ void VirtServ::answer(std::string fullPath, struct dirent *dirent, int dest_fd)
 	std::ostringstream responseStream;
 	std::string responseString;
 
+	std::cout << "FULLPATH " + fullPath << " DIRENT " << dirent->d_name << std::endl;
+	if (*fullPath.rbegin() != '/')
+		fullPath.append("/");
+	std::cout << "FULLPATH " + fullPath << std::endl;
 	std::ifstream resource((fullPath + std::string(dirent->d_name)).c_str());
 	if (!resource.is_open())
 	{
