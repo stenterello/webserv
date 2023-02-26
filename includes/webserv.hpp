@@ -49,7 +49,6 @@ typedef struct	s_config
 		root = "";
 		host = "0.0.0.0";
 		client_max_body_size = 1048576;
-		autoindex = false;
 	}
 }				t_config;
 

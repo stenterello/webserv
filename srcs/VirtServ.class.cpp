@@ -525,7 +525,7 @@ DIR *VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_f
 	std::string path = dirent ? fullPath + dirent->d_name + "/" : fullPath;
 
 	dir = opendir(path.c_str());
-	if (!tmpConfig.autoindex)
+	if (!tmpConfig.autoindex || tmpConfig.index.size())
 	{
 		struct dirent *tmp;
 		tmp = readdir(dir);
