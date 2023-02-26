@@ -125,7 +125,17 @@ int VirtServ::handleClient(int fd)
 		}
 		if (_request.method == "PUT")
 		{
-			execPut(fd, totalBuffer, c);
+			if (execPut(fd, totalBuffer, c) == 1) {
+				this->cleanRequest();
+				c = 0;
+				defaultAnswerError(201, fd, _config);
+				memset(totalBuffer, 0, 2048);
+				while (1) {
+					nbytes = recv(fd, buf, 512, 0);
+					if (nbytes <= 0)
+						return 0;
+				}
+			}
 			return 0;
 		}
 		nbytes = recv(fd, buf, 512, 0);
@@ -585,29 +595,51 @@ DIR *VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_f
 	Chiude il file e la connessione
 */
 
-bool VirtServ::execPut(int dest_fd, char *tmpBuffer, int d)
+int VirtServ::execPut(int dest_fd, char *tmpBuffer, int d)
 {
 	FILE *ofs;
-	char buffer[512];
+	char buffer[2048];
 	int dataRead = 0;
+	int totalRead = 0;
+	int chunkSize;
 
 	std::string filename = _request.line.substr(0, _request.line.find_first_of(" "));
 	filename = filename.substr(filename.find_last_of("/") + 1, filename.size());
-	ofs = fopen(filename.c_str(), "a+");
-	if (d)
+	ofs = fopen(filename.c_str(), "wba+");
+	if (d && tmpBuffer)
 		fwrite(tmpBuffer, d, 0, ofs);
 	while (1) {
-		dataRead = recv(dest_fd, buffer, 512, 0);
-		std::cout << "DATAREAD " << dataRead << std::endl;
-		std::cout << "BUFFER " << buffer << std::endl;
-		if (dataRead <= 0)
+		if ((dataRead = recv(dest_fd, buffer + totalRead, 1, MSG_DONTWAIT)) < 0)
+			usleep(1000000);
+		if (dataRead <= 0) {
+			perror("recv");
 			return 0;
-		fwrite(buffer, dataRead, 0, ofs);
-		if (dataRead < 512)
-			break ;
+		}
+		totalRead += dataRead;
+		if (buffer[0] == '0' && (!(strncmp(&buffer[1], "\r\n\r\n", 4)))) {
+			fclose(ofs);
+			return 1;
+		}
+		if (strstr(buffer, "\r\n") != NULL && buffer[0] != '0') {
+			chunkSize = strtoul(buffer, NULL, 16);
+			char chunk[chunkSize];
+			totalRead = 0;
+			while (totalRead < chunkSize) {
+				if (chunkSize == 0)
+					break ;
+				if ((dataRead = recv(dest_fd, chunk, chunkSize - totalRead, MSG_DONTWAIT)) < 0)
+					usleep(10000);
+				if (dataRead > 0)
+					totalRead += dataRead;
+				fwrite(chunk, dataRead, 0, ofs);
+				memset(chunk, 0, chunkSize);
+			}
+			totalRead = 0;
+			memset(buffer, 0, 2048);
+		}
 	}
 	fclose(ofs);
-	return true;
+	return 0;
 }
 
 bool VirtServ::execPost(int dest_fd, char *tmpBuffer, int d)
