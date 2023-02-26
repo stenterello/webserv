@@ -52,7 +52,6 @@ bool VirtServ::startServer()
 	_sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (_sockfd == -1)
 		return bool_error("Socket error\n");
-	fcntl(_sockfd, F_SETFL, O_NONBLOCK);
 	if (setsockopt(_sockfd, SOL_SOCKET, SO_REUSEADDR, (const char *)&i, sizeof(i)) < 0)
 		return bool_error("setsockopt() error\n");
 	if (bind(_sockfd, (struct sockaddr *)&_sin, sizeof(_sin)) != 0)
@@ -118,32 +117,27 @@ int VirtServ::handleClient(int fd)
 	static int c = 0;
 	int nbytes, i = 0;
 	fcntl(fd, F_SETFL, O_NONBLOCK);
-	while (1)
+	if (_request.method == "POST")
 	{
-		if (_request.method == "POST")
-		{
-			execPost(fd);
-			return 0;
-		}
-		nbytes = recv(fd, buf, 512, 0);
-		std::cout << "NBYTES READ " << nbytes << std::endl;
-		if (nbytes <= 0)
-		{
-			if (nbytes == 0)
-				printf("pollserver: socket %d hung up\n", fd);
-			else
-				perror("recv");
-			_connfd.erase(it);
-			return (1);
-		}
+		execPost(fd);
+		return 0;
+	}
+	nbytes = recv(fd, buf, 512, 0);
+	std::cout << "NBYTES READ " << nbytes << std::endl;
+	if (nbytes <= 0)
+	{
+		if (nbytes == 0)
+			printf("pollserver: socket %d hung up\n", fd);
 		else
-		{
-			for (i = 0; i < nbytes; i++, c++)
-				tmp[c] = buf[i];
-			memset(buf, 0, 512);
-		}
-		if (nbytes < static_cast<int>(sizeof buf))
-			break;
+			perror("recv");
+		_connfd.erase(it);
+		return (1);
+	}
+	else
+	{
+		for (i = 0; i < nbytes; i++, c++)
+			tmp[c] = buf[i];
+		memset(buf, 0, 512);
 	}
 	if (strstr(tmp, "\r\n\r\n") == NULL)
 	{
@@ -808,108 +802,27 @@ void VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 
 	switch (err)
 	{
-	case 100:
-	{
-		tmpString = "100 Continue";
-		break;
-	}
-	case 200:
-	{
-		tmpString = "200 OK";
-		break;
-	}
-	case 201:
-	{
-		tmpString = "201 Created";
-		break;
-	}
-	case 202:
-	{
-		tmpString = "202 Accepted";
-		break;
-	}
-	case 203:
-	{
-		tmpString = "203 Non-Authoritative Information";
-		break;
-	}
-	case 204:
-	{
-		tmpString = "204 No content";
-		break;
-	}
-	case 205:
-	{
-		tmpString = "205 Reset Content";
-		break;
-	}
-	case 206:
-	{
-		tmpString = "206 Partial Content";
-		break;
-	}
-	case 400:
-	{
-		tmpString = "400 Bad Request";
-		break;
-	}
-	case 401:
-	{
-		tmpString = "401 Unauthorized";
-		break;
-	}
-	case 402:
-	{
-		tmpString = "402 Payment Required";
-		break;
-	}
-	case 403:
-	{
-		tmpString = "403 Forbidden";
-		break;
-	}
-	case 404:
-	{
-		tmpString = "404 Not Found";
-		break;
-	}
-	case 405:
-	{
-		tmpString = "405 Method Not Allowed";
-		break;
-	}
-	case 406:
-	{
-		tmpString = "406 Not Acceptable";
-		break;
-	}
-	case 411:
-	{
-		tmpString = "411 Length Required";
-		break;
-	}
-	case 413:
-	{
-		tmpString = "413 Request Entity Too Large";
-		break;
-	}
-	case 500:
-	{
-		tmpString = "500 Internal Server Error";
-		break;
-	}
-	case 501:
-	{
-		tmpString = "501 Not Implemented";
-		break;
-	}
-	case 510:
-	{
-		tmpString = "510 Not Extended";
-		break;
-	}
-	default:
-		break;
+		case 100: tmpString = "100 Continue"; break ;
+		case 200: tmpString = "200 OK"; break ;
+		case 201: tmpString = "201 Created"; break ;
+		case 202: tmpString = "202 Accepted"; break ;
+		case 203: tmpString = "203 Non-Authoritative Information"; break ;
+		case 204: tmpString = "204 No content"; break ;
+		case 205: tmpString = "205 Reset Content"; break ;
+		case 206: tmpString = "206 Partial Content"; break ;
+		case 400: tmpString = "400 Bad Request"; break ;
+		case 401: tmpString = "401 Unauthorized"; break ;
+		case 402: tmpString = "402 Payment Required"; break ;
+		case 403: tmpString = "403 Forbidden"; break ;
+		case 404: tmpString = "404 Not Found"; break ;
+		case 405: tmpString = "405 Method Not Allowed"; break ;
+		case 406: tmpString = "406 Not Acceptable"; break ;
+		case 411: tmpString = "411 Length Required"; break ;
+		case 413: tmpString = "413 Request Entity Too Large"; break ;
+		case 500: tmpString = "500 Internal Server Error"; break ;
+		case 501: tmpString = "501 Not Implemented"; break ;
+		case 510: tmpString = "510 Not Extended"; break ;
+		default: break ;
 	}
 
 	_response.line = "HTTP/1.1 " + tmpString;
