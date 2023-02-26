@@ -109,7 +109,7 @@ int VirtServ::acceptConnectionAddFd(int sockfd)
 int VirtServ::handleClient(int fd)
 {
 	char buf[512];
-	static char tmp[2048];
+	static char totalBuffer[2048];
 
 	std::vector<int>::iterator it = std::find(_connfd.begin(), _connfd.end(), fd);
 	if (it == _connfd.end())
@@ -117,42 +117,70 @@ int VirtServ::handleClient(int fd)
 	static int c = 0;
 	int nbytes, i = 0;
 	fcntl(fd, F_SETFL, O_NONBLOCK);
-	if (_request.method == "POST")
-	{
-		execPost(fd);
-		return 0;
-	}
-	nbytes = recv(fd, buf, 512, 0);
-	std::cout << "NBYTES READ " << nbytes << std::endl;
-	if (nbytes <= 0)
-	{
-		if (nbytes == 0)
-			printf("pollserver: socket %d hung up\n", fd);
+	while (1) {
+		if (_request.method == "POST")
+		{
+			execPost(fd, totalBuffer, c);
+			return 0;
+		}
+		if (_request.method == "PUT")
+		{
+			execPut(fd, totalBuffer, c);
+			return 0;
+		}
+		nbytes = recv(fd, buf, 512, 0);
+		std::cout << "NBYTES READ " << nbytes << std::endl;
+		if (nbytes <= 0)
+		{
+			if (nbytes == 0)
+				printf("pollserver: socket %d hung up\n", fd);
+			else
+				perror("recv");
+			_connfd.erase(it);
+			return (1);
+		}
 		else
-			perror("recv");
-		_connfd.erase(it);
-		return (1);
+		{
+			for (i = 0; i < nbytes; i++, c++)
+				totalBuffer[c] = buf[i];
+			memset(buf, 0, 512);
+		}
+		// if we find the trailing CRLF(\r\n) we've found the headers. If not we go back to poll()
+		if (strstr(totalBuffer, "\r\n\r\n") != NULL)
+			break ;
+		else if (nbytes < 512)
+			return 0;
 	}
-	else
-	{
-		for (i = 0; i < nbytes; i++, c++)
-			tmp[c] = buf[i];
-		memset(buf, 0, 512);
+	for (i = 0; i < c; i++) {
+		if (!(strncmp(totalBuffer + i, "\r\n\r\n", 4)))
+			break ;
 	}
-	if (strstr(tmp, "\r\n\r\n") == NULL)
-	{
-		return 0;
+	i += 4;
+	char *header;
+	if (i < c) {
+		int x;
+		header = (char *)malloc(sizeof(*header) * i + 1);
+		for (x = 0; x < i; x++)
+			header[x] = totalBuffer[x];
+		header[x] = '\0';
+		for (x = 0; i < c; x++)
+			totalBuffer[x] = totalBuffer[i++];
+		for (; c > x;)
+			totalBuffer[--c] = 0;
 	}
-	tmp[c] = '\0';
-	printf("------TMP------\n%s\n------END TMP------\n", tmp);
+	else {
+		totalBuffer[c] = '\0';
+		header = strdup(totalBuffer);
+		memset(totalBuffer, 0, 2048);
+		c = 0;
+	}
+	printf("------HEADER------\n%s\n------END HEADER------\n", header);
 	this->cleanRequest();
 	this->cleanResponse();
-	if (this->readRequest(tmp))
+	if (this->readRequest(header))
 		this->elaborateRequest(fd);
 	else
 		defaultAnswerError(400, fd, _config);
-	c = 0;
-	memset(tmp, 0, 2048);
 	return (0);
 }
 
@@ -557,7 +585,32 @@ DIR *VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_f
 	Chiude il file e la connessione
 */
 
-bool VirtServ::execPost(int dest_fd)
+bool VirtServ::execPut(int dest_fd, char *tmpBuffer, int d)
+{
+	FILE *ofs;
+	char buffer[512];
+	int dataRead = 0;
+
+	std::string filename = _request.line.substr(0, _request.line.find_first_of(" "));
+	filename = filename.substr(filename.find_last_of("/") + 1, filename.size());
+	ofs = fopen(filename.c_str(), "a+");
+	if (d)
+		fwrite(tmpBuffer, d, 0, ofs);
+	while (1) {
+		dataRead = recv(dest_fd, buffer, 512, 0);
+		std::cout << "DATAREAD " << dataRead << std::endl;
+		std::cout << "BUFFER " << buffer << std::endl;
+		if (dataRead <= 0)
+			return 0;
+		fwrite(buffer, dataRead, 0, ofs);
+		if (dataRead < 512)
+			break ;
+	}
+	fclose(ofs);
+	return true;
+}
+
+bool VirtServ::execPost(int dest_fd, char *tmpBuffer, int d)
 {
 	std::cout << "------EXEC POST------\n";
 	std::string _contentLength = findKey(_request.headers, "Content-Length")->second;
@@ -574,10 +627,12 @@ bool VirtServ::execPost(int dest_fd)
 	FILE *ofs;
 	static char totalBuffer[8192];
 	char buffer[512];
-	// totalBuffer[0] = 0;
 	int dataRead = 0;
 	int i = 0;
 	static int c = 0;
+	if (d)
+		for (; c < d; c++)
+			totalBuffer[c] = tmpBuffer[c];
 	while (1)
 	{
 		dataRead = recv(dest_fd, buffer, sizeof buffer, 0);
@@ -592,9 +647,7 @@ bool VirtServ::execPost(int dest_fd)
 			break;
 	}
 	if (strstr(totalBuffer, "\r\n\r\n") == NULL)
-	{
 		return 0;
-	}
 	c = 0;
 	if (_config.allowedMethods.size() && std::find(_config.allowedMethods.begin(), _config.allowedMethods.end(), "POST") == _config.allowedMethods.end())
 	{
@@ -676,10 +729,8 @@ bool VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int dest
 	tmpConfig.root.copy(rootPath, tmpConfig.root.size());
 	rootPath[tmpConfig.root.size()] = '\0';
 	rootPath2 = rootPath;
-	if (_request.method == "POST")
-	{
+	if (_request.method == "POST" || _request.method == "PUT")
 		return true;
-	}
 	if (tmpConfig.allowedMethods.size() && std::find(tmpConfig.allowedMethods.begin(), tmpConfig.allowedMethods.end(), _request.method) == tmpConfig.allowedMethods.end())
 	{
 		defaultAnswerError(405, dest_fd, _config);
