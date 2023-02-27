@@ -15,6 +15,7 @@
 #include <string>
 #include <iostream>
 #include <stdio.h>
+#include <unistd.h>
 #define IOV_MAX 1024
 
 //////// Constructors & Destructor //////////////////////////////
@@ -120,7 +121,11 @@ int VirtServ::handleClient(int fd)
 	while (1) {
 		if (_request.method == "POST")
 		{
-			execPost(fd, totalBuffer, c);
+			if (execPost(fd, totalBuffer, c) == false) {
+				this->cleanRequest();
+				c = 0;
+				memset(totalBuffer, 0, 2048);
+			}
 			return 0;
 		}
 		if (_request.method == "PUT")
@@ -595,6 +600,17 @@ DIR *VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_f
 	Chiude il file e la connessione
 */
 
+int	VirtServ::launchCGI()
+{
+	if (!fork()) {
+		system("fake_site/cgi_tester");
+		exit (0);
+	}
+	else
+		waitpid(-1, 0, 0);
+	return 0;
+}
+
 int VirtServ::execPut(int dest_fd, char *tmpBuffer, int d)
 {
 	FILE *ofs;
@@ -631,7 +647,8 @@ int VirtServ::execPut(int dest_fd, char *tmpBuffer, int d)
 					usleep(10000);
 				if (dataRead > 0)
 					totalRead += dataRead;
-				fwrite(chunk, dataRead, 0, ofs);
+				for (int i = 0; i < dataRead; i++)
+					fwrite(chunk + i, 1, sizeof((*chunk + i)), ofs);
 				memset(chunk, 0, chunkSize);
 			}
 			totalRead = 0;
@@ -645,6 +662,26 @@ int VirtServ::execPut(int dest_fd, char *tmpBuffer, int d)
 bool VirtServ::execPost(int dest_fd, char *tmpBuffer, int d)
 {
 	std::cout << "------EXEC POST------\n";
+	if (_request.line.find(".bla HTTP/") != std::string::npos) {
+		std::string filename = _request.line.substr(0, _request.line.find_first_of(" "));
+		// filename = filename.substr(filename.find_last_of("/") + 1, filename.size());
+		launchCGI();
+		return true;
+	}
+	if (_config.allowedMethods.size() && std::find(_config.allowedMethods.begin(), _config.allowedMethods.end(), "POST") == _config.allowedMethods.end())
+	{
+		defaultAnswerError(405, dest_fd, _config);
+		char buffer[2048];
+		int dataRead;
+		for (;;) {
+			if ((dataRead = recv(dest_fd, buffer, sizeof buffer, MSG_DONTWAIT)) < 0)
+				usleep(1000000);
+			if (dataRead <= 0) {
+				perror("recv");
+				return false;
+			}
+		}
+	}
 	std::string _contentLength = findKey(_request.headers, "Content-Length")->second;
 	std::stringstream ss;
 	size_t _totalLength;

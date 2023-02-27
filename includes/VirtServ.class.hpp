@@ -57,6 +57,7 @@ class VirtServ
 		int					execPut(int dest_fd, char *tmpBuffer, int d);
 		bool				sendAll(int socket, const char *buf, size_t *len);
 		int 				keepConnectionAlive(int fd);
+		int					launchCGI();
 };
 
 #endif
