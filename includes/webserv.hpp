@@ -75,6 +75,7 @@ typedef struct	s_request
 		headers.push_back(std::make_pair("Content-Length", ""));
 		headers.push_back(std::make_pair("Content-Type", ""));
 		headers.push_back(std::make_pair("Expect", ""));
+		headers.push_back(std::make_pair("Transfer-Encoding", ""));
 	}
 }				t_request;
 
@@ -101,6 +102,19 @@ typedef struct	s_response
 		headers.push_back(std::make_pair("Allow", ""));
 	}
 }				t_response;
+
+typedef struct	s_connInfo
+{
+	int			connfd;
+	char*		buffer;
+	int			idx;
+	t_config	tmpConfig;
+	int			chunk_size;
+	t_request	request;
+	
+	s_connInfo() : chunk_size(-1) {};
+	s_connInfo(int i) : connfd(i), chunk_size(-1) {};
+}			t_connInfo;
 
 # include <VirtServ.class.hpp>
 

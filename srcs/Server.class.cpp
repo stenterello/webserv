@@ -85,6 +85,7 @@ bool    Server::startListen()
 		for (int i = 0; i < fd_count; i++) {
 			for (std::vector<VirtServ>::iterator it = _virtServs.begin(); it != _virtServs.end(); it++) {
 				if (_pfds[i].revents & POLLIN) {
+					// check if socket is a listener
 					if (_pfds[i].fd == it->getSocket()) {
 						int tmpfd = it->acceptConnectionAddFd(it->getSocket());
 						if (tmpfd != -1) {
