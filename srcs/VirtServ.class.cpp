@@ -156,7 +156,7 @@ int VirtServ::handleClient(int fd)
 	for (i = 0; i < c; i++) {
 		if (!(strncmp(totalBuffer + i, "\r\n\r\n", 4)))
 			break ;
-	}
+		}
 	i += 4;
 	char *header;
 	if (i < c) {
@@ -170,6 +170,7 @@ int VirtServ::handleClient(int fd)
 		for (; c > x;)
 			totalBuffer[--c] = 0;
 		c = 0;
+		memset(totalBuffer, 0, 2048);
 	}
 	else {
 		totalBuffer[c] = '\0';
@@ -615,219 +616,6 @@ int	VirtServ::launchCGI()
 	return 0;
 }
 
-FILE* VirtServ::chunkEncoding(t_connInfo & info)
-{
-	FILE *ofs = NULL;
-	char buffer[2048] = {0};
-	int dataRead = 0;
-	int totalRead = 0;
-
-	std::string filename = _request.line.substr(0, _request.line.find_first_of(" "));
-	filename = filename.substr(filename.find_last_of("/") + 1, filename.size());
-
-	while (1){
-		while (info.chunk_size < 0) {
-			dataRead = recv(info.connfd, buffer + totalRead, 1, 0);
-			if (dataRead <= 0) {
-				perror ("recv");
-				return NULL;
-			}
-			totalRead += dataRead;
-			if ((strstr(buffer, "\r\n"))) {
-				info.chunk_size = strtoul(buffer, NULL, 16);
-				totalRead = 0;
-				memset(buffer, 0, 2048);
-			}
-		}
-		if (info.chunk_size > 0)
-		{
-			ofs = fopen(filename.c_str(), "wba+");
-			char chunk[info.chunk_size];
-			while (totalRead < info.chunk_size) {
-				if ((dataRead = recv(info.connfd, chunk, info.chunk_size - totalRead, MSG_DONTWAIT)) < 0)
-					usleep(10000);
-				if (dataRead > 0) 
-					totalRead += dataRead;
-			}
-			for (int i = 0; i < dataRead; i++)
-				fwrite(chunk + i, 1, sizeof((*chunk)), ofs);
-			memset(chunk, 0, dataRead);
-			fclose(ofs);
-			dataRead = recv(info.connfd, chunk, 2, 0);
-			info.chunk_size = -1;
-			totalRead = 0;
-		}
-		else if (info.chunk_size == 0) {
-			char chunk[4];
-			recv(info.connfd, chunk, sizeof chunk, 0);
-			info.chunk_size = -1;
-			break;
-		}
-	}
-	return ofs;
-}
-
-bool VirtServ::chunkEncodingCleaning(t_connInfo & info)
-{
-	char buffer[2048] = {0};
-	int dataRead = 0;
-	int totalRead = 0;
-
-	while (1){
-		while (info.chunk_size < 0) {
-			if ((dataRead = recv(info.connfd, buffer + totalRead, 1, 0)) < 0)
-				usleep(10000);
-			if (dataRead > 0) {
-				totalRead += dataRead;
-				printf("CHUNK BUFFER %s\n", buffer);
-				if ((strstr(buffer, "\r\n"))) {
-					info.chunk_size = strtoul(buffer, NULL, 16);
-					totalRead = 0;
-					memset(buffer, 0, 2048);
-				}
-			}
-		}
-		if (info.chunk_size > 0)
-		{
-			char chunk[info.chunk_size];
-			while (totalRead < info.chunk_size) {
-				if ((dataRead = recv(info.connfd, chunk, info.chunk_size - totalRead, MSG_DONTWAIT)) < 0)
-					usleep(10000);
-				if (dataRead > 0) 
-					totalRead += dataRead;
-			}
-			memset(chunk, 0, dataRead);
-			dataRead = recv(info.connfd, chunk, 2, 0);
-			info.chunk_size = -1;
-			totalRead = 0;
-		}
-		else if (info.chunk_size == 0) {
-			printf("CHUNK SIZE == 0\n");
-			char chunk[4];
-			recv(info.connfd, chunk, sizeof chunk, 0);
-			info.chunk_size = -1;
-			break;
-		}
-	}
-	return true;
-}
-
-int VirtServ::execPut(t_connInfo & info)
-{
-	std::cout << "------EXEC PUT------\n";
-	
-	if (chunkEncoding(info) != NULL) {
-		defaultAnswerError(201, info.connfd, _config);
-		this->cleanRequest();
-		this->cleanResponse();
-	}
-	return 0;
-}
-
-int VirtServ::execPost(t_connInfo & info)
-{
-	std::cout << "------EXEC POST------\n";
-	if (_request.line.find(".bla HTTP/") != std::string::npos) {
-		std::string filename = _request.line.substr(0, _request.line.find_first_of(" "));
-		// filename = filename.substr(filename.find_last_of("/") + 1, filename.size());
-		launchCGI();
-		return 0;
-	}
-	if (_config.allowedMethods.size() && std::find(_config.allowedMethods.begin(), _config.allowedMethods.end(), "POST") == _config.allowedMethods.end())
-	{
-		if (chunkEncodingCleaning(info) == true) {
-			this->cleanRequest();
-			this->cleanResponse();
-			defaultAnswerError(405, info.connfd, _config);
-		}
-		return 0;
-	}
-	std::string _contentLength = findKey(_request.headers, "Content-Length")->second;
-	std::stringstream ss;
-	size_t _totalLength;
-	_totalLength = 0;
-	if (_contentLength != "")
-	{
-		ss << _contentLength;
-		ss >> _totalLength;
-	}
-	else
-		_totalLength = 4096;
-	FILE *ofs;
-	static char totalBuffer[8192];
-	char buffer[512];
-	int dataRead = 0;
-	int i = 0;
-	static int c = 0;
-	while (1)
-	{
-		dataRead = recv(info.connfd, buffer, sizeof buffer, 0);
-		std::cout << "DATA READ " << dataRead << std::endl;
-		std::cout << "BUFFER " << buffer << std::endl;
-		if (dataRead <= 0)
-			break;
-		for (i = 0; i < dataRead; i++, c++)
-			totalBuffer[c] = buffer[i];
-		memset(buffer, 0, sizeof buffer);
-		if (dataRead < static_cast<int>(sizeof buffer))
-			break;
-	}
-	if (strstr(totalBuffer, "\r\n\r\n") == NULL)
-		return 0;
-	c = 0;
-	if (_config.allowedMethods.size() && std::find(_config.allowedMethods.begin(), _config.allowedMethods.end(), "POST") == _config.allowedMethods.end())
-	{
-		defaultAnswerError(405, info.connfd, _config);
-		memset(totalBuffer, 0, 8192);
-		this->cleanRequest();
-		return (true);
-	}
-	if (dataRead <= 0)
-	{
-		memset(totalBuffer, 0, 8192);
-		defaultAnswerError(205, info.connfd, _config);
-		return false;
-	}
-	std::string store(reinterpret_cast<char *>(totalBuffer));
-	std::string filename;
-	if (store.find("filename") != std::string::npos)
-		filename = store.substr(store.find("filename"), std::string::npos);
-	else
-	{
-		memset(totalBuffer, 0, 8192);
-		defaultAnswerError(205, info.connfd, _config);
-		return false;
-	}
-	filename = filename.substr(filename.find_first_of("\"") + 1, filename.find_first_of("\n"));
-	filename = _config.root + "/uploads/" + filename.substr(0, filename.find_first_of("\""));
-	if (FILE *file = fopen(filename.c_str(), "r"))
-	{
-		fclose(file);
-		memset(totalBuffer, 0, 8192);
-		defaultAnswerError(202, info.connfd, _config);
-		return true;
-	}
-	ofs = fopen(filename.c_str(), "wb");
-	if (ofs)
-	{
-		std::string cmp = store.substr(0, store.find_first_of("\n") - 1);
-		cmp.append("--\n");
-		i = 0;
-		for (; i < static_cast<int>(8129); i++)
-		{
-			if (!(strncmp(&totalBuffer[i], "\r\n\r\n", 4)))
-				break;
-		}
-		fwrite(totalBuffer + (i + 4), 1, 8129 - (cmp.size() + 3) - (i + 4), ofs);
-		std::cout << "Save file: " << filename << std::endl;
-		fclose(ofs);
-		defaultAnswerError(201, info.connfd, _config);
-		memset(totalBuffer, 0, 8192);
-		return true;
-	}
-	return false;
-}
-
 /*
 	Funzione principale di indirizzamento della gestione della richiesta: da qui il server decide effettivamente cosa tornare al client.
 
@@ -1189,10 +977,8 @@ void VirtServ::answer(std::string fullPath, struct dirent *dirent, int dest_fd)
 	std::ostringstream responseStream;
 	std::string responseString;
 
-	std::cout << "FULLPATH " + fullPath << " DIRENT " << dirent->d_name << std::endl;
 	if (*fullPath.rbegin() != '/')
 		fullPath.append("/");
-	std::cout << "FULLPATH " + fullPath << std::endl;
 	std::ifstream resource((fullPath + std::string(dirent->d_name)).c_str());
 	if (!resource.is_open())
 	{
@@ -1429,4 +1215,224 @@ std::string VirtServ::defineFileType(char *filename)
 	}
 
 	return ("text/plain");
+}
+
+FILE* VirtServ::chunkEncoding(t_connInfo & info)
+{
+	FILE *ofs = NULL;
+	char buffer[2048] = {0};
+	int dataRead = 0;
+	int totalRead = 0;
+
+	std::string filename = _request.line.substr(0, _request.line.find_first_of(" "));
+	filename = filename.substr(filename.find_last_of("/") + 1, filename.size());
+
+	while (1){
+		while (info.chunk_size < 0) {
+			dataRead = recv(info.connfd, buffer + totalRead, 1, 0);
+			if (dataRead <= 0) {
+				perror ("recv");
+				return NULL;
+			}
+			totalRead += dataRead;
+			if ((strstr(buffer, "\r\n"))) {
+				info.chunk_size = strtoul(buffer, NULL, 16);
+				totalRead = 0;
+				memset(buffer, 0, 2048);
+			}
+		}
+		if (info.chunk_size > 0)
+		{
+			ofs = fopen(filename.c_str(), "wba+");
+			char chunk[info.chunk_size];
+			while (totalRead < info.chunk_size) {
+				if ((dataRead = recv(info.connfd, chunk, info.chunk_size - totalRead, MSG_DONTWAIT)) < 0)
+					usleep(10000);
+				if (dataRead > 0) 
+					totalRead += dataRead;
+			}
+			for (int i = 0; i < dataRead; i++)
+				fwrite(chunk + i, 1, sizeof((*chunk)), ofs);
+			memset(chunk, 0, dataRead);
+			fclose(ofs);
+			dataRead = recv(info.connfd, chunk, 2, 0);
+			info.chunk_size = -1;
+			totalRead = 0;
+		}
+		else if (info.chunk_size == 0) {
+			char chunk[4];
+			recv(info.connfd, chunk, sizeof chunk, 0);
+			info.chunk_size = -1;
+			break;
+		}
+	}
+	return ofs;
+}
+
+bool VirtServ::chunkEncodingCleaning(t_connInfo & info)
+{
+	char buffer[2048] = {0};
+	int dataRead = 0;
+	int totalRead = 0;
+
+	while (1){
+		while (info.chunk_size < 0) {
+			if ((dataRead = recv(info.connfd, buffer + totalRead, 1, 0)) < 0)
+				usleep(10000);
+			if (dataRead > 0) {
+				totalRead += dataRead;
+				if ((strstr(buffer, "\r\n"))) {
+					info.chunk_size = strtoul(buffer, NULL, 16);
+					totalRead = 0;
+					memset(buffer, 0, 2048);
+				}
+			}
+		}
+		if (info.chunk_size > 0)
+		{
+			char chunk[info.chunk_size];
+			while (totalRead < info.chunk_size) {
+				if ((dataRead = recv(info.connfd, chunk, info.chunk_size - totalRead, MSG_DONTWAIT)) < 0)
+					usleep(10000);
+				if (dataRead > 0) 
+					totalRead += dataRead;
+			}
+			memset(chunk, 0, dataRead);
+			dataRead = recv(info.connfd, chunk, 2, 0);
+			info.chunk_size = -1;
+			totalRead = 0;
+		}
+		else if (info.chunk_size == 0) {
+			char chunk[8];
+			while ((dataRead = recv(info.connfd, chunk + totalRead, sizeof chunk - totalRead, 0)) < 0)
+				usleep(10000);
+			if (dataRead > 0) {
+				totalRead += dataRead;
+			}
+			if (strstr(chunk, "\r\n")) {
+				info.chunk_size = -1;
+				break;
+			}
+		}
+	}
+	return true;
+}
+
+int VirtServ::execPut(t_connInfo & info)
+{
+	std::cout << "------EXEC PUT------\n";
+	
+	if (findKey(_request.headers, "Transfer-Encoding")->second == "chunked") {
+		if (chunkEncoding(info) != NULL) {
+			defaultAnswerError(201, info.connfd, _config);
+			this->cleanRequest();
+			this->cleanResponse();
+		}
+	}
+	// else if (findKey(_request.headers, ""))
+	return 0;
+}
+
+int VirtServ::execPost(t_connInfo & info)
+{
+	std::cout << "------EXEC POST------\n";
+	if (_request.line.find(".bla HTTP/") != std::string::npos) {
+		std::string filename = _request.line.substr(0, _request.line.find_first_of(" "));
+		// filename = filename.substr(filename.find_last_of("/") + 1, filename.size());
+		launchCGI();
+		return 0;
+	}
+	if (_config.allowedMethods.size() && std::find(_config.allowedMethods.begin(), _config.allowedMethods.end(), "POST") == _config.allowedMethods.end())
+	{
+		if (chunkEncodingCleaning(info) == true) {
+			this->cleanRequest();
+			this->cleanResponse();
+			defaultAnswerError(405, info.connfd, _config);
+		}
+		return 0;
+	}
+	std::string _contentLength = findKey(_request.headers, "Content-Length")->second;
+	std::stringstream ss;
+	size_t _totalLength;
+	_totalLength = 0;
+	if (_contentLength != "")
+	{
+		ss << _contentLength;
+		ss >> _totalLength;
+	}
+	else
+		_totalLength = 4096;
+	FILE *ofs;
+	static char totalBuffer[8192];
+	char buffer[512];
+	int dataRead = 0;
+	int i = 0;
+	static int c = 0;
+	while (1)
+	{
+		dataRead = recv(info.connfd, buffer, sizeof buffer, 0);
+		std::cout << "DATA READ " << dataRead << std::endl;
+		std::cout << "BUFFER " << buffer << std::endl;
+		if (dataRead <= 0)
+			break;
+		for (i = 0; i < dataRead; i++, c++)
+			totalBuffer[c] = buffer[i];
+		memset(buffer, 0, sizeof buffer);
+		if (dataRead < static_cast<int>(sizeof buffer))
+			break;
+	}
+	if (strstr(totalBuffer, "\r\n\r\n") == NULL)
+		return 0;
+	c = 0;
+	if (_config.allowedMethods.size() && std::find(_config.allowedMethods.begin(), _config.allowedMethods.end(), "POST") == _config.allowedMethods.end())
+	{
+		defaultAnswerError(405, info.connfd, _config);
+		memset(totalBuffer, 0, 8192);
+		this->cleanRequest();
+		return (true);
+	}
+	if (dataRead <= 0)
+	{
+		memset(totalBuffer, 0, 8192);
+		defaultAnswerError(205, info.connfd, _config);
+		return false;
+	}
+	std::string store(reinterpret_cast<char *>(totalBuffer));
+	std::string filename;
+	if (store.find("filename") != std::string::npos)
+		filename = store.substr(store.find("filename"), std::string::npos);
+	else
+	{
+		memset(totalBuffer, 0, 8192);
+		defaultAnswerError(205, info.connfd, _config);
+		return false;
+	}
+	filename = filename.substr(filename.find_first_of("\"") + 1, filename.find_first_of("\n"));
+	filename = _config.root + "/uploads/" + filename.substr(0, filename.find_first_of("\""));
+	if (FILE *file = fopen(filename.c_str(), "r"))
+	{
+		fclose(file);
+		memset(totalBuffer, 0, 8192);
+		defaultAnswerError(202, info.connfd, _config);
+		return true;
+	}
+	ofs = fopen(filename.c_str(), "wb");
+	if (ofs)
+	{
+		std::string cmp = store.substr(0, store.find_first_of("\n") - 1);
+		cmp.append("--\n");
+		i = 0;
+		for (; i < static_cast<int>(8129); i++)
+		{
+			if (!(strncmp(&totalBuffer[i], "\r\n\r\n", 4)))
+				break;
+		}
+		fwrite(totalBuffer + (i + 4), 1, 8129 - (cmp.size() + 3) - (i + 4), ofs);
+		std::cout << "Save file: " << filename << std::endl;
+		fclose(ofs);
+		defaultAnswerError(201, info.connfd, _config);
+		memset(totalBuffer, 0, 8192);
+		return true;
+	}
+	return false;
 }
