@@ -1245,6 +1245,7 @@ FILE* VirtServ::chunkEncoding(t_connInfo & info)
 		{
 			ofs = fopen(filename.c_str(), "wba+");
 			char chunk[info.chunk_size];
+			// chunk = recv_timeout(info);
 			while (totalRead < info.chunk_size) {
 				if ((dataRead = recv(info.connfd, chunk, info.chunk_size - totalRead, MSG_DONTWAIT)) < 0)
 					usleep(10000);
@@ -1256,6 +1257,7 @@ FILE* VirtServ::chunkEncoding(t_connInfo & info)
 			memset(chunk, 0, dataRead);
 			fclose(ofs);
 			dataRead = recv(info.connfd, chunk, 2, 0);
+			// recv_timeout(info);
 			info.chunk_size = -1;
 			totalRead = 0;
 		}
@@ -1435,4 +1437,37 @@ int VirtServ::execPost(t_connInfo & info)
 		return true;
 	}
 	return false;
+}
+
+char* VirtServ::recv_timeout(t_connInfo & info)
+{
+	int size_recv , total_size= 0;
+	struct timeval begin , now;
+	char *chunk = (char *)malloc(sizeof(char) * info.chunk_size);
+	double timediff;
+	
+	fcntl(info.connfd, F_SETFL, O_NONBLOCK);
+	gettimeofday(&begin , NULL);
+	while(total_size < info.chunk_size)
+	{
+		gettimeofday(&now , NULL);
+		//time elapsed in seconds
+		timediff = (now.tv_sec - begin.tv_sec) + 1e-6 * (now.tv_usec - begin.tv_usec);
+		//if you got some data, then break after timeout
+		if( total_size > 0 && timediff > 2)
+			break;
+		//if you got no data at all, wait a little longer, twice the timeout
+		else if( timediff > 4)
+			break;
+		if((size_recv =  recv(info.connfd , chunk + total_size, info.chunk_size - total_size, 0) ) < 0)
+			usleep(100000);
+		else
+		{
+			printf("ELSE\n");
+			total_size += size_recv;
+			//reset beginning time
+			gettimeofday(&begin , NULL);
+		}
+	}
+	return chunk;
 }

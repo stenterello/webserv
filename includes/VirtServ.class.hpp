@@ -62,6 +62,7 @@ class VirtServ
 		int						launchCGI();
 		FILE*					chunkEncoding(t_connInfo & info);
 		bool					chunkEncodingCleaning(t_connInfo & info);
+		char*					recv_timeout(t_connInfo & info);
 };
 
 #endif
