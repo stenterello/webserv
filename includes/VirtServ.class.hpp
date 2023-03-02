@@ -36,6 +36,7 @@ class VirtServ
 		std::string				defineFileType(char* filename);
 		void					checkAndRedirect(std::string value, int dest_fd);
 		std::vector<t_connInfo>::iterator	findFd(std::vector<t_connInfo>::iterator begin, std::vector<t_connInfo>::iterator end, int fd);
+		t_config				getConfig(t_location* loc);
 
 
 	public:

@@ -43,6 +43,7 @@ typedef struct	s_config
 	unsigned long				client_max_body_size;	// client_max_body_size
 	std::vector<std::string>	allowedMethods;
 	std::vector<t_location>		locationRules;			// location
+	std::vector<std::string>	files;					// files to try
 
 	s_config() : port(0)
 	{
@@ -121,7 +122,7 @@ typedef struct	s_connInfo
 	t_config	tmpConfig;
 	int			chunk_size;
 	t_request	request;
-	std::string body;
+	char		body[2048];
 	t_location*	location;
 	
 	s_connInfo() : chunk_size(-1) {};

@@ -118,33 +118,49 @@ std::vector<t_connInfo>::iterator	VirtServ::findFd(std::vector<t_connInfo>::iter
 	return (begin);
 }
 
+t_config	VirtServ::getConfig(t_location* loc)
+{
+	
+}
+
 int VirtServ::handleClient(int fd)
 {
 	std::vector<t_connInfo>::iterator it = findFd(_connections.begin(), _connections.end(), fd);
 	if (it == _connections.end()) return (0);
 	int dataRead;
 	int totalRead = 0;
-	memset(it->buffer, 0, 1024);
-	while (1) {
-		dataRead = recv(fd, it->buffer + totalRead, 1024 - totalRead, 0);
-		if (dataRead <= 0) return 0;
-		totalRead += dataRead;
-		if (strstr(it->buffer, "\r\n\r\n") != NULL) break;
-	}
-	if (std::strncmp(&it->buffer[totalRead - 4], "\r\n\r\n", 4)) {
-		it->body = strstr(it->buffer, "\r\n\r\n") + 4;
-		memset(it->buffer, 0, totalRead - it->body.length());
-	}
-	if (this->readRequest(it->buffer) == 1)
-		it->request = _request;
-	else
-		defaultAnswerError(400, fd, _config);
-	
-	it->location = searchLocationBlock(it->request.method, it->request.path, it->connfd);
-	if (!it->location)
-		defaultAnswerError(404, it->connfd, _config);
+	if (it->request.method == "")
+	{
+		memset(it->buffer, 0, 1024);
+		while (1) {
+			dataRead = recv(fd, it->buffer + totalRead, 1024 - totalRead, 0);
+			if (dataRead <= 0) return 0;
+			totalRead += dataRead;
+			if (strstr(it->buffer, "\r\n\r\n") != NULL) break;
+		}
+		if (std::strncmp(&it->buffer[totalRead - 4], "\r\n\r\n", 4)) {
+			std::strcpy(it->body, strstr(it->buffer, "\r\n\r\n") + 4);
+			memset(it->buffer, 0, totalRead - std::strlen(it->body));
+		}
+		if (this->readRequest(it->buffer) == 1)
+			it->request = _request;
+		else
+			defaultAnswerError(400, fd, _config);
 
-	
+		it->location = searchLocationBlock(it->request.method, it->request.path, it->connfd);
+		if (!it->location)
+			defaultAnswerError(404, it->connfd, _config);
+		totalRead = std::strlen(it->body);
+		it->tmpConfig = getConfig(it->location);
+		if (it->request.method == "GET" || it->request.method == "HEAD") {
+			_connections.erase(it);
+			return (1);
+		}
+	}
+	else
+	{
+		
+	}
 	
 	return (0);
 }
