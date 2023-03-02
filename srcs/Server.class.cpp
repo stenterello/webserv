@@ -75,7 +75,7 @@ bool    Server::startListen()
 		vServSock.pop();
 		fd_count++;
 	}
-
+	
 	for(;;) {
 		int poll_count = poll(_pfds, fd_count, -1);
 		if (poll_count == -1) {

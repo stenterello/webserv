@@ -123,25 +123,20 @@ int VirtServ::handleClient(int fd)
 	char buf[512];
 	static char totalBuffer[2048];
 
-	printf("------HANDLE CLIENT------\n");
 	std::vector<t_connInfo>::iterator it = findFd(_connections.begin(), _connections.end(), fd);
 	if (it == _connections.end())
 		return (0);
 	static int c = 0;
 	int nbytes, i = 0;
-	while (_request.method == "") {
-		nbytes = recv(fd, buf, sizeof buf, 0);
+	while (1) {
+		if ((nbytes = recv(fd, buf, sizeof buf, 0)) < 0)
+			usleep (100000);
 		if (nbytes <= 0)
 		{
-			if (nbytes == 0) {
-				printf("pollserver: socket %d hung up\n", fd);
-			}
-			else
-				perror("recv");
 			_connections.erase(it);
 			return (1);
 		}
-		else
+		if (nbytes > 0)
 		{
 			for (i = 0; i < nbytes; i++, c++)
 				totalBuffer[c] = buf[i];
@@ -160,6 +155,7 @@ int VirtServ::handleClient(int fd)
 	i += 4;
 	char *header;
 	if (i < c) {
+		printf("I < C\n");
 		int x;
 		header = (char *)malloc(sizeof(*header) * i + 1);
 		for (x = 0; x < i; x++)
@@ -178,29 +174,17 @@ int VirtServ::handleClient(int fd)
 		memset(totalBuffer, 0, 2048);
 		c = 0;
 	}
-	int (VirtServ::*execMethod[])(t_connInfo & info) = {&VirtServ::execPost, &VirtServ::execPut};
-	std::string	method[] = {"POST", "PUT"};
-	for (int i = 0; i < 2; i++) {
-		if (method[i] == _request.method) {
-			if ((this->*execMethod[i])(*it) == 1) {
-				_connections.erase(it);
-				return 1;
-			}
-			return 0;
-		}
-	}
 	printf("------HEADER------\n%s\n------END HEADER------\n", header);
 	this->cleanRequest();
 	this->cleanResponse();
 	if (this->readRequest(header)) {
-		this->elaborateRequest(fd);
-		if (_request.method == "GET" || _request.method == "HEAD") {
-			this->cleanRequest();
-			this->cleanResponse();
-		}
-	}
-	else
+		it->tmpConfig = this->elaborateRequest(fd);
+		// this->cleanRequest();
+		// this->cleanResponse();
+	} else
 		defaultAnswerError(400, fd, _config);
+	// memset(totalBuffer, 0, sizeof totalBuffer);
+	free(header);
 	return (0);
 }
 
@@ -290,14 +274,14 @@ int VirtServ::readRequest(std::string req)
 		iter++;
 	}
 	std::cout << _request.body << std::endl;
-	return (0);
+	return (1);
 }
 
 /*
 	Cerca il location block corretto nella configurazione del virtual server e lancia la funzione executeLocationRules;
 */
 
-void VirtServ::elaborateRequest(int dest_fd)
+t_config VirtServ::elaborateRequest(int dest_fd)
 {
 	std::string path;
 	t_location *location;
@@ -317,16 +301,15 @@ void VirtServ::elaborateRequest(int dest_fd)
 
 	location = searchLocationBlock(_request.method, path, dest_fd);
 	if (!location)
-		return;
-	executeLocationRules(location->location, location->text, dest_fd);
-	// close(dest_fd);
+		return (_config);
+	return (executeLocationRules(location->location, location->text, dest_fd));
 }
 
 /*
 	Elabora il location block implementando le diverse configurazioni espresse nel location block, andando a cercare quando deve il file.
 */
 
-void VirtServ::executeLocationRules(std::string locationName, std::string text, int dest_fd)
+t_config VirtServ::executeLocationRules(std::string locationName, std::string text, int dest_fd)
 {
 	t_config tmpConfig(_config);
 	std::string line;
@@ -415,13 +398,13 @@ void VirtServ::executeLocationRules(std::string locationName, std::string text, 
 		{
 			std::cout << "------TRY FILES------\n";
 			tryFiles(value, tmpConfig, dest_fd, locationName);
-			return;
+			return (tmpConfig);
 		}
 		case 7:
 		{
 			std::cout << "------CHECK AND REDIRECT------\n";
 			checkAndRedirect(value, dest_fd);
-			return;
+			return (tmpConfig);
 		}
 		default:
 			die("Unrecognized location rule. Aborting", *this);
@@ -429,6 +412,7 @@ void VirtServ::executeLocationRules(std::string locationName, std::string text, 
 		text = text.substr(text.find("\n") + 1);
 		text = text.substr(text.find_first_not_of(" \t\n"));
 	}
+	return (tmpConfig);
 }
 
 /*
@@ -643,8 +627,14 @@ bool VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int dest
 	tmpConfig.root.copy(rootPath, tmpConfig.root.size());
 	rootPath[tmpConfig.root.size()] = '\0';
 	rootPath2 = rootPath;
-	if (_request.method == "POST" || _request.method == "PUT")
+	if (_request.method == "POST") {
+		execPost(tmpConfig, dest_fd);
 		return true;
+	}
+	if (_request.method == "PUT") {
+		execPut(tmpConfig, dest_fd);
+		return true;
+	}
 	if (tmpConfig.allowedMethods.size() && std::find(tmpConfig.allowedMethods.begin(), tmpConfig.allowedMethods.end(), _request.method) == tmpConfig.allowedMethods.end())
 	{
 		defaultAnswerError(405, dest_fd, _config);
@@ -1217,7 +1207,7 @@ std::string VirtServ::defineFileType(char *filename)
 	return ("text/plain");
 }
 
-FILE* VirtServ::chunkEncoding(t_connInfo & info)
+FILE* VirtServ::chunkEncoding(int fd)
 {
 	FILE *ofs = NULL;
 	char buffer[2048] = {0};
@@ -1226,93 +1216,95 @@ FILE* VirtServ::chunkEncoding(t_connInfo & info)
 
 	std::string filename = _request.line.substr(0, _request.line.find_first_of(" "));
 	filename = filename.substr(filename.find_last_of("/") + 1, filename.size());
-
+	ofs = fopen(filename.c_str(), "wba+");
+	int chunk_size = -1;
 	while (1){
-		while (info.chunk_size < 0) {
-			dataRead = recv(info.connfd, buffer + totalRead, 1, 0);
+		while (chunk_size < 0) {
+			dataRead = recv(fd, buffer + totalRead, 1, 0);
 			if (dataRead <= 0) {
 				perror ("recv");
 				return NULL;
 			}
 			totalRead += dataRead;
 			if ((strstr(buffer, "\r\n"))) {
-				info.chunk_size = strtoul(buffer, NULL, 16);
+				chunk_size = strtoul(buffer, NULL, 16);
 				totalRead = 0;
 				memset(buffer, 0, 2048);
 			}
 		}
-		if (info.chunk_size > 0)
+		if (chunk_size > 0)
 		{
-			ofs = fopen(filename.c_str(), "wba+");
-			char chunk[info.chunk_size];
+			char chunk[chunk_size];
 			// chunk = recv_timeout(info);
-			while (totalRead < info.chunk_size) {
-				if ((dataRead = recv(info.connfd, chunk, info.chunk_size - totalRead, MSG_DONTWAIT)) < 0)
+			while (totalRead < chunk_size) {
+				if ((dataRead = recv(fd, chunk + totalRead, chunk_size - totalRead, MSG_DONTWAIT)) < 0)
 					usleep(10000);
-				if (dataRead > 0) 
+				if (dataRead > 0)
 					totalRead += dataRead;
 			}
-			for (int i = 0; i < dataRead; i++)
+			for (int i = 0; i < totalRead; i++)
 				fwrite(chunk + i, 1, sizeof((*chunk)), ofs);
 			memset(chunk, 0, dataRead);
-			fclose(ofs);
-			dataRead = recv(info.connfd, chunk, 2, 0);
+			dataRead = recv(fd, chunk, 2, 0);
 			// recv_timeout(info);
-			info.chunk_size = -1;
+			chunk_size = -1;
 			totalRead = 0;
 		}
-		else if (info.chunk_size == 0) {
+		else if (chunk_size == 0) {
 			char chunk[4];
-			recv(info.connfd, chunk, sizeof chunk, 0);
-			info.chunk_size = -1;
+			recv(fd, chunk, sizeof chunk, 0);
+			chunk_size = -1;
 			break;
 		}
 	}
+	fclose(ofs);
 	return ofs;
 }
 
-bool VirtServ::chunkEncodingCleaning(t_connInfo & info)
+bool VirtServ::chunkEncodingCleaning(int fd)
 {
 	char buffer[2048] = {0};
 	int dataRead = 0;
 	int totalRead = 0;
+	int chunk_size = -1;
 
+	printf("CHUNK ENCODING\n");
 	while (1){
-		while (info.chunk_size < 0) {
-			if ((dataRead = recv(info.connfd, buffer + totalRead, 1, 0)) < 0)
+		while (chunk_size < 0) {
+			if ((dataRead = recv(fd, buffer + totalRead, 1, 0)) < 0)
 				usleep(10000);
 			if (dataRead > 0) {
 				totalRead += dataRead;
 				if ((strstr(buffer, "\r\n"))) {
-					info.chunk_size = strtoul(buffer, NULL, 16);
+					chunk_size = strtoul(buffer, NULL, 16);
 					totalRead = 0;
 					memset(buffer, 0, 2048);
 				}
 			}
 		}
-		if (info.chunk_size > 0)
+		if (chunk_size > 0)
 		{
-			char chunk[info.chunk_size];
-			while (totalRead < info.chunk_size) {
-				if ((dataRead = recv(info.connfd, chunk, info.chunk_size - totalRead, MSG_DONTWAIT)) < 0)
+			char chunk[chunk_size];
+			while (totalRead < chunk_size) {
+				if ((dataRead = recv(fd, chunk, chunk_size - totalRead, MSG_DONTWAIT)) < 0)
 					usleep(10000);
 				if (dataRead > 0) 
 					totalRead += dataRead;
 			}
 			memset(chunk, 0, dataRead);
-			dataRead = recv(info.connfd, chunk, 2, 0);
-			info.chunk_size = -1;
+			dataRead = recv(fd, chunk, 2, 0);
+			chunk_size = -1;
 			totalRead = 0;
 		}
-		else if (info.chunk_size == 0) {
+		else if (chunk_size == 0) {
 			char chunk[8];
-			while ((dataRead = recv(info.connfd, chunk + totalRead, sizeof chunk - totalRead, 0)) < 0)
+			while ((dataRead = recv(fd, chunk + totalRead, sizeof chunk - totalRead, 0)) < 0)
 				usleep(10000);
 			if (dataRead > 0) {
 				totalRead += dataRead;
 			}
 			if (strstr(chunk, "\r\n")) {
-				info.chunk_size = -1;
+				chunk_size = -1;
 				break;
 			}
 		}
@@ -1320,13 +1312,13 @@ bool VirtServ::chunkEncodingCleaning(t_connInfo & info)
 	return true;
 }
 
-int VirtServ::execPut(t_connInfo & info)
+int VirtServ::execPut(t_config conf, int fd)
 {
 	std::cout << "------EXEC PUT------\n";
 	
 	if (findKey(_request.headers, "Transfer-Encoding")->second == "chunked") {
-		if (chunkEncoding(info) != NULL) {
-			defaultAnswerError(201, info.connfd, _config);
+		if (chunkEncoding(fd) != NULL) {
+			defaultAnswerError(201,fd, conf);
 			this->cleanRequest();
 			this->cleanResponse();
 		}
@@ -1335,7 +1327,68 @@ int VirtServ::execPut(t_connInfo & info)
 	return 0;
 }
 
-int VirtServ::execPost(t_connInfo & info)
+FILE*	VirtServ::contentType(int fd)
+{
+	std::string _boundary = findKey(_request.headers, "Content-Type")->second;
+	_boundary = _boundary.substr(_boundary.find_first_of("=") + 1, _boundary.find_last_of("\n") - 1);
+	std::cout << "BOUNDARY " + _boundary << std::endl;
+	char buffer[1024] = {0};
+	int dataRead = 0;
+	int totalRead = 0;
+	while (1) {
+		if ((dataRead = recv(fd, buffer + totalRead, 1, 0)) < 0)
+			usleep(100000);
+		if (dataRead > 0) {
+			std::cout << "DATAREAD > 0\n";
+			std::cout << "BUFFER " << buffer << std::endl;
+			totalRead += dataRead;
+			if (strstr(buffer, "\r\n\r\n") != NULL) {
+				printf("STRSTR\n");
+				break;
+			}
+		}
+	}
+	std::string filename = buffer;
+	filename = filename.substr(filename.find("filename"), std::string::npos);
+	filename = filename.substr(filename.find_first_of("\"") + 1, filename.find_first_of("\n"));
+	filename = _config.root + "/uploads/" + filename.substr(0, filename.find_first_of("\""));
+	std::cout << "FILENAME " + filename << std::endl;
+	FILE *ofs = fopen(filename.c_str(), "wba+");
+	totalRead = 0;
+	memset(buffer, 0, 1024);
+	_boundary.append("--");
+	_boundary.insert(0, "--");
+	std::cout << _boundary << std::endl;
+	printf("PRIMA DEL CICLO\n");
+	while (1) {
+		dataRead = recv(fd, buffer, sizeof buffer, 0);
+		printf("FIRST DATAREAD\n");
+		if (dataRead <= 0) {
+			fclose(ofs);
+			return NULL;
+		}
+		if (dataRead > 0) {
+			if (strstr(buffer, _boundary.c_str())) {
+				std::string last = buffer;
+				last = last.substr(0, last.find(_boundary) - 2);
+				// last = last.substr(0, last.find_first_of(_boundary));
+				// dataRead -= _boundary.size() - 2;
+				for (size_t i = 0; i < last.size(); i++)
+					fwrite(last.c_str() + i, sizeof(*buffer), 1, ofs);
+				break;
+			} else {
+				printf("NOT LAST\n");
+				for (int i = 0; i < dataRead; i++)
+					fwrite(buffer + i, sizeof(*buffer), 1, ofs);
+				memset(buffer, 0, dataRead);
+			}
+		}
+	}
+	fclose(ofs);
+	return ofs;
+}
+
+int VirtServ::execPost(t_config conf, int fd)
 {
 	std::cout << "------EXEC POST------\n";
 	if (_request.line.find(".bla HTTP/") != std::string::npos) {
@@ -1344,12 +1397,17 @@ int VirtServ::execPost(t_connInfo & info)
 		launchCGI();
 		return 0;
 	}
-	if (_config.allowedMethods.size() && std::find(_config.allowedMethods.begin(), _config.allowedMethods.end(), "POST") == _config.allowedMethods.end())
+	if (findKey(_request.headers, "Content-Type")->second != "") {
+		std::cout << "ENTRA\n";
+		contentType(fd);
+		return 0;
+	}
+	if (conf.allowedMethods.size() && std::find(conf.allowedMethods.begin(), conf.allowedMethods.end(), "POST") == conf.allowedMethods.end())
 	{
-		if (chunkEncodingCleaning(info) == true) {
+		if (chunkEncodingCleaning(fd) == true) {
 			this->cleanRequest();
 			this->cleanResponse();
-			defaultAnswerError(405, info.connfd, _config);
+			defaultAnswerError(405, fd, conf);
 		}
 		return 0;
 	}
@@ -1372,9 +1430,7 @@ int VirtServ::execPost(t_connInfo & info)
 	static int c = 0;
 	while (1)
 	{
-		dataRead = recv(info.connfd, buffer, sizeof buffer, 0);
-		std::cout << "DATA READ " << dataRead << std::endl;
-		std::cout << "BUFFER " << buffer << std::endl;
+		dataRead = recv(fd, buffer, sizeof buffer, 0);
 		if (dataRead <= 0)
 			break;
 		for (i = 0; i < dataRead; i++, c++)
@@ -1385,20 +1441,6 @@ int VirtServ::execPost(t_connInfo & info)
 	}
 	if (strstr(totalBuffer, "\r\n\r\n") == NULL)
 		return 0;
-	c = 0;
-	if (_config.allowedMethods.size() && std::find(_config.allowedMethods.begin(), _config.allowedMethods.end(), "POST") == _config.allowedMethods.end())
-	{
-		defaultAnswerError(405, info.connfd, _config);
-		memset(totalBuffer, 0, 8192);
-		this->cleanRequest();
-		return (true);
-	}
-	if (dataRead <= 0)
-	{
-		memset(totalBuffer, 0, 8192);
-		defaultAnswerError(205, info.connfd, _config);
-		return false;
-	}
 	std::string store(reinterpret_cast<char *>(totalBuffer));
 	std::string filename;
 	if (store.find("filename") != std::string::npos)
@@ -1406,8 +1448,8 @@ int VirtServ::execPost(t_connInfo & info)
 	else
 	{
 		memset(totalBuffer, 0, 8192);
-		defaultAnswerError(205, info.connfd, _config);
-		return false;
+		defaultAnswerError(205, fd, _config);
+		return 0;
 	}
 	filename = filename.substr(filename.find_first_of("\"") + 1, filename.find_first_of("\n"));
 	filename = _config.root + "/uploads/" + filename.substr(0, filename.find_first_of("\""));
@@ -1415,8 +1457,8 @@ int VirtServ::execPost(t_connInfo & info)
 	{
 		fclose(file);
 		memset(totalBuffer, 0, 8192);
-		defaultAnswerError(202, info.connfd, _config);
-		return true;
+		defaultAnswerError(202, fd, _config);
+		return 1;
 	}
 	ofs = fopen(filename.c_str(), "wb");
 	if (ofs)
@@ -1432,7 +1474,7 @@ int VirtServ::execPost(t_connInfo & info)
 		fwrite(totalBuffer + (i + 4), 1, 8129 - (cmp.size() + 3) - (i + 4), ofs);
 		std::cout << "Save file: " << filename << std::endl;
 		fclose(ofs);
-		defaultAnswerError(201, info.connfd, _config);
+		defaultAnswerError(201, fd, _config);
 		memset(totalBuffer, 0, 8192);
 		return true;
 	}
@@ -1463,7 +1505,6 @@ char* VirtServ::recv_timeout(t_connInfo & info)
 			usleep(100000);
 		else
 		{
-			printf("ELSE\n");
 			total_size += size_recv;
 			//reset beginning time
 			gettimeofday(&begin , NULL);

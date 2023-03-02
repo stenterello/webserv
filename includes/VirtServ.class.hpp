@@ -22,7 +22,7 @@ class VirtServ
 		bool					stopServer();
 		t_location*				searchLocationBlock(std::string method, std::string path, int dest_fd);
 		void					interpretLocationBlock(t_location* location);
-		void					executeLocationRules(std::string locationName, std::string text, int dest_fd);
+		t_config				executeLocationRules(std::string locationName, std::string text, int dest_fd);
 		void					insertMethod(t_config & tmpConfig, std::string value);
 		void					tryFiles(std::string value, t_config tmpConfig, int dest_fd, std::string locationName);
 		bool					tryGetResource(std::string filename, t_config tmpConfig, int dest_fd, std::string locationName);
@@ -52,17 +52,21 @@ class VirtServ
 		void					cleanRequest();
 		void					cleanResponse();
 		int						readRequest(std::string req);
-		void					elaborateRequest(int dest_fd);
+		t_config				elaborateRequest(int dest_fd);
 		int						acceptConnectionAddFd(int sockfd);
 		int						handleClient(int fd);
-		int						execPost(t_connInfo & info);
-		int						execPut(t_connInfo & info);
-		bool					sendAll(int socket, const char *buf, size_t *len);
+
+		int						execPost(t_config conf, int fd);
+		int						execPut(t_config conf, int fd);
+		
 		int 					keepConnectionAlive(int fd);
 		int						launchCGI();
-		FILE*					chunkEncoding(t_connInfo & info);
-		bool					chunkEncodingCleaning(t_connInfo & info);
-		char*					recv_timeout(t_connInfo & info);
+		// upload functions
+		FILE*					contentType(int fd);
+		FILE*					chunkEncoding(int fd);
+		bool					chunkEncodingCleaning(int fd);
+		
+		char*					recv_timeout(t_connInfo & info); // recv with gettimeofday prototype
 };
 
 #endif
