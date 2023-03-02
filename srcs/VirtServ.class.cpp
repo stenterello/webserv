@@ -120,71 +120,32 @@ std::vector<t_connInfo>::iterator	VirtServ::findFd(std::vector<t_connInfo>::iter
 
 int VirtServ::handleClient(int fd)
 {
-	char buf[512];
-	static char totalBuffer[2048];
-
 	std::vector<t_connInfo>::iterator it = findFd(_connections.begin(), _connections.end(), fd);
-	if (it == _connections.end())
-		return (0);
-	static int c = 0;
-	int nbytes, i = 0;
+	if (it == _connections.end()) return (0);
+	int dataRead;
+	int totalRead = 0;
+	memset(it->buffer, 0, 1024);
 	while (1) {
-		if ((nbytes = recv(fd, buf, sizeof buf, 0)) < 0)
-			usleep (100000);
-		if (nbytes <= 0)
-		{
-			_connections.erase(it);
-			return (1);
-		}
-		if (nbytes > 0)
-		{
-			for (i = 0; i < nbytes; i++, c++)
-				totalBuffer[c] = buf[i];
-			memset(buf, 0, 512);
-		}
-		// if we find the trailing CRLF(\r\n) we've found the headers. If not we go back to poll()
-		if (!(strcmp(&totalBuffer[c - 4], "\r\n\r\n")))
-			break ;
-		if (nbytes < 512)
-			return 0;
+		dataRead = recv(fd, it->buffer + totalRead, 1024 - totalRead, 0);
+		if (dataRead <= 0) return 0;
+		totalRead += dataRead;
+		if (strstr(it->buffer, "\r\n\r\n") != NULL) break;
 	}
-	for (i = 0; i < c; i++) {
-		if (!(strncmp(totalBuffer + i, "\r\n\r\n", 4)))
-			break ;
-		}
-	i += 4;
-	char *header;
-	if (i < c) {
-		printf("I < C\n");
-		int x;
-		header = (char *)malloc(sizeof(*header) * i + 1);
-		for (x = 0; x < i; x++)
-			header[x] = totalBuffer[x];
-		header[x] = '\0';
-		for (x = 0; i < c; x++)
-			totalBuffer[x] = totalBuffer[i++];
-		for (; c > x;)
-			totalBuffer[--c] = 0;
-		c = 0;
-		memset(totalBuffer, 0, 2048);
+	if (std::strncmp(&it->buffer[totalRead - 4], "\r\n\r\n", 4)) {
+		it->body = strstr(it->buffer, "\r\n\r\n") + 4;
+		memset(it->buffer, 0, totalRead - it->body.length());
 	}
-	else {
-		totalBuffer[c] = '\0';
-		header = strdup(totalBuffer);
-		memset(totalBuffer, 0, 2048);
-		c = 0;
-	}
-	printf("------HEADER------\n%s\n------END HEADER------\n", header);
-	this->cleanRequest();
-	this->cleanResponse();
-	if (this->readRequest(header)) {
-		it->tmpConfig = this->elaborateRequest(fd);
-		// this->cleanRequest();
-		// this->cleanResponse();
-	} else
+	if (this->readRequest(it->buffer) == 1)
+		it->request = _request;
+	else
 		defaultAnswerError(400, fd, _config);
-	// memset(totalBuffer, 0, sizeof totalBuffer);
-	free(header);
+	
+	it->location = searchLocationBlock(it->request.method, it->request.path, it->connfd);
+	if (!it->location)
+		defaultAnswerError(404, it->connfd, _config);
+
+	
+	
 	return (0);
 }
 
@@ -227,11 +188,17 @@ int VirtServ::readRequest(std::string req)
 	std::vector<std::pair<std::string, std::string> >::iterator header;
 	std::string comp[] = {"GET", "POST", "DELETE", "PUT", "HEAD"};
 
-	_request.line = req.substr(0, req.find_first_of("\n"));
+	if (req.find_first_of(" \t") != std::string::npos)
+		_request.method = req.substr(0, req.find_first_of(" \t"));
+	if (req.find_first_of("/") != std::string::npos) {
+		_request.path = req.substr(req.find_first_of("/"));
+		_request.path = _request.path.substr(0, _request.path.find_first_of(" "));
+	}
+	
 	int i;
 	for (i = 0; i < 5; i++)
 	{
-		if (_request.line.find(comp[i]) != std::string::npos)
+		if (!_request.method.compare(comp[i]))
 			break;
 	}
 	if (i == 5)

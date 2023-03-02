@@ -56,6 +56,7 @@ typedef struct	s_request
 {
 	std::string											line;
 	std::string											method;
+	std::string											path;
 	std::vector<std::pair<std::string, std::string> >	headers;
 	std::string											body;
 
@@ -76,7 +77,16 @@ typedef struct	s_request
 		headers.push_back(std::make_pair("Content-Type", ""));
 		headers.push_back(std::make_pair("Expect", ""));
 		headers.push_back(std::make_pair("Transfer-Encoding", ""));
-	}
+	};
+	s_request& operator=(s_request const & rhs)
+	{
+		this->line = rhs.line;
+		this->method = rhs.method;
+		this->path = rhs.path;
+		this->headers = rhs.headers;
+		this->body = rhs.body;
+		return (*this);
+	};
 }				t_request;
 
 typedef struct	s_response
@@ -106,11 +116,13 @@ typedef struct	s_response
 typedef struct	s_connInfo
 {
 	int			connfd;
-	char*		buffer;
+	char		buffer[1024];
 	int			idx;
 	t_config	tmpConfig;
 	int			chunk_size;
 	t_request	request;
+	std::string body;
+	t_location*	location;
 	
 	s_connInfo() : chunk_size(-1) {};
 	s_connInfo(int i) : connfd(i), chunk_size(-1) {};
