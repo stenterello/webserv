@@ -118,9 +118,135 @@ std::vector<t_connInfo>::iterator	VirtServ::findFd(std::vector<t_connInfo>::iter
 	return (begin);
 }
 
-t_config	VirtServ::getConfig(t_location* loc)
+t_config	VirtServ::getConfig(t_location* loc, int connfd, std::string path)
 {
-	
+	t_config	ret;
+	std::string line;
+	std::string key;
+	std::string value;
+	std::string toCompare[8] = {"root", "autoindex", "index", "error_page", "client_max_body_sizes", "allowed_methods", "try_files", "return"};
+	int i;
+
+	loc = interpretLocationBlock(loc, path);
+
+	while (loc->text.find_first_not_of(" \t\r\n") != std::string::npos)
+	{
+		line = loc->text.substr(0, loc->text.find("\n"));
+		if (line.at(line.length() - 1) != ';')
+			die("Location rules must end with semicolon. Aborting", *this);
+		line = line.substr(0, line.length() - 1);
+		if (line.find_first_of(" \t") == std::string::npos)
+			die("Location rules must be given in format 'key value'. Aborting", *this);
+		key = line.substr(0, line.find_first_of(" \t"));
+		value = line.substr(line.find_first_not_of(" \t", key.length()));
+		if (value.find_first_not_of(" \t\n") == std::string::npos)
+			die("Location rule without value. Aborting", *this);
+
+		for (i = 0; i < 8; i++)
+			if (key == toCompare[i])
+				break;
+
+		switch (i)
+		{
+		case 0:
+		{
+			ret.root = value;
+			break;
+		}
+		case 1:
+		{
+			std::cout << "------CASE 1------\n";
+			if (!value.compare("on"))
+				ret.autoindex = true;
+			else if (!value.compare("off"))
+				ret.autoindex = false;
+			else
+				die("Autoindex rule must have on|off value. Aborting", *this);
+			break;
+		}
+		case 2:
+		{
+			// sistemare questo caso
+			std::cout << "------CASE 2------\n";
+			ret.index.clear();
+			while (value.find_first_not_of(" \n\t") != std::string::npos)
+			{
+				ret.index.push_back(value.substr(0, value.find_first_of(" \t")));
+				value = value.substr(0, value.find_first_of(" \t"));
+				value = value.substr(0, value.find_first_not_of(" \t"));
+			}
+			break;
+		}
+		case 3:
+		{
+			// error_page
+			std::cout << "------CASE 3------\n";
+			ret.errorPages.clear();
+			while (value.find_first_not_of(" \n\t") != std::string::npos)
+			{
+				ret.errorPages.push_back(value.substr(0, value.find_first_of(" \t")));
+				if (value.find_first_of(" \t") == std::string::npos)
+					break;
+				value = value.substr(value.find_first_of(" \t"));
+				value = value.substr(value.find_first_not_of(" \t"));
+			}
+			break;
+		}
+		case 4:
+		{
+			std::cout << "------CHECK CLIENT BODY MAX SIZE------\n";
+			Parser::checkClientBodyMaxSize(value, ret);
+			break;
+		}
+		case 5:
+		{
+			std::cout << "------INSERT METHOD------\n";
+			insertMethod(ret, value);
+			break;
+		}
+		case 6:
+		{
+			std::cout << "------TRY FILES------\n";
+			if (saveFiles(value, ret, connfd)) {
+				delete loc;
+				return (ret);
+			}
+			return (t_config(false));
+		}
+		case 7:
+		{
+			std::cout << "------CHECK AND REDIRECT------\n";
+			checkAndRedirect(value, connfd);
+			delete loc;
+			return (ret);
+		}
+		default:
+			die("Unrecognized location rule. Aborting", *this);
+		}
+		loc->text = loc->text.substr(loc->text.find("\n") + 1);
+		loc->text = loc->text.substr(loc->text.find_first_not_of(" \t\n"));
+	}
+	delete loc;
+	return (ret);
+}
+
+bool	VirtServ::saveFiles(std::string value, t_config & ret, int connfd)
+{
+	std::string defaultFile;
+
+	if (ret.client_max_body_size && std::strlen(_request.body.c_str()) > ret.client_max_body_size)
+	{
+		defaultAnswerError(413, connfd, ret);
+		return false;
+	}
+	while (value.find_first_of(" \t") != std::string::npos)
+	{
+		ret.files.push_back(value.substr(0, value.find_first_of(" \t")));
+		value = value.substr(value.find_first_of(" \t"));
+		value = value.substr(value.find_first_not_of(" \t"));
+	}
+	ret.files.push_back(value);
+	return true;
 }
 
 int VirtServ::handleClient(int fd)
@@ -151,8 +277,30 @@ int VirtServ::handleClient(int fd)
 		if (!it->location)
 			defaultAnswerError(404, it->connfd, _config);
 		totalRead = std::strlen(it->body);
-		it->tmpConfig = getConfig(it->location);
+		it->tmpConfig = getConfig(it->location, it->connfd, it->request.path);
+		if (it->tmpConfig.valid == false)
+		{
+			_connections.erase(it);
+			return (1);
+		}
+		std::cout << "///////////// REQUEST /////////////" << std::endl;
+		std::cout << it->request.method << " " << it->request.path << std::endl;
+		for (std::vector<std::pair<std::string, std::string> >::iterator	iter = it->request.headers.begin(); iter != it->request.headers.end(); iter++)
+		{
+			if (iter->second.length())
+				std::cout << iter->first << ": " << iter->second << std::endl;
+		}
 		if (it->request.method == "GET" || it->request.method == "HEAD") {
+			std::vector<std::string>::iterator iter = it->tmpConfig.files.begin();
+			while (iter != it->tmpConfig.files.end())
+			{
+				if (tryGetResource(*iter, it->tmpConfig, it->connfd, it->location->location)) {
+					close(it->connfd);
+					_connections.erase(it);
+					return (1);
+				}
+				iter++;
+			}
 			_connections.erase(it);
 			return (1);
 		}
@@ -1078,13 +1226,16 @@ t_location *VirtServ::searchLocationBlock(std::string method, std::string path, 
 	Funzione di sostituzione della variabile $uri con l'url richiesto;
 */
 
-void VirtServ::interpretLocationBlock(t_location *location)
+t_location* VirtServ::interpretLocationBlock(t_location *location, std::string path)
 {
-	std::string uri = _request.line.substr(0, _request.line.find_first_of(" \t"));
-	std::string::iterator iter = location->text.begin();
+	t_location*	ret = new t_location;
+	*ret = *location;
+	std::string::iterator iter = ret->text.begin();
 
-	while (location->text.find("$uri") != std::string::npos)
-		location->text.replace(iter + location->text.find("$uri"), iter + location->text.find("$uri") + 4, uri);
+	while (ret->text.find("$uri") != std::string::npos)
+		ret->text.replace(iter + ret->text.find("$uri"), iter + ret->text.find("$uri") + 4, path);
+
+	return (ret);
 }
 
 /*

@@ -29,6 +29,15 @@ typedef	struct	s_location
 	std::vector<std::string>	allowedMethods;
 	std::string					location;	// path
 	std::string					text;		// block
+	s_location&	operator=(s_location & rhs)
+	{
+		this->regex = rhs.regex;
+		this->exact_path = rhs.exact_path;
+		this->allowedMethods = rhs.allowedMethods;
+		this->location = rhs.location;
+		this->text = rhs.text;
+		return (*this);
+	}
 }				t_location;
 
 typedef struct	s_config
@@ -44,13 +53,16 @@ typedef struct	s_config
 	std::vector<std::string>	allowedMethods;
 	std::vector<t_location>		locationRules;			// location
 	std::vector<std::string>	files;					// files to try
+	bool						valid;
 
 	s_config() : port(0)
 	{
 		root = "";
 		host = "0.0.0.0";
 		client_max_body_size = 1048576;
+		valid = true;
 	}
+	s_config(bool val) : valid(val) {}
 }				t_config;
 
 typedef struct	s_request

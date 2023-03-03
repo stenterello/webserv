@@ -21,7 +21,7 @@ class VirtServ
 		bool					startServer();
 		bool					stopServer();
 		t_location*				searchLocationBlock(std::string method, std::string path, int dest_fd);
-		void					interpretLocationBlock(t_location* location);
+		t_location*				interpretLocationBlock(t_location* location, std::string path);
 		t_config				executeLocationRules(std::string locationName, std::string text, int dest_fd);
 		void					insertMethod(t_config & tmpConfig, std::string value);
 		void					tryFiles(std::string value, t_config tmpConfig, int dest_fd, std::string locationName);
@@ -36,7 +36,8 @@ class VirtServ
 		std::string				defineFileType(char* filename);
 		void					checkAndRedirect(std::string value, int dest_fd);
 		std::vector<t_connInfo>::iterator	findFd(std::vector<t_connInfo>::iterator begin, std::vector<t_connInfo>::iterator end, int fd);
-		t_config				getConfig(t_location* loc);
+		t_config				getConfig(t_location* loc, int connfd, std::string path);
+		bool					saveFiles(std::string, t_config & ret, int connfd);
 
 
 	public:
