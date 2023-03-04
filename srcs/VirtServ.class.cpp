@@ -120,7 +120,7 @@ std::vector<t_connInfo>::iterator	VirtServ::findFd(std::vector<t_connInfo>::iter
 
 t_config	VirtServ::getConfig(t_location* loc, int connfd, std::string path)
 {
-	t_config	ret;
+	t_config	ret(_config);
 	std::string line;
 	std::string key;
 	std::string value;
@@ -252,62 +252,90 @@ bool	VirtServ::saveFiles(std::string value, t_config & ret, int connfd)
 int VirtServ::handleClient(int fd)
 {
 	std::vector<t_connInfo>::iterator it = findFd(_connections.begin(), _connections.end(), fd);
-	if (it == _connections.end()) return (0);
-	int dataRead;
-	int totalRead = 0;
+	if (it == _connections.end())
+		return (0);
+	
 	if (it->request.method == "")
-	{
-		memset(it->buffer, 0, 1024);
-		while (1) {
-			dataRead = recv(fd, it->buffer + totalRead, 1024 - totalRead, 0);
-			if (dataRead <= 0) return 0;
-			totalRead += dataRead;
-			if (strstr(it->buffer, "\r\n\r\n") != NULL) break;
-		}
-		if (std::strncmp(&it->buffer[totalRead - 4], "\r\n\r\n", 4)) {
-			std::strcpy(it->body, strstr(it->buffer, "\r\n\r\n") + 4);
-			memset(it->buffer, 0, totalRead - std::strlen(it->body));
-		}
-		if (this->readRequest(it->buffer) == 1)
-			it->request = _request;
-		else
-			defaultAnswerError(400, fd, _config);
+	{	
+		int dataRead;
+		dataRead = recv(fd, it->buffer + it->idx, 1024 - it->idx, 0);
+		if (dataRead <= 0) return 0;
+		it->idx += dataRead;
+		if (strstr(it->buffer, "\r\n\r\n") == NULL) return 0;
 
-		it->location = searchLocationBlock(it->request.method, it->request.path, it->connfd);
-		if (!it->location)
-			defaultAnswerError(404, it->connfd, _config);
-		totalRead = std::strlen(it->body);
-		it->tmpConfig = getConfig(it->location, it->connfd, it->request.path);
-		if (it->tmpConfig.valid == false)
-		{
-			_connections.erase(it);
-			return (1);
-		}
-		std::cout << "///////////// REQUEST /////////////" << std::endl;
-		std::cout << it->request.method << " " << it->request.path << std::endl;
-		for (std::vector<std::pair<std::string, std::string> >::iterator	iter = it->request.headers.begin(); iter != it->request.headers.end(); iter++)
-		{
-			if (iter->second.length())
-				std::cout << iter->first << ": " << iter->second << std::endl;
-		}
-		if (it->request.method == "GET" || it->request.method == "HEAD") {
-			std::vector<std::string>::iterator iter = it->tmpConfig.files.begin();
-			while (iter != it->tmpConfig.files.end())
-			{
-				if (tryGetResource(*iter, it->tmpConfig, it->connfd, it->location->location)) {
-					close(it->connfd);
-					_connections.erase(it);
-					return (1);
-				}
-				iter++;
-			}
+		if (this->readRequest(it->buffer))
+			it->request = _request;
+		else {
+			defaultAnswerError(400, fd, _config);
 			_connections.erase(it);
 			return (1);
 		}
 	}
-	else
+	
+	if (it->request.method == "POST" || it->request.method == "PUT")
 	{
-		
+		if (it->chunk_size != -1)
+		{
+			recv(it->connfd, it->body + it->idx, it->chunk_size, 0);
+			it->idx += it->chunk_size;
+			it->chunk_size = -1;
+		}
+		else if (findKey(it->request.headers, "Transfer-Encoding")->second == "chunked")
+		{
+			it->idx = std::strlen(it->body);
+			while (recv(it->connfd, it->body + it->idx, 1, 0) > 0)
+				it->idx++;
+			it->chunk_size = std::atoi(it->body);
+			memset(it->body, '\0', 2048);
+			it->idx = 0;
+			if (it->chunk_size != 0)
+				return (0);
+		}
+	}
+
+	it->location = searchLocationBlock(it->request.method, it->request.path, it->connfd);
+	if (!it->location)
+	{
+		defaultAnswerError(404, it->connfd, _config);
+		return (1);
+	}
+	it->idx = std::strlen(it->body);
+	it->tmpConfig = getConfig(it->location, it->connfd, it->request.path);
+	if (it->tmpConfig.valid == false)
+	{
+		_connections.erase(it);
+		memset(it->buffer, 0, 1024);
+		return (1);
+	}
+	std::cout << "///////////// REQUEST /////////////" << std::endl;
+	std::cout << it->request.method << " " << it->request.path << std::endl;
+	for (std::vector<std::pair<std::string, std::string> >::iterator	iter = it->request.headers.begin(); iter != it->request.headers.end(); iter++)
+	{
+		if (iter->second.length())
+			std::cout << iter->first << ": " << iter->second << std::endl;
+	}
+	std::cout << "BODY" << std::endl;
+	std::cout << it->body << std::endl;
+	if (it->request.method == "GET" || it->request.method == "HEAD") {
+		std::vector<std::string>::iterator iter = it->tmpConfig.files.begin();
+		while (iter != it->tmpConfig.files.end())
+		{
+			if (tryGetResource(*iter, it->tmpConfig, it->connfd, it->location->location)) {
+				_connections.erase(it);
+				memset(it->buffer, 0, 1024);
+				return (1);
+			}
+			iter++;
+		}
+		_connections.erase(it);
+		memset(it->buffer, 0, 1024);
+		return (1);
+	}
+	else if (it->request.method == "POST")
+	{
+		std::cout << "This is POST" << std::endl;
+		execPost(it->tmpConfig, it->connfd);
+		return (1);
 	}
 	
 	return (0);
@@ -359,6 +387,8 @@ int VirtServ::readRequest(std::string req)
 		_request.path = _request.path.substr(0, _request.path.find_first_of(" "));
 	}
 	
+	std::cout << "////////// REQ //////////" << std::endl;
+	std::cout << req << std::endl;
 	int i;
 	for (i = 0; i < 5; i++)
 	{
@@ -476,7 +506,6 @@ t_config VirtServ::executeLocationRules(std::string locationName, std::string te
 		}
 		case 1:
 		{
-			std::cout << "------CASE 1------\n";
 			if (!value.compare("on"))
 				tmpConfig.autoindex = true;
 			else if (!value.compare("off"))
@@ -487,8 +516,6 @@ t_config VirtServ::executeLocationRules(std::string locationName, std::string te
 		}
 		case 2:
 		{
-			// sistemare questo caso
-			std::cout << "------CASE 2------\n";
 			tmpConfig.index.clear();
 			while (value.find_first_not_of(" \n\t") != std::string::npos)
 			{
@@ -500,8 +527,6 @@ t_config VirtServ::executeLocationRules(std::string locationName, std::string te
 		}
 		case 3:
 		{
-			// error_page
-			std::cout << "------CASE 3------\n";
 			tmpConfig.errorPages.clear();
 			while (value.find_first_not_of(" \n\t") != std::string::npos)
 			{
@@ -515,25 +540,21 @@ t_config VirtServ::executeLocationRules(std::string locationName, std::string te
 		}
 		case 4:
 		{
-			std::cout << "------CHECK CLIENT BODY MAX SIZE------\n";
 			Parser::checkClientBodyMaxSize(value, tmpConfig);
 			break;
 		}
 		case 5:
 		{
-			std::cout << "------INSERT METHOD------\n";
 			insertMethod(tmpConfig, value);
 			break;
 		}
 		case 6:
 		{
-			std::cout << "------TRY FILES------\n";
 			tryFiles(value, tmpConfig, dest_fd, locationName);
 			return (tmpConfig);
 		}
 		case 7:
 		{
-			std::cout << "------CHECK AND REDIRECT------\n";
 			checkAndRedirect(value, dest_fd);
 			return (tmpConfig);
 		}
@@ -955,7 +976,7 @@ void VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 		iter++;
 	}
 	if (err != 100 && _request.method != "HEAD")
-		tmpString += "\r\n" + _response.body;
+		tmpString += "\r\n" + _response.body + "\r\n";
 	else
 		tmpString += "\r\n";
 	send(dest_fd, tmpString.c_str(), tmpString.size(), 0);
@@ -1534,18 +1555,24 @@ int VirtServ::execPost(t_config conf, int fd)
 		launchCGI();
 		return 0;
 	}
-	if (findKey(_request.headers, "Content-Type")->second != "") {
+	if (findKey(_request.headers, "Transfer-Encoding")->second == "chunked")
+	{
+		std::cout << "BOdy " << _request.body << std::endl;
+		
+	}
+	else if (findKey(_request.headers, "Content-Type")->second != "") {
 		std::cout << "ENTRA\n";
 		contentType(fd);
 		return 0;
 	}
 	if (conf.allowedMethods.size() && std::find(conf.allowedMethods.begin(), conf.allowedMethods.end(), "POST") == conf.allowedMethods.end())
 	{
-		if (chunkEncodingCleaning(fd) == true) {
-			this->cleanRequest();
-			this->cleanResponse();
-			defaultAnswerError(405, fd, conf);
-		}
+		defaultAnswerError(405, fd, conf);
+		// if (chunkEncodingCleaning(fd) == true) {
+		// 	this->cleanRequest();
+		// 	this->cleanResponse();
+		// 	defaultAnswerError(405, fd, conf);
+		// }
 		return 0;
 	}
 	std::string _contentLength = findKey(_request.headers, "Content-Length")->second;

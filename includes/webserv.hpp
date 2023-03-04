@@ -138,8 +138,14 @@ typedef struct	s_connInfo
 	char		body[2048];
 	t_location*	location;
 	
-	s_connInfo() : chunk_size(-1) {};
-	s_connInfo(int i) : connfd(i), chunk_size(-1) {};
+	s_connInfo() : idx(0), chunk_size(-1) {
+		memset(this->buffer, '\0', 1024);
+		memset(this->body, '\0', 2048);
+	};
+	s_connInfo(int i) : connfd(i), idx(0), chunk_size(-1) {
+		memset(this->buffer, '\0', 1024);
+		memset(this->body, '\0', 2048);
+	};
 }			t_connInfo;
 
 # include <VirtServ.class.hpp>

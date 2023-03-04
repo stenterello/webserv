@@ -16,11 +16,11 @@
 			"externalConsole": false,
 			"MIMode": "gdb",
 			// "justMyCode": true,
-			// "setupCommands": [
-			// 	{
-			// 		"text": "set disable-randomization off",
-			// 		"ignoreFailures": false
-			// 	},
+			"setupCommands": [
+				{
+					"text": "set disable-randomization off",
+					"ignoreFailures": false
+				},
 			// 	{
 			// 		"description": "Abilita la riformattazione per gdb",
 			// 		"text": "-enable-pretty-printing",
@@ -31,7 +31,7 @@
 			// 		"text": "-gdb-set disassembly-flavor intel",
 			// 		"ignoreFailures": true
 			// 	}
-			// ],
+			],
 			"preLaunchTask": "C/C++: gcc compila il file attivo",
 			// "miDebuggerPath": "/usr/bin/lldb"
 		}
