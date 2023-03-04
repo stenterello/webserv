@@ -15,6 +15,7 @@
 # include <sys/types.h>
 # include <sys/socket.h>
 # include <sys/stat.h>
+# include <sys/wait.h>
 # include <netdb.h>
 # include <netinet/in.h>
 # include <arpa/inet.h>
@@ -29,7 +30,7 @@ typedef	struct	s_location
 	std::vector<std::string>	allowedMethods;
 	std::string					location;	// path
 	std::string					text;		// block
-	s_location&	operator=(s_location & rhs)
+	s_location&	operator=(s_location const & rhs)
 	{
 		this->regex = rhs.regex;
 		this->exact_path = rhs.exact_path;

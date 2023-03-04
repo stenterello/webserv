@@ -1233,7 +1233,10 @@ t_location* VirtServ::interpretLocationBlock(t_location *location, std::string p
 	std::string::iterator iter = ret->text.begin();
 
 	while (ret->text.find("$uri") != std::string::npos)
+	{
 		ret->text.replace(iter + ret->text.find("$uri"), iter + ret->text.find("$uri") + 4, path);
+		iter = ret->text.begin();
+	}
 
 	return (ret);
 }
