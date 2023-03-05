@@ -24,13 +24,13 @@ class VirtServ
 		t_location*				interpretLocationBlock(t_location* location, std::string path);
 		t_config				executeLocationRules(std::string locationName, std::string text, int dest_fd);
 		void					insertMethod(t_config & tmpConfig, std::string value);
-		void					tryFiles(std::string value, t_config tmpConfig, int dest_fd, std::string locationName);
-		bool					tryGetResource(std::string filename, t_config tmpConfig, int dest_fd, std::string locationName);
+		void					tryFiles(std::string value, t_connInfo conn);
+		bool					tryGetResource(std::string filename, t_connInfo conn);
 		void					answer(std::string fullPath, struct dirent* dirent, int dest_fd);
 		void					answerAutoindex(std::string fullPath, DIR* directory, int dest_fd);
-		void					defaultAnswerError(int err, int dest_fd, t_config tmpConfig);
+		void					defaultAnswerError(int err, t_connInfo conn);
 		struct dirent**			fill_dirent(DIR* directory, std::string path);
-		DIR*					dirAnswer(std::string fullPath, struct dirent* dirent, int dest_fd, t_config tmpConfig);
+		DIR*					dirAnswer(std::string fullPath, struct dirent* dirent, t_connInfo conn);
 		std::string				getDateTime();
 		iterator				findKey(std::vector<std::pair<std::string, std::string> > & vector, std::string key);
 		std::string				defineFileType(char* filename);
@@ -58,8 +58,8 @@ class VirtServ
 		int						acceptConnectionAddFd(int sockfd);
 		int						handleClient(int fd);
 
-		int						execPost(t_config conf, int fd);
-		int						execPut(t_config conf, int fd);
+		int						execPost(t_connInfo conn);
+		int						execPut(t_connInfo conn);
 		
 		int 					keepConnectionAlive(int fd);
 		int						launchCGI();

@@ -88,14 +88,14 @@ int VirtServ::acceptConnectionAddFd(int sockfd)
 	_connections.push_back(t_connInfo(accept(sockfd,
 							 (struct sockaddr *)&remoteaddr,
 							 &addrlen)));
-	if (_connections.back().connfd == -1)
+	if (_connections.back().fd == -1)
 	{
 		_connections.pop_back();
 		perror("accept");
 		return -1;
 	}
-	fcntl(_connections.back().connfd, F_SETFL, O_NONBLOCK);
-	return (_connections.back().connfd);
+	fcntl(_connections.back().fd, F_SETFL, O_NONBLOCK);
+	return (_connections.back().fd);
 }
 
 /*
@@ -111,7 +111,7 @@ std::vector<t_connInfo>::iterator	VirtServ::findFd(std::vector<t_connInfo>::iter
 {
 	while (begin != end)
 	{
-		if (begin->connfd == fd)
+		if (begin->fd == fd)
 			return (begin);
 		begin++;
 	}
@@ -236,7 +236,10 @@ bool	VirtServ::saveFiles(std::string value, t_config & ret, int connfd)
 
 	if (ret.client_max_body_size && std::strlen(_request.body.c_str()) > ret.client_max_body_size)
 	{
-		defaultAnswerError(413, connfd, ret);
+		t_connInfo tmp;
+		tmp.config = ret;
+		tmp.fd = connfd;
+		defaultAnswerError(413, tmp);
 		return false;
 	}
 	while (value.find_first_of(" \t") != std::string::npos)
@@ -262,11 +265,18 @@ int VirtServ::handleClient(int fd)
 		if (dataRead <= 0) return 0;
 		it->idx += dataRead;
 		if (strstr(it->buffer, "\r\n\r\n") == NULL) return 0;
+		if (strstr(it->buffer, "\r\n\r\n") != &it->buffer[std::strlen(it->buffer) - 4])
+		{
+			char*	ptr = strstr(it->buffer, "\r\n\r\n") + 4;
+			std::strncpy(it->body, ptr, std::strlen(it->buffer) - (ptr - it->buffer));
+			*ptr = '\0';
+			it->idx = std::strlen(it->body);
+		}
 
 		if (this->readRequest(it->buffer))
 			it->request = _request;
 		else {
-			defaultAnswerError(400, fd, _config);
+			defaultAnswerError(400, *it);
 			_connections.erase(it);
 			return (1);
 		}
@@ -276,32 +286,32 @@ int VirtServ::handleClient(int fd)
 	{
 		if (it->chunk_size != -1)
 		{
-			recv(it->connfd, it->body + it->idx, it->chunk_size, 0);
+			recv(it->fd, it->body + it->idx, it->chunk_size, 0);
 			it->idx += it->chunk_size;
 			it->chunk_size = -1;
 		}
 		else if (findKey(it->request.headers, "Transfer-Encoding")->second == "chunked")
 		{
 			it->idx = std::strlen(it->body);
-			while (recv(it->connfd, it->body + it->idx, 1, 0) > 0)
+			while (recv(it->fd, it->body + it->idx, 1, 0) > 0)
 				it->idx++;
 			it->chunk_size = std::atoi(it->body);
-			memset(it->body, '\0', 2048);
+			// memset(it->body, '\0', 2048);
 			it->idx = 0;
 			if (it->chunk_size != 0)
 				return (0);
 		}
 	}
 
-	it->location = searchLocationBlock(it->request.method, it->request.path, it->connfd);
+	it->location = searchLocationBlock(it->request.method, it->request.path, it->fd);
 	if (!it->location)
 	{
-		defaultAnswerError(404, it->connfd, _config);
+		defaultAnswerError(404, *it);
 		return (1);
 	}
 	it->idx = std::strlen(it->body);
-	it->tmpConfig = getConfig(it->location, it->connfd, it->request.path);
-	if (it->tmpConfig.valid == false)
+	it->config = getConfig(it->location, it->fd, it->request.path);
+	if (it->config.valid == false)
 	{
 		_connections.erase(it);
 		memset(it->buffer, 0, 1024);
@@ -317,24 +327,21 @@ int VirtServ::handleClient(int fd)
 	std::cout << "BODY" << std::endl;
 	std::cout << it->body << std::endl;
 	if (it->request.method == "GET" || it->request.method == "HEAD") {
-		std::vector<std::string>::iterator iter = it->tmpConfig.files.begin();
-		while (iter != it->tmpConfig.files.end())
+		std::vector<std::string>::iterator iter = it->config.files.begin();
+		while (iter != it->config.files.end())
 		{
-			if (tryGetResource(*iter, it->tmpConfig, it->connfd, it->location->location)) {
-				_connections.erase(it);
-				memset(it->buffer, 0, 1024);
-				return (1);
+			if (tryGetResource(*iter, *it)) {
+				break ;
 			}
 			iter++;
 		}
 		_connections.erase(it);
-		memset(it->buffer, 0, 1024);
 		return (1);
 	}
 	else if (it->request.method == "POST")
 	{
 		std::cout << "This is POST" << std::endl;
-		execPost(it->tmpConfig, it->connfd);
+		execPost(*it);
 		return (1);
 	}
 	
@@ -550,7 +557,11 @@ t_config VirtServ::executeLocationRules(std::string locationName, std::string te
 		}
 		case 6:
 		{
-			tryFiles(value, tmpConfig, dest_fd, locationName);
+			t_connInfo tmp;
+			tmp.config = tmpConfig;
+			tmp.fd = dest_fd;
+			tmp.location->location = locationName;
+			tryFiles(value, tmp);
 			return (tmpConfig);
 		}
 		case 7:
@@ -659,14 +670,14 @@ void VirtServ::insertMethod(t_config &tmpConfig, std::string value)
 	Parsing del location block:> effettiva ricerca del file con try_file.
 */
 
-void VirtServ::tryFiles(std::string value, t_config tmpConfig, int dest_fd, std::string locationName)
+void VirtServ::tryFiles(std::string value, t_connInfo conn)
 {
-	std::vector<std::string> files;
-	std::string defaultFile;
+	std::vector<std::string>	files;
+	std::string					defaultFile;
 
-	if (tmpConfig.client_max_body_size && std::strlen(_request.body.c_str()) > tmpConfig.client_max_body_size)
+	if (conn.config.client_max_body_size && std::strlen(_request.body.c_str()) > conn.config.client_max_body_size)
 	{
-		defaultAnswerError(413, dest_fd, tmpConfig);
+		defaultAnswerError(413, conn);
 		return;
 	}
 	while (value.find_first_of(" \t") != std::string::npos)
@@ -681,7 +692,7 @@ void VirtServ::tryFiles(std::string value, t_config tmpConfig, int dest_fd, std:
 	std::vector<std::string>::iterator iter = files.begin();
 	while (iter != files.end())
 	{
-		if (tryGetResource(*iter, tmpConfig, dest_fd, locationName))
+		if (tryGetResource(*iter, conn))
 			return;
 		iter++;
 	}
@@ -692,7 +703,7 @@ void VirtServ::tryFiles(std::string value, t_config tmpConfig, int dest_fd, std:
 									 se l'autoindex è su on, ritorna l'autoindex della cartella.
 */
 
-DIR *VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_fd, t_config tmpConfig)
+DIR *VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, t_connInfo conn)
 {
 	std::cout << "------DIR ANSWER------\n";
 	DIR *dir;
@@ -703,11 +714,11 @@ DIR *VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_f
 	std::string path = dirent ? fullPath + dirent->d_name + "/" : fullPath;
 
 	dir = opendir(path.c_str());
-	if (!tmpConfig.autoindex || tmpConfig.index.size())
+	if (!conn.config.autoindex || conn.config.index.size())
 	{
 		struct dirent *tmp;
 		tmp = readdir(dir);
-		for (std::vector<std::string>::iterator it = tmpConfig.index.begin(); it != tmpConfig.index.end(); it++)
+		for (std::vector<std::string>::iterator it = conn.config.index.begin(); it != conn.config.index.end(); it++)
 		{
 			while (tmp)
 			{
@@ -715,7 +726,7 @@ DIR *VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_f
 				{
 					std::cout << "PATH " << path << std::endl;
 					std::cout << "TMP->DIR NAME " << tmp->d_name << std::endl;
-					answer(path, tmp, dest_fd);
+					answer(path, tmp, conn.fd);
 					return dir;
 				}
 				tmp = readdir(dir);
@@ -724,12 +735,12 @@ DIR *VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_f
 			dir = opendir(path.c_str());
 			tmp = readdir(dir);
 		}
-		defaultAnswerError(404, dest_fd, tmpConfig);
+		defaultAnswerError(404, conn);
 		return dir;
 	}
 	else
 	{
-		answerAutoindex(path, dir, dest_fd);
+		answerAutoindex(path, dir, conn.fd);
 	}
 	return (dir);
 }
@@ -741,7 +752,7 @@ DIR *VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, int dest_f
 	Chiude il file e la connessione
 */
 
-int	VirtServ::launchCGI()
+int			VirtServ::launchCGI()
 {
 	if (!fork()) {
 		system("fake_site/cgi_tester");
@@ -767,36 +778,36 @@ int	VirtServ::launchCGI()
 		- In caso contrario ritorna 404;
 */
 
-bool VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int dest_fd, std::string locationName)
+bool		VirtServ::tryGetResource(std::string filename, t_connInfo conn)
 {
 	std::cout << "------TRY GET RESOURCE------\n";
-	std::string fullPath = tmpConfig.root;
-	char rootPath[tmpConfig.root.size()];
+	std::string fullPath = conn.config.root;
+	char rootPath[conn.config.root.size()];
 	std::string	rootPath2;
 	DIR *directory;
 	struct dirent *dirent;
 
-	tmpConfig.root.copy(rootPath, tmpConfig.root.size());
-	rootPath[tmpConfig.root.size()] = '\0';
+	conn.config.root.copy(rootPath, conn.config.root.size());
+	rootPath[conn.config.root.size()] = '\0';
 	rootPath2 = rootPath;
 	if (_request.method == "POST") {
-		execPost(tmpConfig, dest_fd);
+		execPost(conn);
 		return true;
 	}
 	if (_request.method == "PUT") {
-		execPut(tmpConfig, dest_fd);
+		execPut(conn);
 		return true;
 	}
-	if (tmpConfig.allowedMethods.size() && std::find(tmpConfig.allowedMethods.begin(), tmpConfig.allowedMethods.end(), _request.method) == tmpConfig.allowedMethods.end())
+	if (conn.config.allowedMethods.size() && std::find(conn.config.allowedMethods.begin(), conn.config.allowedMethods.end(), _request.method) == conn.config.allowedMethods.end())
 	{
-		defaultAnswerError(405, dest_fd, _config);
+		defaultAnswerError(405, conn);
 		return (true);
 	}
 	if (!filename.compare("$uri"))
 		filename = _request.line.substr(0, _request.line.find_first_of(" \t"));
-	if (!std::strncmp(locationName.c_str(), filename.c_str(), std::strlen(locationName.c_str())))
+	if (!std::strncmp(conn.location->location.c_str(), filename.c_str(), std::strlen(conn.location->location.c_str())))
 	{
-		filename = filename.substr(std::strlen(locationName.c_str()));
+		filename = filename.substr(std::strlen(conn.location->location.c_str()));
 		if (*filename.begin() == '/' && filename.length() > 1)
 			filename = filename.substr(1);
 		else if (*filename.begin() == '/')
@@ -817,9 +828,9 @@ bool VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int dest
 	if (!(directory = opendir(rootPath2.c_str())))
 	{
 		if (errno == EACCES)
-			defaultAnswerError(403, dest_fd, tmpConfig);
+			defaultAnswerError(403, conn);
 		if (errno == ENOENT || errno == ENOTDIR)
-			defaultAnswerError(404, dest_fd, tmpConfig);
+			defaultAnswerError(404, conn);
 		return (true);
 	}
 	if (filename.length())
@@ -832,42 +843,42 @@ bool VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int dest
 			{
 				if (!(filename.compare("directory")))
 				{
-					closedir(dirAnswer(rootPath2, NULL, dest_fd, tmpConfig));
+					closedir(dirAnswer(rootPath2, NULL, conn));
 					break;
 				}
 				if (dirent->d_type == DT_DIR)
 				{
-					closedir(dirAnswer(rootPath2, dirent, dest_fd, tmpConfig));
+					closedir(dirAnswer(rootPath2, dirent, conn));
 					break;
 				}
 				else
 				{
-					answer(rootPath2, dirent, dest_fd);
+					answer(rootPath2, dirent, conn.fd);
 					break;
 				}
 			}
 		}
 		if (!dirent)
-			defaultAnswerError(404, dest_fd, tmpConfig);
+			defaultAnswerError(404, conn);
 		closedir(directory);
 		return (true);
 	}
-	else if (tmpConfig.autoindex)
+	else if (conn.config.autoindex)
 	{
-		answerAutoindex(rootPath2, directory, dest_fd);
+		answerAutoindex(rootPath2, directory, conn.fd);
 		closedir(directory);
 		return (true);
 	}
-	else if (!tmpConfig.autoindex)
+	else if (!conn.config.autoindex)
 	{
 		closedir(directory);
-		directory = dirAnswer(rootPath2, NULL, dest_fd, tmpConfig);
+		directory = dirAnswer(rootPath2, NULL, conn);
 		closedir(directory);
 		return true;
 	}
 	else
 	{
-		defaultAnswerError(404, dest_fd, tmpConfig);
+		defaultAnswerError(404, conn);
 		return (true);
 	}
 	closedir(directory);
@@ -879,17 +890,17 @@ bool VirtServ::tryGetResource(std::string filename, t_config tmpConfig, int dest
 	altrimenti opera un crafting manuale delle stesse, per poi tornarle.
 */
 
-void VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
+void		VirtServ::defaultAnswerError(int err, t_connInfo conn)
 {
 	std::string tmpString;
 	std::stringstream convert;
 	std::ifstream file;
 
 	std::cout << "------DEFAULT ANSWER ERROR------\n";
-	if (tmpConfig.errorPages.size() && err != 500)
+	if (conn.config.errorPages.size() && err != 500)
 	{
 		convert << err;
-		for (std::vector<std::string>::iterator it = tmpConfig.errorPages.begin(); it != tmpConfig.errorPages.end(); it++)
+		for (std::vector<std::string>::iterator it = conn.config.errorPages.begin(); it != conn.config.errorPages.end(); it++)
 		{
 			if (!std::strncmp(convert.str().c_str(), (*it).c_str(), 3))
 			{
@@ -899,7 +910,7 @@ void VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 				if (!file)
 				{
 					file.close();
-					defaultAnswerError(500, dest_fd, tmpConfig);
+					defaultAnswerError(500, conn);
 					return;
 				}
 				break;
@@ -957,7 +968,7 @@ void VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 
 	if (err == 405)
 	{
-		for (std::vector<std::string>::iterator iter = tmpConfig.allowedMethods.begin(); iter != tmpConfig.allowedMethods.end(); iter++)
+		for (std::vector<std::string>::iterator iter = conn.config.allowedMethods.begin(); iter != conn.config.allowedMethods.end(); iter++)
 		{
 			if (findKey(_response.headers, "Allow")->second.length())
 				findKey(_response.headers, "Allow")->second += " " + *iter;
@@ -979,7 +990,7 @@ void VirtServ::defaultAnswerError(int err, int dest_fd, t_config tmpConfig)
 		tmpString += "\r\n" + _response.body + "\r\n";
 	else
 		tmpString += "\r\n";
-	send(dest_fd, tmpString.c_str(), tmpString.size(), 0);
+	send(conn.fd, tmpString.c_str(), tmpString.size(), 0);
 	std::cout << "SENT RESPONSE" << std::endl;
 	std::cout << tmpString << std::endl;
 }
@@ -1044,7 +1055,7 @@ std::string VirtServ::getDateTime()
 	Funzione di crafting manuale dell'autoindex, che ritorna al termine lo stesso autoindex;
 */
 
-void VirtServ::answerAutoindex(std::string fullPath, DIR *directory, int dest_fd)
+void		VirtServ::answerAutoindex(std::string fullPath, DIR *directory, int dest_fd)
 {
 	std::ostringstream convert;
 	struct dirent **store;
@@ -1086,6 +1097,7 @@ void VirtServ::answerAutoindex(std::string fullPath, DIR *directory, int dest_fd
 	output << _response.line << "\r" << std::endl;
 
 	findKey(_response.headers, "Content-Length")->second = tmpString;
+	findKey(_response.headers, "Connection")->second = "close";
 	findKey(_response.headers, "Date")->second = getDateTime();
 	findKey(_response.headers, "Content-Type")->second = "text/html";
 
@@ -1110,7 +1122,7 @@ void VirtServ::answerAutoindex(std::string fullPath, DIR *directory, int dest_fd
 	Funzione di default per rispondere al client con file specifico, trovato nella root del virtual server;
 */
 
-void VirtServ::answer(std::string fullPath, struct dirent *dirent, int dest_fd)
+void		VirtServ::answer(std::string fullPath, struct dirent *dirent, int dest_fd)
 {
 	std::cout << "------ANSWER------\n";
 	std::stringstream stream;
@@ -1127,7 +1139,7 @@ void VirtServ::answer(std::string fullPath, struct dirent *dirent, int dest_fd)
 		std::cout << "cannot read file" << std::endl;
 		return;
 	}
-	_response.line += "HTTP/1.1 200 OK";
+	_response.line = "HTTP/1.1 200 OK";
 	stream << resource.rdbuf();
 	if (!(strcmp(dirent->d_name, "youpi.bad_extension")))
 	{
@@ -1146,6 +1158,7 @@ void VirtServ::answer(std::string fullPath, struct dirent *dirent, int dest_fd)
 	else
 		(*iter2).second = "0";
 	findKey(_response.headers, "Content-Type")->second = defineFileType(dirent->d_name);
+	findKey(_response.headers, "Connection")->second = "close";
 	_response.body = tmpBody;
 
 	responseStream << _response.line << "\r" << std::endl;
@@ -1237,7 +1250,10 @@ t_location *VirtServ::searchLocationBlock(std::string method, std::string path, 
 
 	if (!ret)
 	{
-		defaultAnswerError(403, dest_fd, _config);
+		t_connInfo tmp;
+		tmp.fd = dest_fd;
+		tmp.config = _config;
+		defaultAnswerError(403, tmp);
 		return (NULL);
 	}
 	return (ret);
@@ -1365,7 +1381,7 @@ std::string VirtServ::defineFileType(char *filename)
 	return ("text/plain");
 }
 
-FILE* VirtServ::chunkEncoding(int fd)
+FILE*		VirtServ::chunkEncoding(int fd)
 {
 	FILE *ofs = NULL;
 	char buffer[2048] = {0};
@@ -1419,7 +1435,7 @@ FILE* VirtServ::chunkEncoding(int fd)
 	return ofs;
 }
 
-bool VirtServ::chunkEncodingCleaning(int fd)
+bool		VirtServ::chunkEncodingCleaning(int fd)
 {
 	char buffer[2048] = {0};
 	int dataRead = 0;
@@ -1470,13 +1486,13 @@ bool VirtServ::chunkEncodingCleaning(int fd)
 	return true;
 }
 
-int VirtServ::execPut(t_config conf, int fd)
+int			VirtServ::execPut(t_connInfo conn)
 {
 	std::cout << "------EXEC PUT------\n";
 	
 	if (findKey(_request.headers, "Transfer-Encoding")->second == "chunked") {
-		if (chunkEncoding(fd) != NULL) {
-			defaultAnswerError(201,fd, conf);
+		if (chunkEncoding(conn.fd) != NULL) {
+			defaultAnswerError(201, conn);
 			this->cleanRequest();
 			this->cleanResponse();
 		}
@@ -1485,7 +1501,7 @@ int VirtServ::execPut(t_config conf, int fd)
 	return 0;
 }
 
-FILE*	VirtServ::contentType(int fd)
+FILE*		VirtServ::contentType(int fd)
 {
 	std::string _boundary = findKey(_request.headers, "Content-Type")->second;
 	_boundary = _boundary.substr(_boundary.find_first_of("=") + 1, _boundary.find_last_of("\n") - 1);
@@ -1546,7 +1562,7 @@ FILE*	VirtServ::contentType(int fd)
 	return ofs;
 }
 
-int VirtServ::execPost(t_config conf, int fd)
+int			VirtServ::execPost(t_connInfo conn)
 {
 	std::cout << "------EXEC POST------\n";
 	if (_request.line.find(".bla HTTP/") != std::string::npos) {
@@ -1562,12 +1578,12 @@ int VirtServ::execPost(t_config conf, int fd)
 	}
 	else if (findKey(_request.headers, "Content-Type")->second != "") {
 		std::cout << "ENTRA\n";
-		contentType(fd);
+		contentType(conn.fd);
 		return 0;
 	}
-	if (conf.allowedMethods.size() && std::find(conf.allowedMethods.begin(), conf.allowedMethods.end(), "POST") == conf.allowedMethods.end())
+	if (conn.config.allowedMethods.size() && std::find(conn.config.allowedMethods.begin(), conn.config.allowedMethods.end(), "POST") == conn.config.allowedMethods.end())
 	{
-		defaultAnswerError(405, fd, conf);
+		defaultAnswerError(405, conn);
 		// if (chunkEncodingCleaning(fd) == true) {
 		// 	this->cleanRequest();
 		// 	this->cleanResponse();
@@ -1594,7 +1610,7 @@ int VirtServ::execPost(t_config conf, int fd)
 	static int c = 0;
 	while (1)
 	{
-		dataRead = recv(fd, buffer, sizeof buffer, 0);
+		dataRead = recv(conn.fd, buffer, sizeof buffer, 0);
 		if (dataRead <= 0)
 			break;
 		for (i = 0; i < dataRead; i++, c++)
@@ -1612,7 +1628,7 @@ int VirtServ::execPost(t_config conf, int fd)
 	else
 	{
 		memset(totalBuffer, 0, 8192);
-		defaultAnswerError(205, fd, _config);
+		defaultAnswerError(205, conn);
 		return 0;
 	}
 	filename = filename.substr(filename.find_first_of("\"") + 1, filename.find_first_of("\n"));
@@ -1621,7 +1637,7 @@ int VirtServ::execPost(t_config conf, int fd)
 	{
 		fclose(file);
 		memset(totalBuffer, 0, 8192);
-		defaultAnswerError(202, fd, _config);
+		defaultAnswerError(202, conn);
 		return 1;
 	}
 	ofs = fopen(filename.c_str(), "wb");
@@ -1638,21 +1654,21 @@ int VirtServ::execPost(t_config conf, int fd)
 		fwrite(totalBuffer + (i + 4), 1, 8129 - (cmp.size() + 3) - (i + 4), ofs);
 		std::cout << "Save file: " << filename << std::endl;
 		fclose(ofs);
-		defaultAnswerError(201, fd, _config);
+		defaultAnswerError(201, conn);
 		memset(totalBuffer, 0, 8192);
 		return true;
 	}
 	return false;
 }
 
-char* VirtServ::recv_timeout(t_connInfo & info)
+char*		VirtServ::recv_timeout(t_connInfo & info)
 {
 	int size_recv , total_size= 0;
 	struct timeval begin , now;
 	char *chunk = (char *)malloc(sizeof(char) * info.chunk_size);
 	double timediff;
 	
-	fcntl(info.connfd, F_SETFL, O_NONBLOCK);
+	fcntl(info.fd, F_SETFL, O_NONBLOCK);
 	gettimeofday(&begin , NULL);
 	while(total_size < info.chunk_size)
 	{
@@ -1665,7 +1681,7 @@ char* VirtServ::recv_timeout(t_connInfo & info)
 		//if you got no data at all, wait a little longer, twice the timeout
 		else if( timediff > 4)
 			break;
-		if((size_recv =  recv(info.connfd , chunk + total_size, info.chunk_size - total_size, 0) ) < 0)
+		if((size_recv =  recv(info.fd , chunk + total_size, info.chunk_size - total_size, 0) ) < 0)
 			usleep(100000);
 		else
 		{

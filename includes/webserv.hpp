@@ -129,10 +129,10 @@ typedef struct	s_response
 
 typedef struct	s_connInfo
 {
-	int			connfd;
+	int			fd;
 	char		buffer[1024];
 	int			idx;
-	t_config	tmpConfig;
+	t_config	config;
 	int			chunk_size;
 	t_request	request;
 	char		body[2048];
@@ -142,7 +142,7 @@ typedef struct	s_connInfo
 		memset(this->buffer, '\0', 1024);
 		memset(this->body, '\0', 2048);
 	};
-	s_connInfo(int i) : connfd(i), idx(0), chunk_size(-1) {
+	s_connInfo(int i) : fd(i), idx(0), chunk_size(-1) {
 		memset(this->buffer, '\0', 1024);
 		memset(this->body, '\0', 2048);
 	};
