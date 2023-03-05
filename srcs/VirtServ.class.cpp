@@ -342,6 +342,14 @@ int VirtServ::handleClient(int fd)
 	{
 		std::cout << "This is POST" << std::endl;
 		execPost(*it);
+		_connections.erase(it);
+		return (1);
+	}
+	else if (it->request.method == "PUT")
+	{
+		std::cout << "This is PUT" << std::endl;
+		execPut(*it);
+		_connections.erase(it);
 		return (1);
 	}
 	
@@ -1141,11 +1149,11 @@ void		VirtServ::answer(std::string fullPath, struct dirent *dirent, int dest_fd)
 	}
 	_response.line = "HTTP/1.1 200 OK";
 	stream << resource.rdbuf();
-	if (!(strcmp(dirent->d_name, "youpi.bad_extension")))
-	{
-		std::ifstream tmp("fake_site/YoupiBanane/nop/youpi.bad_extension");
-		stream << tmp.rdbuf();
-	}
+	// if (!(strcmp(dirent->d_name, "youpi.bad_extension")))
+	// {
+	// 	std::ifstream tmp("fake_site/YoupiBanane/nop/youpi.bad_extension");
+	// 	stream << tmp.rdbuf();
+	// }
 	tmpBody = stream.str();
 	stream.str("");
 	std::vector<std::pair<std::string, std::string> >::iterator iter2 = findKey(_response.headers, "Content-Length");
