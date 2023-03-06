@@ -36,8 +36,8 @@ VirtServ::~VirtServ() { _connections.clear(); }
 
 //////// Getters & Setters ///////////////////////////////////
 
-int VirtServ::getSocket() { return (_sockfd); }
-t_config VirtServ::getConfig() const { return _config; }
+int			VirtServ::getSocket() { return (_sockfd); }
+t_config	VirtServ::getConfig() const { return _config; }
 
 //////// Main Functions //////////////////////////////////////
 
@@ -45,7 +45,7 @@ t_config VirtServ::getConfig() const { return _config; }
 	Inizializza il socket, lo setta come non-blocking, lo binda e lo mette in listen per massimo 10 client;
 */
 
-bool VirtServ::startServer()
+bool		VirtServ::startServer()
 {
 	int i = 1;
 
@@ -65,7 +65,7 @@ bool VirtServ::startServer()
 	Fa il clear del vettore delle connessioni e chiude il socket;
 */
 
-bool VirtServ::stopServer()
+bool		VirtServ::stopServer()
 {
 	_connections.clear();
 	if (close(_sockfd))
@@ -77,7 +77,7 @@ bool VirtServ::stopServer()
 	Dopo poll, accetta la connessione del client e la salva nel vettore delle connessioni del server. Ritorna il valore dell'fd della connessione;
 */
 
-int VirtServ::acceptConnectionAddFd(int sockfd)
+int			VirtServ::acceptConnectionAddFd(int sockfd)
 {
 	socklen_t addrlen;
 	struct sockaddr_storage remoteaddr;
@@ -107,7 +107,9 @@ int VirtServ::acceptConnectionAddFd(int sockfd)
 		- chiude la connessione e libera il valore nel vettore delle connessioni;
 */
 
-std::vector<t_connInfo>::iterator	VirtServ::findFd(std::vector<t_connInfo>::iterator begin, std::vector<t_connInfo>::iterator end, int fd)
+typedef std::vector<t_connInfo>::iterator	connIter;
+
+connIter	VirtServ::findFd(std::vector<t_connInfo>::iterator begin, std::vector<t_connInfo>::iterator end, int fd)
 {
 	while (begin != end)
 	{
@@ -155,7 +157,6 @@ t_config	VirtServ::getConfig(t_location* loc, int connfd, std::string path)
 		}
 		case 1:
 		{
-			std::cout << "------CASE 1------\n";
 			if (!value.compare("on"))
 				ret.autoindex = true;
 			else if (!value.compare("off"))
@@ -166,8 +167,6 @@ t_config	VirtServ::getConfig(t_location* loc, int connfd, std::string path)
 		}
 		case 2:
 		{
-			// sistemare questo caso
-			std::cout << "------CASE 2------\n";
 			ret.index.clear();
 			while (value.find_first_not_of(" \n\t") != std::string::npos)
 			{
@@ -179,8 +178,6 @@ t_config	VirtServ::getConfig(t_location* loc, int connfd, std::string path)
 		}
 		case 3:
 		{
-			// error_page
-			std::cout << "------CASE 3------\n";
 			ret.errorPages.clear();
 			while (value.find_first_not_of(" \n\t") != std::string::npos)
 			{
@@ -194,19 +191,16 @@ t_config	VirtServ::getConfig(t_location* loc, int connfd, std::string path)
 		}
 		case 4:
 		{
-			std::cout << "------CHECK CLIENT BODY MAX SIZE------\n";
 			Parser::checkClientBodyMaxSize(value, ret);
 			break;
 		}
 		case 5:
 		{
-			std::cout << "------INSERT METHOD------\n";
 			insertMethod(ret, value);
 			break;
 		}
 		case 6:
 		{
-			std::cout << "------TRY FILES------\n";
 			if (saveFiles(value, ret, connfd)) {
 				delete loc;
 				return (ret);
@@ -215,7 +209,6 @@ t_config	VirtServ::getConfig(t_location* loc, int connfd, std::string path)
 		}
 		case 7:
 		{
-			std::cout << "------CHECK AND REDIRECT------\n";
 			checkAndRedirect(value, connfd);
 			delete loc;
 			return (ret);
@@ -230,7 +223,7 @@ t_config	VirtServ::getConfig(t_location* loc, int connfd, std::string path)
 	return (ret);
 }
 
-bool	VirtServ::saveFiles(std::string value, t_config & ret, int connfd)
+bool		VirtServ::saveFiles(std::string value, t_config & ret, int connfd)
 {
 	std::string defaultFile;
 
@@ -252,7 +245,7 @@ bool	VirtServ::saveFiles(std::string value, t_config & ret, int connfd)
 	return true;
 }
 
-int VirtServ::handleClient(int fd)
+int			VirtServ::handleClient(int fd)
 {
 	std::vector<t_connInfo>::iterator it = findFd(_connections.begin(), _connections.end(), fd);
 	if (it == _connections.end())
@@ -360,7 +353,7 @@ int VirtServ::handleClient(int fd)
 	Pulisce la variabile privata _request;
 */
 
-void VirtServ::cleanRequest()
+void		VirtServ::cleanRequest()
 {
 	_request.line = "";
 	_request.body = "";
@@ -375,7 +368,7 @@ void VirtServ::cleanRequest()
 	Pulisce la variabile privata _response;
 */
 
-void VirtServ::cleanResponse()
+void		VirtServ::cleanResponse()
 {
 	_response.line = "";
 	_response.body = "";
@@ -389,7 +382,7 @@ void VirtServ::cleanResponse()
 	Parsing della richiesta letta dal client;
 */
 
-int VirtServ::readRequest(std::string req)
+int			VirtServ::readRequest(std::string req)
 {
 	std::string key;
 	std::vector<std::pair<std::string, std::string> >::iterator header;
@@ -441,8 +434,6 @@ int VirtServ::readRequest(std::string req)
 	{
 		return (1);
 	}
-	// Check request parsed
-	std::cout << "REQUEST LINE " + _request.line << std::endl;
 	std::vector<std::pair<std::string, std::string> >::iterator iter = _request.headers.begin();
 	while (iter != _request.headers.end())
 	{
@@ -457,7 +448,7 @@ int VirtServ::readRequest(std::string req)
 	Cerca il location block corretto nella configurazione del virtual server e lancia la funzione executeLocationRules;
 */
 
-t_config VirtServ::elaborateRequest(int dest_fd)
+t_config	VirtServ::elaborateRequest(int dest_fd)
 {
 	std::string path;
 	t_location *location;
@@ -485,7 +476,7 @@ t_config VirtServ::elaborateRequest(int dest_fd)
 	Elabora il location block implementando le diverse configurazioni espresse nel location block, andando a cercare quando deve il file.
 */
 
-t_config VirtServ::executeLocationRules(std::string locationName, std::string text, int dest_fd)
+t_config	VirtServ::executeLocationRules(std::string locationName, std::string text, int dest_fd)
 {
 	t_config tmpConfig(_config);
 	std::string line;
@@ -494,7 +485,6 @@ t_config VirtServ::executeLocationRules(std::string locationName, std::string te
 	std::string toCompare[8] = {"root", "autoindex", "index", "error_page", "client_max_body_sizes", "allowed_methods", "try_files", "return"};
 	int i;
 
-	std::cout << "EXECUTE LOCATION RULES\n";
 	while (text.find_first_not_of(" \t\r\n") != std::string::npos)
 	{
 		line = text.substr(0, text.find("\n"));
@@ -590,7 +580,7 @@ t_config VirtServ::executeLocationRules(std::string locationName, std::string te
 	Handle redirection
 */
 
-void VirtServ::checkAndRedirect(std::string value, int dest_fd)
+void		VirtServ::checkAndRedirect(std::string value, int dest_fd)
 {
 	std::string code;
 	std::string phrase;
@@ -648,7 +638,7 @@ void VirtServ::checkAndRedirect(std::string value, int dest_fd)
 	Parsing del location block:> modifica dei metodi permessi.
 */
 
-void VirtServ::insertMethod(t_config &tmpConfig, std::string value)
+void		VirtServ::insertMethod(t_config &tmpConfig, std::string value)
 {
 	std::string methods[4] = {"GET", "POST", "DELETE", "PUT"};
 	std::string tmp;
@@ -678,7 +668,7 @@ void VirtServ::insertMethod(t_config &tmpConfig, std::string value)
 	Parsing del location block:> effettiva ricerca del file con try_file.
 */
 
-void VirtServ::tryFiles(std::string value, t_connInfo conn)
+void		VirtServ::tryFiles(std::string value, t_connInfo conn)
 {
 	std::vector<std::string>	files;
 	std::string					defaultFile;
@@ -711,7 +701,7 @@ void VirtServ::tryFiles(std::string value, t_connInfo conn)
 									 se l'autoindex è su on, ritorna l'autoindex della cartella.
 */
 
-DIR *VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, t_connInfo conn)
+DIR*		VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, t_connInfo conn)
 {
 	std::cout << "------DIR ANSWER------\n";
 	DIR *dir;
@@ -732,8 +722,6 @@ DIR *VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, t_connInfo
 			{
 				if (!(std::strcmp(tmp->d_name, (*it).c_str())))
 				{
-					std::cout << "PATH " << path << std::endl;
-					std::cout << "TMP->DIR NAME " << tmp->d_name << std::endl;
 					answer(path, tmp, conn.fd);
 					return dir;
 				}
@@ -904,7 +892,6 @@ void		VirtServ::defaultAnswerError(int err, t_connInfo conn)
 	std::stringstream convert;
 	std::ifstream file;
 
-	std::cout << "------DEFAULT ANSWER ERROR------\n";
 	if (conn.config.errorPages.size() && err != 500)
 	{
 		convert << err;
@@ -987,6 +974,7 @@ void		VirtServ::defaultAnswerError(int err, t_connInfo conn)
 
 	tmpString = _response.line + "\r\n";
 	std::vector<std::pair<std::string, std::string> >::iterator iter = _response.headers.begin();
+	findKey(_response.headers, "Connection")->second = "close";
 
 	while (iter != _response.headers.end())
 	{
@@ -1007,7 +995,9 @@ void		VirtServ::defaultAnswerError(int err, t_connInfo conn)
 	Funzione di lettura e riempimento in struttura dei file letti all'interno di una directory;
 */
 
-struct dirent **VirtServ::fill_dirent(DIR *directory, std::string path)
+typedef struct dirent s_dirent;
+
+s_dirent**	VirtServ::fill_dirent(DIR *directory, std::string path)
 {
 	struct dirent **ret;
 	struct dirent *tmp;
@@ -1149,11 +1139,6 @@ void		VirtServ::answer(std::string fullPath, struct dirent *dirent, int dest_fd)
 	}
 	_response.line = "HTTP/1.1 200 OK";
 	stream << resource.rdbuf();
-	// if (!(strcmp(dirent->d_name, "youpi.bad_extension")))
-	// {
-	// 	std::ifstream tmp("fake_site/YoupiBanane/nop/youpi.bad_extension");
-	// 	stream << tmp.rdbuf();
-	// }
 	tmpBody = stream.str();
 	stream.str("");
 	std::vector<std::pair<std::string, std::string> >::iterator iter2 = findKey(_response.headers, "Content-Length");
@@ -1204,7 +1189,7 @@ void		VirtServ::answer(std::string fullPath, struct dirent *dirent, int dest_fd)
 	std::cout << responseString << std::endl;
 }
 
-t_location *VirtServ::searchLocationBlock(std::string method, std::string path, int dest_fd)
+t_location*	VirtServ::searchLocationBlock(std::string method, std::string path, int dest_fd)
 {
 	std::vector<t_location>::iterator iter = _config.locationRules.begin();
 	t_location *ret = NULL;
@@ -1290,7 +1275,9 @@ t_location* VirtServ::interpretLocationBlock(t_location *location, std::string p
 	Find function translated for vector
 */
 
-std::vector<std::pair<std::string, std::string> >::iterator VirtServ::findKey(std::vector<std::pair<std::string, std::string> > &vector, std::string key)
+typedef std::vector<std::pair<std::string, std::string> >::iterator keyIter;
+
+keyIter		VirtServ::findKey(std::vector<std::pair<std::string, std::string> > &vector, std::string key)
 {
 	std::vector<std::pair<std::string, std::string> >::iterator iter = vector.begin();
 
@@ -1582,7 +1569,6 @@ int			VirtServ::execPost(t_connInfo conn)
 	if (findKey(_request.headers, "Transfer-Encoding")->second == "chunked")
 	{
 		std::cout << "BOdy " << _request.body << std::endl;
-		
 	}
 	else if (findKey(_request.headers, "Content-Type")->second != "") {
 		std::cout << "ENTRA\n";
