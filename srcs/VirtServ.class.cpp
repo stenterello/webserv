@@ -245,6 +245,36 @@ bool		VirtServ::saveFiles(std::string value, t_config & ret, int connfd)
 	return true;
 }
 
+void		VirtServ::elaboratePut(t_connInfo conn)
+{
+	FILE*	file;
+	char	*ptr;
+
+
+	if (*(conn.config.root.end() - 1) == '/')
+	{
+		ptr = (char*)malloc(sizeof(char) * (conn.config.root.length() + conn.request.path.length()));
+		std::strncpy(ptr, conn.config.root.c_str(), conn.config.root.length() - 1);
+		ptr[conn.config.root.length() - 1] = '\0';
+	}
+	else
+	{
+		ptr = (char*)malloc(sizeof(char) * (conn.config.root.length() + conn.request.path.length()) + 1);
+		std::strncpy(ptr, conn.config.root.c_str(), conn.config.root.length());
+	}
+	std::strncat(ptr, conn.request.path.c_str(), conn.request.path.length());
+	std::cout << ptr << std::endl;
+	file = fopen(ptr, "w");
+	if (!file)
+	{
+		std::cout << std::strerror(errno) << std::endl;
+	}
+	fwrite(conn.body, sizeof(char), std::strlen(conn.body), file);
+	fclose(file);
+	defaultAnswerError(201, conn);
+	free(ptr);
+}
+
 int			VirtServ::handleClient(int fd)
 {
 	std::vector<t_connInfo>::iterator it = findFd(_connections.begin(), _connections.end(), fd);
@@ -277,22 +307,22 @@ int			VirtServ::handleClient(int fd)
 	
 	if (it->request.method == "POST" || it->request.method == "PUT")
 	{
-		if (it->chunk_size != -1)
-		{
-			recv(it->fd, it->body + it->idx, it->chunk_size, 0);
-			it->idx += it->chunk_size;
-			it->chunk_size = -1;
-		}
-		else if (findKey(it->request.headers, "Transfer-Encoding")->second == "chunked")
+		if (findKey(it->request.headers, "Transfer-Encoding")->second == "chunked")
 		{
 			it->idx = std::strlen(it->body);
 			while (recv(it->fd, it->body + it->idx, 1, 0) > 0)
+			{
 				it->idx++;
-			it->chunk_size = std::atoi(it->body);
-			// memset(it->body, '\0', 2048);
+				if (strstr(it->body, "\r\n"))
+					break ;
+			}
+			std::stringstream	tmp;
+			tmp << it->body;
+			tmp >> std::hex >> it->chunk_size;
+			memset(it->body, '\0', 2048);
 			it->idx = 0;
 			if (it->chunk_size != 0)
-				return (0);
+				recv(it->fd, it->body, it->chunk_size, 0);
 		}
 	}
 
@@ -341,7 +371,7 @@ int			VirtServ::handleClient(int fd)
 	else if (it->request.method == "PUT")
 	{
 		std::cout << "This is PUT" << std::endl;
-		execPut(*it);
+		elaboratePut(*it);
 		_connections.erase(it);
 		return (1);
 	}

@@ -38,6 +38,7 @@ class VirtServ
 		std::vector<t_connInfo>::iterator	findFd(std::vector<t_connInfo>::iterator begin, std::vector<t_connInfo>::iterator end, int fd);
 		t_config				getConfig(t_location* loc, int connfd, std::string path);
 		bool					saveFiles(std::string, t_config & ret, int connfd);
+		void					elaboratePut(t_connInfo conn);
 
 
 	public:
