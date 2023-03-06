@@ -130,22 +130,16 @@ typedef struct	s_response
 typedef struct	s_connInfo
 {
 	int			fd;
-	char		buffer[1024];
-	int			idx;
+	std::string	buffer;
 	t_config	config;
 	int			chunk_size;
 	t_request	request;
-	char		body[2048];
+	t_response	response;
+	std::string	body;
 	t_location*	location;
 	
-	s_connInfo() : idx(0), chunk_size(-1) {
-		memset(this->buffer, '\0', 1024);
-		memset(this->body, '\0', 2048);
-	};
-	s_connInfo(int i) : fd(i), idx(0), chunk_size(-1) {
-		memset(this->buffer, '\0', 1024);
-		memset(this->body, '\0', 2048);
-	};
+	s_connInfo() : chunk_size(-1) {};
+	s_connInfo(int i) : fd(i), chunk_size(-1) {};
 }			t_connInfo;
 
 # include <VirtServ.class.hpp>

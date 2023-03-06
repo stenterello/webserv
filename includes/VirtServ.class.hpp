@@ -16,29 +16,25 @@ class VirtServ
 		socklen_t				_size;
 		int						_sockfd;
 		std::vector<t_connInfo>	_connections;
-		t_request				_request;
-		t_response				_response;
 		bool					startServer();
 		bool					stopServer();
-		t_location*				searchLocationBlock(std::string method, std::string path, int dest_fd);
+		t_location*				searchLocationBlock(t_connInfo & info);
 		t_location*				interpretLocationBlock(t_location* location, std::string path);
-		t_config				executeLocationRules(std::string locationName, std::string text, int dest_fd);
 		void					insertMethod(t_config & tmpConfig, std::string value);
-		void					tryFiles(std::string value, t_connInfo conn);
+		void					tryFiles(t_connInfo conn);
 		bool					tryGetResource(std::string filename, t_connInfo conn);
-		void					answer(std::string fullPath, struct dirent* dirent, int dest_fd);
-		void					answerAutoindex(std::string fullPath, DIR* directory, int dest_fd);
+		void					answer(std::string fullPath, struct dirent* dirent, t_connInfo conn);
+		void					answerAutoindex(std::string fullPath, DIR* directory, t_connInfo conn);
 		void					defaultAnswerError(int err, t_connInfo conn);
 		struct dirent**			fill_dirent(DIR* directory, std::string path);
 		DIR*					dirAnswer(std::string fullPath, struct dirent* dirent, t_connInfo conn);
 		std::string				getDateTime();
 		iterator				findKey(std::vector<std::pair<std::string, std::string> > & vector, std::string key);
 		std::string				defineFileType(char* filename);
-		void					checkAndRedirect(std::string value, int dest_fd);
+		void					checkAndRedirect(std::string value, t_connInfo conn);
 		std::vector<t_connInfo>::iterator	findFd(std::vector<t_connInfo>::iterator begin, std::vector<t_connInfo>::iterator end, int fd);
-		t_config				getConfig(t_location* loc, int connfd, std::string path);
-		bool					saveFiles(std::string, t_config & ret, int connfd);
-		void					elaboratePut(t_connInfo conn);
+		t_config				getConfig(t_connInfo & conn);
+		bool					saveFiles(std::string, t_config & ret, t_connInfo & conn);
 
 
 	public:
@@ -52,22 +48,21 @@ class VirtServ
 		std::vector<int>		getConnfd();
 		
 		// Communication Functions
-		void					cleanRequest();
-		void					cleanResponse();
-		int						readRequest(std::string req);
-		t_config				elaborateRequest(int dest_fd);
+		int						readRequest(t_connInfo & conn, std::string req);
 		int						acceptConnectionAddFd(int sockfd);
 		int						handleClient(int fd);
 
-		int						execPost(t_connInfo conn);
-		int						execPut(t_connInfo conn);
+		int						execPost(t_connInfo & conn);
+		int						execPut(t_connInfo & conn);
+		int						execGet(t_connInfo & conn);
+		int						execHead(t_connInfo & conn);
 		
 		int 					keepConnectionAlive(int fd);
 		int						launchCGI();
 		// upload functions
-		FILE*					contentType(int fd);
-		FILE*					chunkEncoding(int fd);
-		bool					chunkEncodingCleaning(int fd);
+		bool					contentType(t_connInfo & conn);
+		bool					chunkEncoding(t_connInfo & conn);
+		int						chunkEncodingCleaning(t_connInfo & conn);
 		
 		char*					recv_timeout(t_connInfo & info); // recv with gettimeofday prototype
 };
