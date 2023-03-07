@@ -280,6 +280,7 @@ int			VirtServ::handleClient(int fd)
 			_connections.erase(it);
 			return (1);
 		}
+        it->buffer.clear();
 	}
 
 	int (VirtServ::*execMethod[])(t_connInfo & info) = {&VirtServ::execGet, &VirtServ::execHead, &VirtServ::execPost, &VirtServ::execPut};
@@ -288,7 +289,7 @@ int			VirtServ::handleClient(int fd)
 		if (method[i] == it->request.method) {
 			if ((this->*execMethod[i])(*it) == 1) {
 				delete it->location;
-				it->request.method = "";
+				it->request.method.clear();
 				return 0;
 				}
 			}
@@ -835,7 +836,7 @@ void		VirtServ::answerAutoindex(std::string fullPath, DIR *directory, t_connInfo
 			conn.response.body += "<a href=\"" + name + "\">" + name + "</a>";
 			if (std::strncmp("../\0", name.c_str(), 4))
 			{
-				tmpString = std::string(ctime(&attr.st_mtime)).substr(0, std::string(ctime(&attr.st_mtime)).length() - 1);
+				// tmpString = std::string(ctime(&attr.st_mtime)).substr(0, std::string(ctime(&attr.st_mtime)).length() - 1);
 				conn.response.body.append(52 - static_cast<int>(name.length()), ' ');
 				conn.response.body += tmpString;
 				conn.response.body.append(21 - convert.width(), ' ');
@@ -1156,10 +1157,12 @@ int			VirtServ::execPut(t_connInfo & conn)
 	std::cout << "------EXEC PUT------\n";
 	
 	if (findKey(conn.request.headers, "Transfer-Encoding")->second == "chunked") {
-		if (chunkEncoding(conn)) {
+		if (chunkEncoding(conn) == 1) {
 			defaultAnswerError(201,conn);
 			return 1;
 		}
+		else
+			return 0;
 	}
 	return 0;
 }
@@ -1189,58 +1192,60 @@ int			VirtServ::execPost(t_connInfo & conn)
 bool		VirtServ::chunkEncoding(t_connInfo & conn)
 {
 	FILE *ofs = NULL;
-	char buffer[2048] = {0};
 	int dataRead = 0;
 	int totalRead = 0;
 
 	//// Gestire il caso in cui la request.line sia un'alias nel file di configurazione
-	conn.body.copy(buffer, conn.body.size());
-	totalRead = conn.body.size();
 	std::string filename = conn.config.root;
 	if (*(filename.end() - 1) != '/')
 		filename.append("/");
-	filename.append(conn.request.line.substr(0, conn.request.line.find_first_of(" ")));
-	ofs = fopen(filename.c_str(), "wba+");
-	int chunk_size = -1;
-	while (1){
-		while (chunk_size < 0) {
-			dataRead = recv(conn.fd, buffer + totalRead, 1, 0);
-			if (dataRead <= 0) {
-				perror ("recv");
-				return false;
-			}
-			totalRead += dataRead;
-			if ((strstr(buffer, "\r\n"))) {
-				chunk_size = strtoul(buffer, NULL, 16);
-				totalRead = 0;
-				memset(buffer, 0, 2048);
-			}
+	filename.append(conn.request.line.substr(1, conn.request.line.find_first_of(" ")));
+	if (conn.chunk_size < 0) {
+		char buffer[2048] = {0};
+		dataRead = recv(conn.fd, buffer, 1, 0);
+		if (dataRead <= 0) {
+			perror ("recv");
+			exit (0);
+			return 1;
 		}
-		if (chunk_size > 0)
-		{
-			char chunk[chunk_size];
-			while (totalRead < chunk_size) {
-				if ((dataRead = recv(conn.fd, chunk + totalRead, chunk_size - totalRead, MSG_DONTWAIT)) < 0)
-					usleep(10000);
-				if (dataRead > 0)
-					totalRead += dataRead;
-			}
-			for (int i = 0; i < totalRead; i++)
-				fwrite(chunk + i, 1, sizeof((*chunk)), ofs);
-			memset(chunk, 0, dataRead);
-			dataRead = recv(conn.fd, chunk, 2, 0);
-			chunk_size = -1;
-			totalRead = 0;
+		conn.buffer.append(buffer);
+		if (conn.buffer.find("\r\n") != conn.buffer.npos) {
+			std::cout << "CONN.buffer " + conn.buffer << std::endl;
+            conn.chunk_size = strtoul(conn.buffer.c_str(), NULL, 16);
+			std::cout << "CHUNK SIZE " << conn.chunk_size << std::endl;
+			conn.buffer.clear();
 		}
-		else if (chunk_size == 0) {
-			char chunk[4];
-			recv(conn.fd, chunk, sizeof chunk, 0);
-			chunk_size = -1;
-			break;
-		}
+		return 0;
 	}
-	fclose(ofs);
-	return true;
+	else if (conn.chunk_size > 0)
+	{
+		// ofs = fopen(filename.c_str(), "ab+");
+		char buffer[conn.chunk_size] = {0};
+		while (totalRead < conn.chunk_size) {
+			if ((dataRead = recv(conn.fd, buffer, conn.chunk_size - totalRead, MSG_DONTWAIT)) < 0)
+				usleep(10000);
+			if (dataRead > 0)
+				totalRead += dataRead;
+		}
+		conn.body.append(buffer);
+		// for (int i = 0; i < totalRead; i++)
+		// 	fwrite(buffer + i, 1, sizeof((*buffer)), ofs);
+		dataRead = recv(conn.fd, buffer, 2, 0);
+		conn.chunk_size = -1;
+		// fclose(ofs);
+	}
+	else if (conn.chunk_size == 0) {
+		char chunk[4];
+		recv(conn.fd, chunk, sizeof chunk, 0);
+		conn.chunk_size = -1;
+		ofs = fopen(filename.c_str(), "wb+");
+		for (size_t i = 0; i < conn.body.size(); i++)
+			fwrite(&conn.body.at(i), 1, sizeof(char), ofs);
+		fclose(ofs);
+		conn.body.clear();
+		return 1;
+	}
+	return 0;
 }
 
 int			VirtServ::chunkEncodingCleaning(t_connInfo & conn)
