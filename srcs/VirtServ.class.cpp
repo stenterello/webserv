@@ -1161,8 +1161,6 @@ int			VirtServ::execPut(t_connInfo & conn)
 			defaultAnswerError(201,conn);
 			return 1;
 		}
-		else
-			return 0;
 	}
 	return 0;
 }
@@ -1179,12 +1177,17 @@ int			VirtServ::execPost(t_connInfo & conn)
 	}
 	if (conn.config.allowedMethods.size() && std::find(conn.config.allowedMethods.begin(), conn.config.allowedMethods.end(), "POST") == conn.config.allowedMethods.end())
 	{
-		chunkEncodingCleaning(conn);
-		defaultAnswerError(405, conn);
-		return 1;
+		if (chunkEncodingCleaning(conn) == 1) {
+			defaultAnswerError(405, conn);
+			return 1;
+		}
+		return 0;
 	}
 	if (findKey(conn.request.headers, "Content-Type")->second != "") {
-		return contentType(conn);
+		if (contentType(conn) == 1) {
+			defaultAnswerError(201,conn);
+			return 1;
+		}
 	}
 	return 0;
 }
@@ -1205,21 +1208,17 @@ bool		VirtServ::chunkEncoding(t_connInfo & conn)
 		dataRead = recv(conn.fd, buffer, 1, 0);
 		if (dataRead <= 0) {
 			perror ("recv");
-			exit (0);
 			return 1;
 		}
 		conn.buffer.append(buffer);
 		if (conn.buffer.find("\r\n") != conn.buffer.npos) {
-			std::cout << "CONN.buffer " + conn.buffer << std::endl;
             conn.chunk_size = strtoul(conn.buffer.c_str(), NULL, 16);
-			std::cout << "CHUNK SIZE " << conn.chunk_size << std::endl;
 			conn.buffer.clear();
 		}
 		return 0;
 	}
 	else if (conn.chunk_size > 0)
 	{
-		// ofs = fopen(filename.c_str(), "ab+");
 		char buffer[conn.chunk_size] = {0};
 		while (totalRead < conn.chunk_size) {
 			if ((dataRead = recv(conn.fd, buffer, conn.chunk_size - totalRead, MSG_DONTWAIT)) < 0)
@@ -1228,11 +1227,8 @@ bool		VirtServ::chunkEncoding(t_connInfo & conn)
 				totalRead += dataRead;
 		}
 		conn.body.append(buffer);
-		// for (int i = 0; i < totalRead; i++)
-		// 	fwrite(buffer + i, 1, sizeof((*buffer)), ofs);
 		dataRead = recv(conn.fd, buffer, 2, 0);
 		conn.chunk_size = -1;
-		// fclose(ofs);
 	}
 	else if (conn.chunk_size == 0) {
 		char chunk[4];
@@ -1250,110 +1246,67 @@ bool		VirtServ::chunkEncoding(t_connInfo & conn)
 
 int			VirtServ::chunkEncodingCleaning(t_connInfo & conn)
 {
-	char buffer[2048] = {0};
 	int dataRead = 0;
 	int totalRead = 0;
-	int chunk_size = -1;
 
-	conn.body.copy(buffer, conn.body.size());
-	totalRead = conn.body.size();
-	while (1){
-		while (chunk_size < 0) {
-			if ((strstr(buffer, "\r\n\r\n")))
-				return 1;
-			else if ((strstr(buffer, "\r\n"))) {
-				chunk_size = strtoul(buffer, NULL, 16);
-				if (chunk_size != 0) {
-					totalRead = 0;
-					memset(buffer, 0, 2048);
-				}
-			}
-			if ((dataRead = recv(conn.fd, buffer + totalRead, 1, 0)) < 0)
-				usleep(10000);
-			if (dataRead > 0)
-				totalRead += dataRead;
+	if (conn.chunk_size < 0) {
+		char buffer[2048] = {0};
+		dataRead = recv(conn.fd, buffer, 1, 0);
+		if (dataRead <= 0) {
+			perror ("recv");
+			return 1;
 		}
-		if (chunk_size > 0)
-		{
-			char chunk[chunk_size];
-			while (totalRead < chunk_size) {
-				if ((dataRead = recv(conn.fd, chunk, chunk_size - totalRead, MSG_DONTWAIT)) < 0)
-					usleep(10000);
-				if (dataRead > 0) 
-					totalRead += dataRead;
-			}
-			memset(chunk, 0, dataRead);
-			dataRead = recv(conn.fd, chunk, 2, 0);
-			chunk_size = -1;
-			totalRead = 0;
+		conn.buffer.append(buffer);
+		if (conn.buffer.find("\r\n") != conn.buffer.npos) {
+            conn.chunk_size = strtoul(conn.buffer.c_str(), NULL, 16);
+			conn.buffer.clear();
 		}
-		else if (chunk_size == 0) {
-			printf("CHUNK SIZE = 0\n");
-			printf("BUFFER \n%s\n", buffer);
-			if (strstr(buffer, "\r\n\r\n"))
-				break;
-			while ((dataRead = recv(conn.fd, buffer + totalRead, 1, 0)) < 0)
-				usleep(10000);
-			if (dataRead > 0)
-				totalRead += dataRead;
-			printf("BUFFER \n%s\n", buffer);
-		}
+		return 0;
 	}
-	chunk_size = -1;
-	return 1;
+	else if (conn.chunk_size > 0)
+	{
+		char buffer[conn.chunk_size] = {0};
+		while (totalRead < conn.chunk_size) {
+			if ((dataRead = recv(conn.fd, buffer, conn.chunk_size - totalRead, MSG_DONTWAIT)) < 0)
+				usleep(10000);
+			if (dataRead > 0)
+				totalRead += dataRead;
+		}
+		dataRead = recv(conn.fd, buffer, 2, 0);
+		conn.chunk_size = -1;
+	}
+	else if (conn.chunk_size == 0) {
+		char chunk[4];
+		recv(conn.fd, chunk, sizeof chunk, 0);
+		conn.chunk_size = -1;
+		return 1;
+	}
+	return 0;
 }
 
 bool		VirtServ::contentType(t_connInfo & conn)
 {
 	std::string _boundary = findKey(conn.request.headers, "Content-Type")->second;
 	_boundary = _boundary.substr(_boundary.find_first_of("=") + 1, _boundary.find_last_of("\n") - 1);
-	std::cout << "BOUNDARY " + _boundary << std::endl;
-	char read[2048] = {0};
-	int dataRead = 0;
-	int totalRead = 0;
-	while (1) {
-		if ((dataRead = recv(conn.fd, read + totalRead, 1, MSG_DONTWAIT)) < 0)
-			usleep(10000);
-		if (dataRead > 0) {
-			totalRead += dataRead;
-			if (strstr(read, "\r\n\r\n") != NULL) {
-				break;
-			}
-		}
-	}
-	std::string buffer;
-	std::string filename = read;
-	filename = filename.substr(filename.find("filename"), std::string::npos);
-	filename = filename.substr(filename.find_first_of("\"") + 1, filename.find_first_of("\n"));
-	filename = _config.root + "/uploads/" + filename.substr(0, filename.find_first_of("\""));
-	std::cout << "FILENAME " + filename << std::endl;
-	// FILE *ofs = fopen(filename.c_str(), "wba+");
-	totalRead = 0;
-	memset(read, 0, 2048);
 	_boundary.append("--");
 	_boundary.insert(0, "--");
-	while (1) {
-		dataRead = recv(conn.fd, read, sizeof read, MSG_DONTWAIT);
-		if (dataRead <= 0) {
-			// fclose(ofs);
-			return true;
-		}
-		if (dataRead > 0) {
-			buffer.append(read);
-			if (buffer.find(_boundary) != buffer.npos) {
-				std::ofstream last(filename.c_str());
-				buffer = buffer.substr(0, buffer.find(_boundary) - 2);
-				last << buffer;
-				last.close();
-				break;
-			} else {
-				// for (int i = 0; i < dataRead; i++)
-				// 	fwrite(buffer + i, sizeof(*buffer), 1, ofs);
-				memset(read, 0, dataRead);
-			}
-		}
-	}
-	printf("BREAK\n");
-	// fclose(ofs);
-	return true;
+	unsigned char read[512] = {0};
+	int dataRead = 0;
+	dataRead = recv(conn.fd, read, 512, MSG_DONTWAIT);
+	for (int i = 0; i < dataRead; i++)
+		conn.body.push_back(read[i]);
+	if (dataRead == 512)
+		return 0;
+	std::string filename;
+	filename = conn.body.substr(conn.body.find("filename"), std::string::npos);
+	filename = filename.substr(filename.find_first_of("\"") + 1, filename.find_first_of("\n"));
+	filename = _config.root + "/uploads/" + filename.substr(0, filename.find_first_of("\""));
+	FILE *ofs = fopen(filename.c_str(), "wb+");
+	conn.body = conn.body.substr(conn.body.find("\r\n\r\n") + 4, conn.body.npos);
+	conn.body = conn.body.substr(0, conn.body.find(_boundary) - 2);
+	for (size_t i = 0; i < conn.body.length(); i++)
+			fwrite(&conn.body.at(i), 1, sizeof(char), ofs);
+	fclose(ofs);
+	conn.body.clear();
+	return 1;
 }
