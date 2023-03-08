@@ -5,7 +5,8 @@ SRC		=	main.cpp \
 			utils.cpp \
 			Server.class.cpp \
 			Parser.class.cpp \
-			VirtServ.class.cpp
+			VirtServ.class.cpp \
+			Cgi.class.cpp
 SRCS	=	$(addprefix srcs/, $(SRC))
 OBJS	=	$(SRCS:.cpp=.o)
 

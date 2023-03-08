@@ -29,7 +29,6 @@ class VirtServ
 		struct dirent**			fill_dirent(DIR* directory, std::string path);
 		DIR*					dirAnswer(std::string fullPath, struct dirent* dirent, t_connInfo conn);
 		std::string				getDateTime();
-		iterator				findKey(std::vector<std::pair<std::string, std::string> > & vector, std::string key);
 		std::string				defineFileType(char* filename);
 		void					checkAndRedirect(std::string value, t_connInfo conn);
 		std::vector<t_connInfo>::iterator	findFd(std::vector<t_connInfo>::iterator begin, std::vector<t_connInfo>::iterator end, int fd);

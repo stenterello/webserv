@@ -148,5 +148,7 @@ void	die(std::string const err);
 void	die(std::string const err, VirtServ & serv);
 void	usage();
 bool	bool_error(std::string error);
+typedef std::vector<std::pair<std::string, std::string> >::iterator keyIter;
+	keyIter				findKey(std::vector<std::pair<std::string, std::string> > & vector, std::string key);
 
 #endif

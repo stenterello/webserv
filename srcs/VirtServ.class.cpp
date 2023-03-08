@@ -489,6 +489,7 @@ int			VirtServ::launchCGI()
 {
 	if (!fork()) {
 		system("fake_site/cgi_tester");
+		printf("PAST SYSTEM\n");
 		exit (0);
 	}
 	else
@@ -994,24 +995,6 @@ t_location* VirtServ::interpretLocationBlock(t_location *location, std::string p
 }
 
 /*
-	Find function translated for vector
-*/
-
-typedef std::vector<std::pair<std::string, std::string> >::iterator keyIter;
-
-keyIter		VirtServ::findKey(std::vector<std::pair<std::string, std::string> > &vector, std::string key)
-{
-	std::vector<std::pair<std::string, std::string> >::iterator iter = vector.begin();
-
-	for (; iter != vector.end(); iter++)
-	{
-		if ((*iter).first == key)
-			break;
-	}
-	return iter;
-}
-
-/*
 	Define Filetype for "Content-type" header
 */
 
@@ -1086,7 +1069,7 @@ int			VirtServ::execHead(t_connInfo & conn) { tryFiles(conn); return 1; }
 
 int			VirtServ::execPut(t_connInfo & conn)
 {
-	std::cout << "------EXEC PUT------\n";
+	// std::cout << "------EXEC PUT------\n";
 	
 	if (conn.config.allowedMethods.size() && std::find(conn.config.allowedMethods.begin(), conn.config.allowedMethods.end(), "POST") == conn.config.allowedMethods.end())
 	{

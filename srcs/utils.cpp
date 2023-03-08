@@ -25,3 +25,17 @@ bool	bool_error(std::string error)
 	std::cout << error;
 	return false;
 }
+
+typedef std::vector<std::pair<std::string, std::string> >::iterator keyIter;
+
+keyIter		findKey(std::vector<std::pair<std::string, std::string> > &vector, std::string key)
+{
+	std::vector<std::pair<std::string, std::string> >::iterator iter = vector.begin();
+
+	for (; iter != vector.end(); iter++)
+	{
+		if ((*iter).first == key)
+			break;
+	}
+	return iter;
+}
