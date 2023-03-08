@@ -1214,13 +1214,13 @@ bool		VirtServ::chunkEncoding(t_connInfo & conn)
 	else
 		filename.append(conn.request.line.substr(1, conn.request.line.find_first_of(" ") - 1));
 	if (conn.chunk_size < 0) {
-		char buffer[2048] = {0};
-		dataRead = recv(conn.fd, buffer, 1, 0);
+		unsigned char buffer = 0;
+		dataRead = recv(conn.fd, &buffer, 1, 0);
 		if (dataRead <= 0) {
 			perror ("recv");
 			return 1;
 		}
-		conn.buffer.append(buffer);
+		conn.buffer.push_back(buffer);
 		if (conn.buffer.find("\r\n") != conn.buffer.npos) {
             conn.chunk_size = strtoul(conn.buffer.c_str(), NULL, 16);
 			conn.buffer.clear();
@@ -1229,14 +1229,15 @@ bool		VirtServ::chunkEncoding(t_connInfo & conn)
 	}
 	else if (conn.chunk_size > 0)
 	{
-		char buffer[conn.chunk_size] = {0};
+		unsigned char buffer[conn.chunk_size] = {0};
 		while (totalRead < conn.chunk_size) {
 			if ((dataRead = recv(conn.fd, buffer, conn.chunk_size - totalRead, MSG_DONTWAIT)) < 0)
-				usleep(10000);
+				usleep(1000);
 			if (dataRead > 0)
 				totalRead += dataRead;
 		}
-		conn.body.append(buffer);
+		for (int i = 0; i < totalRead; i++)
+			conn.body.push_back(buffer[i]);
 		dataRead = recv(conn.fd, buffer, 2, 0);
 		conn.chunk_size = -1;
 	}
