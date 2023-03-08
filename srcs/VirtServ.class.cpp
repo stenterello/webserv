@@ -147,72 +147,49 @@ t_config	VirtServ::getConfig(t_connInfo & conn)
 			if (key == toCompare[i])
 				break;
 
-		switch (i)
-		{
-		case 0:
-		{
-			ret.root = value;
-			break;
-		}
-		case 1:
-		{
-			if (!value.compare("on"))
-				ret.autoindex = true;
-			else if (!value.compare("off"))
-				ret.autoindex = false;
-			else
-				die("Autoindex rule must have on|off value. Aborting", *this);
-			break;
-		}
-		case 2:
-		{
-			ret.index.clear();
-			while (value.find_first_not_of(" \n\t") != std::string::npos)
-			{
-				ret.index.push_back(value.substr(0, value.find_first_of(" \t")));
-				value = value.substr(0, value.find_first_of(" \t"));
-				value = value.substr(0, value.find_first_not_of(" \t"));
+		switch (i) {
+			case 0: ret.root = value; break;
+			case 1: {
+				if (!value.compare("on"))
+					ret.autoindex = true;
+				else if (!value.compare("off"))
+					ret.autoindex = false;
+				else
+					die("Autoindex rule must have on|off value. Aborting", *this);
+				break;
 			}
-			break;
-		}
-		case 3:
-		{
-			ret.errorPages.clear();
-			while (value.find_first_not_of(" \n\t") != std::string::npos)
-			{
-				ret.errorPages.push_back(value.substr(0, value.find_first_of(" \t")));
-				if (value.find_first_of(" \t") == std::string::npos)
-					break;
-				value = value.substr(value.find_first_of(" \t"));
-				value = value.substr(value.find_first_not_of(" \t"));
+			case 2: {
+				ret.index.clear();
+				while (value.find_first_not_of(" \n\t") != std::string::npos)
+				{
+					ret.index.push_back(value.substr(0, value.find_first_of(" \t")));
+					value = value.substr(0, value.find_first_of(" \t"));
+					value = value.substr(0, value.find_first_not_of(" \t"));
+				}
+				break;
 			}
-			break;
-		}
-		case 4:
-		{
-			Parser::checkClientBodyMaxSize(value, ret);
-			break;
-		}
-		case 5:
-		{
-			insertMethod(ret, value);
-			break;
-		}
-		case 6:
-		{
-			if (saveFiles(value, ret, conn)) {
-				return (ret);
+			case 3: {
+				ret.errorPages.clear();
+				while (value.find_first_not_of(" \n\t") != std::string::npos)
+				{
+					ret.errorPages.push_back(value.substr(0, value.find_first_of(" \t")));
+					if (value.find_first_of(" \t") == std::string::npos)
+						break;
+					value = value.substr(value.find_first_of(" \t"));
+					value = value.substr(value.find_first_not_of(" \t"));
+				}
+				break;
 			}
-			return (t_config(false));
-		}
-		case 7:
-		{
-			checkAndRedirect(value, conn.fd);
-			return (t_config(false));
-		}
-		default:
-			die("Unrecognized location rule. Aborting", *this);
-		}
+			case 4: Parser::checkClientBodyMaxSize(value, ret); break;
+			case 5: insertMethod(ret, value); break;
+			case 6: {
+				if (saveFiles(value, ret, conn))
+					return (ret);
+				return (t_config(false));
+			}
+			case 7: { checkAndRedirect(value, conn.fd); return (t_config(false)); }
+			default: die("Unrecognized location rule. Aborting", *this);
+			}
 		conn.location->text = conn.location->text.substr(conn.location->text.find("\n") + 1);
 		conn.location->text = conn.location->text.substr(conn.location->text.find_first_not_of(" \t\n"));
 	}
@@ -352,9 +329,7 @@ int			VirtServ::readRequest(t_connInfo & conn, std::string req)
 		conn.request.body = req.substr(req.find_first_not_of("\r\n"));
 
 	if (findKey(conn.request.headers, "Expect") != conn.request.headers.end())
-	{
 		return (1);
-	}
 	std::vector<std::pair<std::string, std::string> >::iterator iter = conn.request.headers.begin();
 	while (iter != conn.request.headers.end())
 	{
@@ -388,14 +363,10 @@ void		VirtServ::checkAndRedirect(std::string value, t_connInfo conn)
 	if (i == phrases->size())
 		die("Return code unrecognized. Aborting");
 
-	switch (i)
-	{
-	case 0:
-		phrase = "Moved Permanently";
-		break;
-	default:
-		break;
-	}
+	switch (i) {
+		case 0: phrase = "Moved Permanently"; break;
+		default: break;
+		}
 
 	value = value.substr(value.find_first_of(" \t"));
 	value = value.substr(value.find_first_not_of(" \t"));
@@ -503,9 +474,7 @@ DIR*		VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, t_connInf
 		return dir;
 	}
 	else
-	{
 		answerAutoindex(path, dir, conn.fd);
-	}
 	return (dir);
 }
 
@@ -559,8 +528,6 @@ bool		VirtServ::tryGetResource(std::string filename, t_connInfo conn)
 		defaultAnswerError(405, conn);
 		return (true);
 	}
-	// if (!filename.compare("$uri"))
-	// 	filename = conn.request.line.substr(0, conn.request.line.find_first_of(" \t"));
 	if (!std::strncmp(conn.location->location.c_str(), filename.c_str(), std::strlen(conn.location->location.c_str())))
 	{
 		filename = filename.substr(std::strlen(conn.location->location.c_str()));
@@ -836,6 +803,7 @@ void		VirtServ::answerAutoindex(std::string fullPath, DIR *directory, t_connInfo
 			conn.response.body += "<a href=\"" + name + "\">" + name + "</a>";
 			if (std::strncmp("../\0", name.c_str(), 4))
 			{
+				// questa a volte manda errore
 				// tmpString = std::string(ctime(&attr.st_mtime)).substr(0, std::string(ctime(&attr.st_mtime)).length() - 1);
 				conn.response.body.append(52 - static_cast<int>(name.length()), ' ');
 				conn.response.body += tmpString;
@@ -1065,18 +1033,12 @@ std::string VirtServ::defineFileType(char *filename)
 
 	if (i != toCompareText->size())
 	{
-		switch (i)
-		{
-		case 0:
-			return ("text/html");
-		case 1:
-			return ("text/css");
-		case 2:
-			return ("text/csv");
-		case 3:
-			return ("text/xml");
-		default:
-			break;
+		switch (i) {
+			case 0: return ("text/html");
+			case 1: return ("text/css");
+			case 2:	return ("text/csv");
+			case 3:	return ("text/xml");
+			default: break;
 		}
 	}
 
@@ -1088,21 +1050,14 @@ std::string VirtServ::defineFileType(char *filename)
 
 	if (i != toCompareImage->size())
 	{
-		switch (i)
-		{
-		case 0:
-			return ("image/gif");
-		case 1:
-		case 2:
-			return ("image/jpeg");
-		case 3:
-			return ("image/png");
-		case 4:
-			return ("image/tiff");
-		case 5:
-			return ("image/x-icon");
-		default:
-			break;
+		switch (i) {
+			case 0: return ("image/gif");
+			case 1: //??????????????????????????
+			case 2: return ("image/jpeg");
+			case 3: return ("image/png");
+			case 4: return ("image/tiff");
+			case 5: return ("image/x-icon");
+			default: break;
 		}
 	}
 
@@ -1114,49 +1069,40 @@ std::string VirtServ::defineFileType(char *filename)
 
 	if (i != toCompareApp->size())
 	{
-		switch (i)
-		{
-		case 0:
-			return ("application/javascript");
-		case 1:
-			return ("application/zip");
-		case 2:
-			return ("application/pdf");
-		default:
-			break;
+		switch (i) {
+			case 0: return ("application/javascript");
+			case 1: return ("application/zip");
+			case 2: return ("application/pdf");
+			default: break;
 		}
 	}
 
 	return ("text/plain");
 }
 
-int 		VirtServ::execGet(t_connInfo & conn)
-{
-	tryFiles(conn);
-	return 1;
-	// else if (conn.location->text.find("return") != conn.location->text.npos) {
-	// 	checkAndRedirect(conn.config.value, conn.fd);
-	// 	return 1;
-	// }
-}
+int 		VirtServ::execGet(t_connInfo & conn) { tryFiles(conn); return 1; }
 
-int			VirtServ::execHead(t_connInfo & conn)
-{
-	tryFiles(conn);
-	return 1;
-	// else if (conn.location->text.find("return") != conn.location->text.npos) {
-	// 	checkAndRedirect(conn.config.value, conn.fd);
-	// 	return 1;
-	// }
-	// else
-	// 	return 0;
-}
+int			VirtServ::execHead(t_connInfo & conn) { tryFiles(conn); return 1; }
 
 int			VirtServ::execPut(t_connInfo & conn)
 {
 	std::cout << "------EXEC PUT------\n";
 	
-	if (findKey(conn.request.headers, "Transfer-Encoding")->second == "chunked") {
+	if (conn.config.allowedMethods.size() && std::find(conn.config.allowedMethods.begin(), conn.config.allowedMethods.end(), "POST") == conn.config.allowedMethods.end())
+	{
+		if (chunkEncodingCleaning(conn) == 1) {
+			defaultAnswerError(405, conn);
+			return 1;
+		}
+		return 0;
+	}
+	else if (findKey(conn.request.headers, "Content-Type")->second != "") {
+		if (contentType(conn) == 1) {
+			defaultAnswerError(201,conn);
+			return 1;
+		}
+	}
+	else if (findKey(conn.request.headers, "Transfer-Encoding")->second == "chunked") {
 		if (chunkEncoding(conn) == 1) {
 			defaultAnswerError(201,conn);
 			return 1;
