@@ -1198,11 +1198,21 @@ bool		VirtServ::chunkEncoding(t_connInfo & conn)
 	int dataRead = 0;
 	int totalRead = 0;
 
-	//// Gestire il caso in cui la request.line sia un'alias nel file di configurazione
 	std::string filename = conn.config.root;
 	if (*(filename.end() - 1) != '/')
 		filename.append("/");
-	filename.append(conn.request.line.substr(1, conn.request.line.find_first_of(" ")));
+	if (conn.config.root != _config.root)
+	{
+		std::string	path = conn.request.line.substr(conn.request.line.find_first_of(" \t"));
+		path = path.substr(path.find_first_not_of(" \t"));
+		path = path.substr(0, path.find_first_of(" ") - 1);
+		path = path.substr(conn.location->location.length());
+		if (path.at(0) == '/')
+			path = path.substr(1);
+		filename.append(path);
+	}
+	else
+		filename.append(conn.request.line.substr(1, conn.request.line.find_first_of(" ") - 1));
 	if (conn.chunk_size < 0) {
 		char buffer[2048] = {0};
 		dataRead = recv(conn.fd, buffer, 1, 0);
