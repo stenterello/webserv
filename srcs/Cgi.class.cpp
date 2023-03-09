@@ -1,6 +1,6 @@
 #include <Cgi.class.hpp>
 
-Cgi::Cgi(t_request & request, t_config & config, unsigned short port)
+Cgi::Cgi(t_connInfo & conn, unsigned short port)
 {
     // https://www.rfc-editor.org/rfc/rfc3875#section-4.1
 
@@ -8,7 +8,7 @@ Cgi::Cgi(t_request & request, t_config & config, unsigned short port)
     ss << port;
     _env.push_back(std::make_pair("AUTH_TYPE", ""));
     _env.push_back(std::make_pair("CONTENT_LENGTH", ""));
-    _env.push_back(std::make_pair("CONTENT_TYPE", (*findKey(request.headers, "Content-Type")).second));
+    _env.push_back(std::make_pair("CONTENT_TYPE", (*findKey(conn.request.headers, "Content-Type")).second));
     _env.push_back(std::make_pair("GATEWAY_INTERFACE", "CGI/1.1"));
     _env.push_back(std::make_pair("PATH_INFO", ""));
     _env.push_back(std::make_pair("PATH_TRANSLATED", ""));
@@ -17,7 +17,7 @@ Cgi::Cgi(t_request & request, t_config & config, unsigned short port)
     _env.push_back(std::make_pair("REMOTE_HOST", ""));
     _env.push_back(std::make_pair("REMOTE_IDENT", ""));
     _env.push_back(std::make_pair("REMOTE_USER", ""));
-    _env.push_back(std::make_pair("REQUEST_METHOD", request.method));
+    _env.push_back(std::make_pair("REQUEST_METHOD", conn.request.method));
     _env.push_back(std::make_pair("SCRIPT_NAME", ""));
     _env.push_back(std::make_pair("SERVER_NAME", ""));
     _env.push_back(std::make_pair("SERVER_PORT", ss.str()));
@@ -27,7 +27,7 @@ Cgi::Cgi(t_request & request, t_config & config, unsigned short port)
 
     // bisogna mettere Auth-Scheme nella request per l'autorizzazione?
     
-	this->initEnv(request, config);
+	this->initEnv(conn);
 }
 
 char					**Cgi::getEnv() const {
@@ -43,6 +43,7 @@ char					**Cgi::getEnv() const {
 	return env;
 }
 
+// script should be 127.0.0.1:1025 ?????????????????
 std::string		Cgi::executeCgi(const std::string & script)
 {
     pid_t   pid;
