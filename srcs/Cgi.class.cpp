@@ -42,3 +42,50 @@ char					**Cgi::getEnv() const {
 	env[j] = NULL;
 	return env;
 }
+
+std::string		Cgi::executeCgi(const std::string & script)
+{
+    pid_t   pid;
+    // int     std_cpy[2] = { dup(0), dup(1) };
+    char    **env = this->getEnv();
+    std::string _retBody;
+
+    // use tmpFile() instead of pipe() to handle big amount of data
+    FILE*   in = tmpfile();
+	FILE*   out = tmpfile();
+    int     fd_in = fileno(in);
+    int     fd_out = fileno(out);
+
+    pid = fork();
+
+    if (pid == -1) {
+        std::cout << "Fork failed" << std::endl;
+        return ("Status: 500\r\n\r\n");
+    }
+    else if (!pid) {
+		char * const *null = NULL;
+		dup2(fd_in, 0);
+		dup2(fd_out, 1);
+		execve(script.c_str(), null, env);
+		std::cout << "execve failed" << std::endl;
+		write(1, "Status: 500\r\n\r\n", 15);
+		exit (0);
+    }
+    else {
+	waitpid(-1, NULL, 0);
+	char    buffer[1024];
+
+	while ((read(fd_out, buffer, sizeof buffer)) > 0)
+	    _retBody.append(buffer);
+	}
+	fclose(in);
+	fclose(out);
+	close(fd_in);
+	close(fd_out);
+
+    for (size_t i = 0; env[i]; i++)
+		delete[] env[i];
+	delete[] env;
+
+    return (_retBody);
+}
