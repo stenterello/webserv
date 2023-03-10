@@ -86,6 +86,7 @@
 		"stop_token": "cpp",
 		"thread": "cpp",
 		"variant": "cpp",
-		"hash_map": "cpp"
+		"hash_map": "cpp",
+		"__functional_03": "cpp"
 	}
 }

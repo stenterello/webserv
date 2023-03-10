@@ -1,5 +1,7 @@
 #include <Cgi.class.hpp>
 
+Cgi::Cgi() {};
+
 Cgi::Cgi(t_connInfo & conn, unsigned short port)
 {
     // https://www.rfc-editor.org/rfc/rfc3875#section-4.1
@@ -27,8 +29,10 @@ Cgi::Cgi(t_connInfo & conn, unsigned short port)
 
     // bisogna mettere Auth-Scheme nella request per l'autorizzazione?
     
-	this->initEnv(conn);
+	// this->initEnv(conn);
 }
+
+Cgi::~Cgi() {};
 
 char					**Cgi::getEnv() const {
 	char	**env = new char*[this->_env.size() + 1];
@@ -73,11 +77,11 @@ std::string		Cgi::executeCgi(const std::string & script)
 		exit (0);
     }
     else {
-	waitpid(-1, NULL, 0);
-	char    buffer[1024];
+		waitpid(-1, NULL, 0);
+		char    buffer[1024];
 
-	while ((read(fd_out, buffer, sizeof buffer)) > 0)
-	    _retBody.append(buffer);
+		while ((read(fd_out, buffer, sizeof buffer)) > 0)
+			_retBody.append(buffer);
 	}
 	fclose(in);
 	fclose(out);

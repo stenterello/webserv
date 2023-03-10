@@ -485,12 +485,17 @@ DIR*		VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, t_connInf
 	Chiude il file e la connessione
 */
 
-int			VirtServ::launchCGI()
+int			VirtServ::launchCGI(t_connInfo & conn)
 {
+	std::string	output;
+
 	if (!fork()) {
-		system("fake_site/cgi_tester");
-		printf("PAST SYSTEM\n");
-		exit (0);
+		Cgi	cgi(conn, conn.config.port);
+		output = cgi.executeCgi("fake_site/cgi_tester");
+		std::cout << output << std::endl;
+		// system("fake_site/cgi_tester");
+		// printf("PAST SYSTEM\n");
+		// exit (0);
 	}
 	else
 		waitpid(-1, 0, 0);
@@ -1101,7 +1106,7 @@ int			VirtServ::execPost(t_connInfo & conn)
 	if (conn.request.line.find(".bla HTTP/") != std::string::npos) {
 		std::string filename = conn.request.line.substr(0, conn.request.line.find_first_of(" "));
 		// filename = filename.substr(filename.find_last_of("/") + 1, filename.size());
-		launchCGI();
+		launchCGI(conn);
 		return 0;
 	}
 	if (conn.config.allowedMethods.size() && std::find(conn.config.allowedMethods.begin(), conn.config.allowedMethods.end(), "POST") == conn.config.allowedMethods.end())
@@ -1158,7 +1163,8 @@ bool		VirtServ::chunkEncoding(t_connInfo & conn)
 	}
 	else if (conn.chunk_size > 0)
 	{
-		unsigned char buffer[conn.chunk_size] = {0};
+		unsigned char buffer[conn.chunk_size];
+		buffer[0] = 0;
 		while (totalRead < conn.chunk_size) {
 			if ((dataRead = recv(conn.fd, buffer, conn.chunk_size - totalRead, MSG_DONTWAIT)) < 0)
 				usleep(1000);
@@ -1205,7 +1211,8 @@ int			VirtServ::chunkEncodingCleaning(t_connInfo & conn)
 	}
 	else if (conn.chunk_size > 0)
 	{
-		char buffer[conn.chunk_size] = {0};
+		unsigned char buffer[conn.chunk_size];
+		buffer[0] = 0;
 		while (totalRead < conn.chunk_size) {
 			if ((dataRead = recv(conn.fd, buffer, conn.chunk_size - totalRead, MSG_DONTWAIT)) < 0)
 				usleep(10000);

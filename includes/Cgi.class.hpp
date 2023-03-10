@@ -9,12 +9,11 @@ class Cgi
         Cgi();
 		Cgi(t_connInfo & conn, unsigned short port); // sets up env according to the request
 		Cgi(Cgi const & src);
-		virtual ~Cgi(void);
+		~Cgi(void);
 
 		Cgi  	        &operator=(Cgi const & src);
 		std::string		executeCgi(const std::string & script);	// executes cgi and returns body
 	private:
-		Cgi(void);
 		void								                initEnv(t_connInfo & conn);
 		char**								                getEnv() const;
 		std::vector<std::pair<std::string, std::string> >	_env; // env to pass to execve
