@@ -6,26 +6,29 @@ Cgi::Cgi(t_connInfo & conn, unsigned short port)
 {
     // https://www.rfc-editor.org/rfc/rfc3875#section-4.1
 
+    this->_body = conn.body;
+    std::cout << this->_body << std::endl;
+
     std::stringstream ss;
     ss << port;
     _env.push_back(std::make_pair("AUTH_TYPE", ""));
     _env.push_back(std::make_pair("CONTENT_LENGTH", ""));
     _env.push_back(std::make_pair("CONTENT_TYPE", (*findKey(conn.request.headers, "Content-Type")).second));
     _env.push_back(std::make_pair("GATEWAY_INTERFACE", "CGI/1.1"));
-    _env.push_back(std::make_pair("PATH_INFO", ""));
-    _env.push_back(std::make_pair("PATH_TRANSLATED", ""));
+    _env.push_back(std::make_pair("PATH_INFO", "fake_site/cgi_tester"));
+    _env.push_back(std::make_pair("PATH_TRANSLATED", "fake_site/cgi_tester"));
     _env.push_back(std::make_pair("QUERY_STRING", ""));
     _env.push_back(std::make_pair("REMOTE_ADDR", ""));
     _env.push_back(std::make_pair("REMOTE_HOST", ""));
     _env.push_back(std::make_pair("REMOTE_IDENT", ""));
     _env.push_back(std::make_pair("REMOTE_USER", ""));
     _env.push_back(std::make_pair("REQUEST_METHOD", conn.request.method));
-    _env.push_back(std::make_pair("SCRIPT_NAME", ""));
+    _env.push_back(std::make_pair("SCRIPT_NAME", "fake_site/cgi_tester"));
     _env.push_back(std::make_pair("SERVER_NAME", ""));
     _env.push_back(std::make_pair("SERVER_PORT", ss.str()));
     _env.push_back(std::make_pair("SERVER_PROTOCOL", "HTTP/1.1"));
-    _env.push_back(std::make_pair("SERVER_SOFTWARE", ""));
-    _env.push_back(std::make_pair("REDIRECT_STATUS", "200")); // ????
+    _env.push_back(std::make_pair("SERVER_SOFTWARE", "Weebserv/1.0"));
+    _env.push_back(std::make_pair("REDIRECT_STATUS", "200"));
 
     // bisogna mettere Auth-Scheme nella request per l'autorizzazione?
     
@@ -47,7 +50,6 @@ char					**Cgi::getEnv() const {
 	return env;
 }
 
-// script should be 127.0.0.1:1025 ?????????????????
 std::string		Cgi::executeCgi(const std::string & script)
 {
     pid_t   pid;
@@ -55,11 +57,17 @@ std::string		Cgi::executeCgi(const std::string & script)
     char    **env = this->getEnv();
     std::string _retBody;
 
+    int i = 0;
+    while (env[i])
+        printf("%s\n", env[i++]);
     // use tmpFile() instead of pipe() to handle big amount of data
     FILE*   in = tmpfile();
 	FILE*   out = tmpfile();
     int     fd_in = fileno(in);
     int     fd_out = fileno(out);
+
+    write(fd_in, _body.c_str(), _body.size());
+    lseek(fd_in, 0, SEEK_SET);
 
     pid = fork();
 
@@ -78,10 +86,15 @@ std::string		Cgi::executeCgi(const std::string & script)
     }
     else {
 		waitpid(-1, NULL, 0);
-		char    buffer[1024];
 
-		while ((read(fd_out, buffer, sizeof buffer)) > 0)
+        lseek(fd_out, 0, SEEK_SET);
+
+		char    buffer[1024];
+		while ((read(fd_out, buffer, sizeof buffer)) > 0) {
+            printf("buffer %s\n", buffer);
 			_retBody.append(buffer);
+            memset(buffer, 0, sizeof buffer);
+        }
 	}
 	fclose(in);
 	fclose(out);

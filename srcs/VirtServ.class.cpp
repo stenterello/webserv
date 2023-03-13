@@ -488,14 +488,21 @@ DIR*		VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, t_connInf
 int			VirtServ::launchCGI(t_connInfo & conn)
 {
 	std::string	output;
+	char buffer[1024];
+	std::string code;
+
+	conn.body.clear();
+	while ((recv(conn.fd, buffer, sizeof buffer, MSG_DONTWAIT)) > 0)
+		conn.body.append(buffer);
 
 	if (!fork()) {
 		Cgi	cgi(conn, conn.config.port);
 		output = cgi.executeCgi("fake_site/cgi_tester");
-		std::cout << output << std::endl;
-		// system("fake_site/cgi_tester");
-		// printf("PAST SYSTEM\n");
-		// exit (0);
+		if (output.find("Status: ") != output.npos) {
+			code = output.substr(output.find("Status: ") + 8, output.npos);
+			code = code.substr(0, code.find_first_of("\n"));
+		}
+		defaultAnswerError(std::atoi(code.c_str()), conn);
 	}
 	else
 		waitpid(-1, 0, 0);
@@ -1103,11 +1110,13 @@ int			VirtServ::execPut(t_connInfo & conn)
 int			VirtServ::execPost(t_connInfo & conn)
 {
 	std::cout << "------EXEC POST------\n";
+	std::cout << "REQUEST LINE " + conn.request.line << std::endl;
 	if (conn.request.line.find(".bla HTTP/") != std::string::npos) {
 		std::string filename = conn.request.line.substr(0, conn.request.line.find_first_of(" "));
+		printf("LUNCH CGI\n");
 		// filename = filename.substr(filename.find_last_of("/") + 1, filename.size());
 		launchCGI(conn);
-		return 0;
+		return 1;
 	}
 	if (conn.config.allowedMethods.size() && std::find(conn.config.allowedMethods.begin(), conn.config.allowedMethods.end(), "POST") == conn.config.allowedMethods.end())
 	{
