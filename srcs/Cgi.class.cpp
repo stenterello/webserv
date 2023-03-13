@@ -7,7 +7,7 @@ Cgi::Cgi(t_connInfo & conn, unsigned short port)
     // https://www.rfc-editor.org/rfc/rfc3875#section-4.1
 
     this->_body = conn.body;
-    std::cout << this->_body << std::endl;
+    // std::cout << this->_body << std::endl;
 
     std::stringstream ss;
     ss << port;
@@ -15,7 +15,7 @@ Cgi::Cgi(t_connInfo & conn, unsigned short port)
     _env.push_back(std::make_pair("CONTENT_LENGTH", ""));
     _env.push_back(std::make_pair("CONTENT_TYPE", (*findKey(conn.request.headers, "Content-Type")).second));
     _env.push_back(std::make_pair("GATEWAY_INTERFACE", "CGI/1.1"));
-    _env.push_back(std::make_pair("PATH_INFO", "fake_site/cgi_tester"));
+    _env.push_back(std::make_pair("PATH_INFO", "fake_site/cgi"));
     _env.push_back(std::make_pair("PATH_TRANSLATED", "fake_site/cgi_tester"));
     _env.push_back(std::make_pair("QUERY_STRING", ""));
     _env.push_back(std::make_pair("REMOTE_ADDR", ""));

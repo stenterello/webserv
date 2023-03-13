@@ -488,12 +488,23 @@ DIR*		VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, t_connInf
 int			VirtServ::launchCGI(t_connInfo & conn)
 {
 	std::string	output;
-	char buffer[1024];
+	unsigned char buffer[1024];
+	size_t dataRead = 0;
 	std::string code;
 
 	conn.body.clear();
-	while ((recv(conn.fd, buffer, sizeof buffer, MSG_DONTWAIT)) > 0)
-		conn.body.append(buffer);
+	while (1) {
+		if ((dataRead = recv(conn.fd, buffer, sizeof buffer, MSG_DONTWAIT)) < 0)
+			usleep(1000);
+		else {
+			if (dataRead > 0) {
+				for (size_t i = 0; i < dataRead; i++)
+				conn.body.push_back(buffer[i]);
+			}
+			if (dataRead < sizeof buffer)
+				break ;
+		}
+	}
 
 	if (!fork()) {
 		Cgi	cgi(conn, conn.config.port);
@@ -1113,7 +1124,6 @@ int			VirtServ::execPost(t_connInfo & conn)
 	std::cout << "REQUEST LINE " + conn.request.line << std::endl;
 	if (conn.request.line.find(".bla HTTP/") != std::string::npos) {
 		std::string filename = conn.request.line.substr(0, conn.request.line.find_first_of(" "));
-		printf("LUNCH CGI\n");
 		// filename = filename.substr(filename.find_last_of("/") + 1, filename.size());
 		launchCGI(conn);
 		return 1;
