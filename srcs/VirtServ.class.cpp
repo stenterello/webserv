@@ -284,7 +284,8 @@ int			VirtServ::readRequest(t_connInfo & conn, std::string req)
 	std::vector<std::pair<std::string, std::string> >::iterator header;
 	std::string comp[] = {"GET", "POST", "DELETE", "PUT", "HEAD"};
 
-	conn.request.line = req.substr(req.find_first_of("/"), req.find("\n"));
+	conn.request.line = req.substr(req.find_first_of("/"), req.npos);
+	conn.request.line = conn.request.line.substr(0, conn.request.line.find_first_of("\r\n"));
 
 	if (req.find_first_of(" \t") != std::string::npos)
 		conn.request.method = req.substr(0, req.find_first_of(" \t"));
@@ -505,6 +506,7 @@ int			VirtServ::launchCGI(t_connInfo & conn)
 				break ;
 		}
 	}
+	// std::cout << "BODY\n" + conn.body << std::endl;
 
 	if (!fork()) {
 		Cgi	cgi(conn, conn.config.port);
@@ -513,6 +515,7 @@ int			VirtServ::launchCGI(t_connInfo & conn)
 			code = output.substr(output.find("Status: ") + 8, output.npos);
 			code = code.substr(0, code.find_first_of("\n"));
 		}
+		conn.body = output;
 		defaultAnswerError(std::atoi(code.c_str()), conn);
 	}
 	else
