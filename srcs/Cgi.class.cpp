@@ -18,22 +18,23 @@ Cgi::Cgi(t_connInfo & conn, unsigned short port)
     _env.push_back(std::make_pair("CONTENT_LENGTH", ""));
     _env.push_back(std::make_pair("CONTENT_TYPE", "application/x-www-form-urlencoded"));
     _env.push_back(std::make_pair("GATEWAY_INTERFACE", "CGI/1.1"));
-    _env.push_back(std::make_pair("PATH_INFO", "/YoupiBanane/youpi.bla"));
-    _env.push_back(std::make_pair("PATH_TRANSLATED", "/YoupiBanane/youpi.bla"));
+    _env.push_back(std::make_pair("PATH_INFO", conn.path.c_str()));
+    _env.push_back(std::make_pair("PATH_TRANSLATED", conn.path.c_str()));
     _env.push_back(std::make_pair("QUERY_STRING", ""));
     _env.push_back(std::make_pair("REMOTE_ADDR", "localhost:12356"));
     _env.push_back(std::make_pair("REMOTE_HOST", ""));
     _env.push_back(std::make_pair("REMOTE_IDENT", ""));
     _env.push_back(std::make_pair("REMOTE_USER", ""));
     _env.push_back(std::make_pair("REQUEST_METHOD", conn.request.method));
-    _env.push_back(std::make_pair("REQUEST_URI", "/YoupiBanane/youpi.bla"));
+    _env.push_back(std::make_pair("REQUEST_URI", conn.path.c_str()));
     _env.push_back(std::make_pair("SCRIPT_NAME", "cgi_tester"));
     _env.push_back(std::make_pair("SERVER_NAME", "http://localhost:12356"));
     _env.push_back(std::make_pair("SERVER_PORT", ss.str()));
     _env.push_back(std::make_pair("SERVER_PROTOCOL", "HTTP/1.1"));
     _env.push_back(std::make_pair("SERVER_SOFTWARE", "Webserv/1.0"));
     _env.push_back(std::make_pair("REDIRECT_STATUS", "200"));
-    _env.push_back(std::make_pair("HTTP_SECRET_HEADER_FOR_TEST", "1"));
+    if (conn.headers.find("X-Secret") != conn.headers.npos)
+        _env.push_back(std::make_pair("HTTP_X_SECRET_HEADER_FOR_TEST", conn.headers.substr(conn.headers.find("X-Secret") + 26, conn.headers.find_first_of("\r\n"))));
     
 	// this->initEnv(conn);
 }
@@ -53,12 +54,12 @@ char					**Cgi::getEnv() const {
 	return env;
 }
 
-std::string		Cgi::executeCgi(const std::string & script)
+std::string		Cgi::executeCgi(const std::string & script, const char *path)
 {
     pid_t   pid;
-    // int     std_cpy[2] = { dup(0), dup(1) };
+    int     std_cpy[2] = { dup(0), dup(1) };
     char    **env = this->getEnv();
-    std::string _retBody;
+    std::string _retBody = "";
 
     // UNCOMMENT TO PRINT ENV
     // int i = 0;
@@ -81,7 +82,7 @@ std::string		Cgi::executeCgi(const std::string & script)
         return ("Status: 500\r\n\r\n");
     }
     else if (!pid) {
-		char *const args[3] = {strdup(script.c_str()), strdup("youpi.bla"), NULL};
+		char *const args[3] = {strdup(script.c_str()), strdup(path), NULL};
 		// char *const *args = NULL;
         dup2(fd_in, 0);
 		dup2(fd_out, 1);
@@ -92,6 +93,7 @@ std::string		Cgi::executeCgi(const std::string & script)
     }
     else {
 		waitpid(-1, NULL, 0);
+        usleep(300000);
 
         lseek(fd_out, 0, SEEK_SET);
 
@@ -108,9 +110,12 @@ std::string		Cgi::executeCgi(const std::string & script)
 	close(fd_in);
 	close(fd_out);
 
+    dup2(std_cpy[0], 0);
+    dup2(std_cpy[1], 1);
+
     for (size_t i = 0; env[i]; i++)
 		delete[] env[i];
 	delete[] env;
-
+    // std::cout << "RET_BODY\n" + _retBody << std::endl;
     return (_retBody);
 }

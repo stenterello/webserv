@@ -56,7 +56,7 @@ bool		VirtServ::startServer()
 		return bool_error("setsockopt() error\n");
 	if (bind(_sockfd, (struct sockaddr *)&_sin, sizeof(_sin)) != 0)
 		return bool_error("Bind error");
-	if (listen(_sockfd, 10) == -1)
+	if (listen(_sockfd, 100) == -1)
 		return bool_error("Listen error");
 	return (true);
 }
@@ -125,7 +125,7 @@ t_config	VirtServ::getConfig(t_connInfo & conn)
 	std::string line;
 	std::string key;
 	std::string value;
-	std::string toCompare[8] = {"root", "autoindex", "index", "error_page", "client_max_body_sizes", "allowed_methods", "try_files", "return"};
+	std::string toCompare[8] = {"root", "autoindex", "index", "error_page", "client_max_body_size", "allowed_methods", "try_files", "return"};
 	int i;
 
 	conn.location = interpretLocationBlock(conn.location, conn.request.path);
@@ -267,8 +267,9 @@ int			VirtServ::handleClient(int fd)
 		if (method[i] == it->request.method) {
 			if ((this->*execMethod[i])(*it) == 1) {
 				delete it->location;
-				it->request.method.clear();
-				return 0;
+				// it->request.method.clear();
+				_connections.erase(it);
+				return 1;
 				}
 			}
 		}
@@ -287,6 +288,7 @@ int			VirtServ::readRequest(t_connInfo & conn, std::string req)
 
 	conn.request.line = req.substr(req.find_first_of("/"), req.npos);
 	conn.request.line = conn.request.line.substr(0, conn.request.line.find_first_of("\r\n"));
+	conn.path = conn.request.line.substr(0, conn.request.line.find(" "));
 
 	if (req.find_first_of(" \t") != std::string::npos)
 		conn.request.method = req.substr(0, req.find_first_of(" \t"));
@@ -295,8 +297,8 @@ int			VirtServ::readRequest(t_connInfo & conn, std::string req)
 		conn.request.path = conn.request.path.substr(0, conn.request.path.find_first_of(" "));
 	}
 	
-	std::cout << "////////// REQ //////////" << std::endl;
-	std::cout << req << std::endl;
+	// std::cout << "////////// REQ //////////" << std::endl;
+	// std::cout << req << std::endl;
 	int i;
 	for (i = 0; i < 5; i++)
 	{
@@ -496,7 +498,7 @@ int			VirtServ::launchCGI(t_connInfo & conn)
 			std::string code;
 			std::string contentType;
 			Cgi	cgi(conn, conn.config.port);
-			output = cgi.executeCgi("fake_site/cgi_tester");
+			output = cgi.executeCgi("fake_site/cgi_tester", conn.path.c_str());
 			if (output.find("Status: ") != output.npos) {
 				code = output.substr(output.find("Status: ") + 8, output.npos);
 				code = code.substr(0, code.find_first_of("\n"));
@@ -513,11 +515,10 @@ int			VirtServ::launchCGI(t_connInfo & conn)
 			// if (conn.headers.find("X-Secret") != conn.headers.npos)
 			// 	answer += "\r\nX-Secret-Header-For-Test: 1";
 			answer += "\r\nConnection: close\r\n\r\n";
-			if (conn.headers.find("X-Secret") != conn.headers.npos)
-				answer += "X-Secret-Header-For-Test";
 			std::cout << "answer header\n" + answer << std::endl;
 			answer += output;
 			send(conn.fd, answer.c_str(), answer.size(), 0);
+			conn.body.clear();
 			// std::cout << "SENT RESPONSE" << std::endl; std::cout << answer << std::endl;
 			return 1;
 		}
@@ -542,7 +543,7 @@ int			VirtServ::launchCGI(t_connInfo & conn)
 
 bool		VirtServ::tryGetResource(std::string filename, t_connInfo conn)
 {
-	std::cout << "------TRY GET RESOURCE------\n";
+	// std::cout << "------TRY GET RESOURCE------\n";
 	std::string fullPath = conn.config.root;
 	char rootPath[conn.config.root.size()];
 	std::string	rootPath2;
@@ -751,37 +752,42 @@ void		VirtServ::defaultAnswerError(int err, t_connInfo conn)
 
 typedef struct dirent s_dirent;
 
-s_dirent**	VirtServ::fill_dirent(DIR *directory, std::string path)
+std::stack<struct dirent *>	VirtServ::fill_dirent(DIR *directory, std::string path)
 {
-	struct dirent **ret;
+	// struct dirent **ret;
+	std::stack<struct dirent *>	ret;
 	struct dirent *tmp;
-	int size = 0;
-	int i = 0;
-
+	// int size = 0;
+	// int i = 0;
+	(void)path;
 	while ((tmp = readdir(directory)))
-		size++;
-	closedir(directory);
-	directory = opendir(path.c_str());
-	ret = (struct dirent **)malloc(sizeof(*ret) * size + 1);
-	int j = 0;
-	while (i < size)
 	{
-		tmp = readdir(directory);
-		if (tmp && tmp->d_type == DT_DIR)
-			ret[j++] = tmp;
-		i++;
+		ret.push(tmp);
 	}
-	i = 0;
-	closedir(directory);
-	directory = opendir(path.c_str());
-	while (i < size)
-	{
-		tmp = readdir(directory);
-		if (tmp && tmp->d_type != DT_DIR)
-			ret[j++] = tmp;
-		i++;
-	}
-	ret[j] = NULL;
+	// while ((tmp = readdir(directory)))
+	// 	size++;
+	// closedir(directory);
+	// directory = opendir(path.c_str());
+	// ret = (struct dirent **)malloc(sizeof(*ret) * size + 1);
+	// int j = 0;
+	// while (i < size)
+	// {
+	// 	tmp = readdir(directory);
+	// 	if (tmp && tmp->d_type == DT_DIR)
+	// 		ret[j++] = tmp;
+	// 	i++;
+	// }
+	// i = 0;
+	// closedir(directory);
+	// directory = opendir(path.c_str());
+	// while (i < size)
+	// {
+	// 	tmp = readdir(directory);
+	// 	if (tmp && tmp->d_type != DT_DIR)
+	// 		ret[j++] = tmp;
+	// 	i++;
+	// }
+	// ret[j] = NULL;
 	return (ret);
 }
 
@@ -810,24 +816,25 @@ std::string VirtServ::getDateTime()
 void		VirtServ::answerAutoindex(std::string fullPath, DIR *directory, t_connInfo conn)
 {
 	std::ostringstream convert;
-	struct dirent **store;
+	std::stack<struct dirent *> store;
 	struct stat attr;
 	std::string tmpString;
 	std::stringstream output;
 	std::string name;
+	static int print = 0;
 
 	store = fill_dirent(directory, fullPath);
 	conn.response.line = "HTTP/1.1 200 OK";
 	conn.response.body = "<html>\n<head><title>Index of " + conn.request.line.substr(0, conn.request.line.find_first_of(" ")) + "</title></head>\n<body>\n<h1>Index of " + conn.request.line.substr(0, conn.request.line.find_first_of(" ")) + "</h1><hr><pre>";
-	int i = 0;
-	while (store[i] != NULL)
+	// int i = 0;
+	while (store.size() > 0)
 	{
-		name = std::string((store[i])->d_name);
+		name = std::string((store.top())->d_name);
 		if (std::strncmp(".\0", name.c_str(), 2))
 		{
-			stat((fullPath + (store[i])->d_name).c_str(), &attr);
+			stat((fullPath + (store.top())->d_name).c_str(), &attr);
 			convert << attr.st_size;
-			if (store[i]->d_type == DT_DIR)
+			if (store.top()->d_type == DT_DIR)
 				name += "/";
 			conn.response.body += "<a href=\"" + name + "\">" + name + "</a>";
 			if (std::strncmp("../\0", name.c_str(), 4))
@@ -837,12 +844,12 @@ void		VirtServ::answerAutoindex(std::string fullPath, DIR *directory, t_connInfo
 				conn.response.body.append(52 - static_cast<int>(name.length()), ' ');
 				conn.response.body += tmpString;
 				conn.response.body.append(21 - convert.width(), ' ');
-				conn.response.body += store[i]->d_type == DT_DIR ? "-" : convert.str();
+				conn.response.body += store.top()->d_type == DT_DIR ? "-" : convert.str();
 			}
 			conn.response.body += "\n";
 			convert.str("");
 		}
-		i++;
+		store.pop();
 	}
 	conn.response.body += "</pre><hr></body>\n</html>";
 	convert << conn.response.body.length();
@@ -866,9 +873,11 @@ void		VirtServ::answerAutoindex(std::string fullPath, DIR *directory, t_connInfo
 
 	send(conn.fd, tmpString.c_str(), tmpString.size(), 0);
 
-	std::cout << "SENT RESPONSE" << std::endl;
-	std::cout << tmpString << std::endl;
-	delete[] (store);
+	// std::cout << "SENT RESPONSE" << std::endl;
+	// std::cout << tmpString << std::endl;
+	std::cout << print++ << std::endl;
+	// closedir(directory);
+	// delete[] (store);
 }
 
 /*
@@ -1151,10 +1160,7 @@ int			VirtServ::execPost(t_connInfo & conn)
 		std::string filename = conn.request.line.substr(0, conn.request.line.find_first_of(" "));
 		// filename = filename.substr(filename.find_last_of("/") + 1, filename.size());
 		if (launchCGI(conn) == 1)
-		{
-			// defaultAnswerError(200, conn);
 			return 1;
-		}
 		return 0;
 	}
 	if (conn.config.allowedMethods.size() && std::find(conn.config.allowedMethods.begin(), conn.config.allowedMethods.end(), "POST") == conn.config.allowedMethods.end())
@@ -1165,7 +1171,37 @@ int			VirtServ::execPost(t_connInfo & conn)
 		}
 		return 0;
 	}
-	if (findKey(conn.request.headers, "Content-Type")->second != "") {
+	else if (findKey(conn.request.headers, "Transfer-Encoding")->second == "chunked") {
+		if (chunkEncoding(conn) == 1) {
+			if (conn.body.size() > conn.config.client_max_body_size) {
+				defaultAnswerError(413, conn);
+				return 1;
+			}
+			std::string filename = conn.config.root;
+			if (*(filename.end() - 1) != '/')
+				filename.append("/");
+			if (conn.config.root != _config.root)
+			{
+				std::string	path = conn.request.line.substr(conn.request.line.find_first_of(" \t"));
+				path = path.substr(path.find_first_not_of(" \t"));
+				path = path.substr(0, path.find_first_of(" ") - 1);
+				path = path.substr(conn.location->location.length());
+				if (path.at(0) == '/')
+					path = path.substr(1);
+				filename.append(path);
+			}
+			else
+				filename.append(conn.request.line.substr(1, conn.request.line.find_first_of(" ") - 1));
+			FILE* ofs = fopen(filename.c_str(), "wb+");
+			for (size_t i = 0; i < conn.body.size(); i++)
+				fwrite(&conn.body.at(i), 1, sizeof(char), ofs);
+			fclose(ofs);
+			conn.body.clear();
+			defaultAnswerError(201,conn);
+			return 1;
+		}
+	}
+	else if (findKey(conn.request.headers, "Content-Type")->second != "") {
 		if (contentType(conn) == 1) {
 			defaultAnswerError(201,conn);
 			return 1;

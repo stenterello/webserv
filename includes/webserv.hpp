@@ -132,6 +132,7 @@ typedef struct	s_connInfo
 	int			fd;
 	std::string	buffer;
 	std::string	headers;
+	std::string	path;
 	t_config	config;
 	int			chunk_size;
 	t_request	request;
