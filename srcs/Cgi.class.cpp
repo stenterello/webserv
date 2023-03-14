@@ -33,8 +33,7 @@ Cgi::Cgi(t_connInfo & conn, unsigned short port)
     _env.push_back(std::make_pair("SERVER_PROTOCOL", "HTTP/1.1"));
     _env.push_back(std::make_pair("SERVER_SOFTWARE", "Webserv/1.0"));
     _env.push_back(std::make_pair("REDIRECT_STATUS", "200"));
-
-    // bisogna mettere Auth-Scheme nella request per l'autorizzazione?
+    _env.push_back(std::make_pair("HTTP_SECRET_HEADER_FOR_TEST", "1"));
     
 	// this->initEnv(conn);
 }

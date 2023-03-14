@@ -257,6 +257,7 @@ int			VirtServ::handleClient(int fd)
 			_connections.erase(it);
 			return (1);
 		}
+		it->headers = it->buffer;
         it->buffer.clear();
 	}
 
@@ -504,14 +505,18 @@ int			VirtServ::launchCGI(t_connInfo & conn)
 				contentType = output.substr(output.find("Content-Type ") + 17, output.npos);
 				contentType = contentType.substr(0, contentType.find_first_of(";"));
 			}
-			output = output.substr(output.find("\r\n\r\n") + 2, output.npos);
+			output = output.substr(output.find("\r\n\r\n") + 4, output.npos);
 			std::stringstream outputSize;
-			outputSize << output.size() - 2;
-			std::string answer = "HTTP/1.1 200 OK\r\nServer: webserv\r\n";
-			answer += "Content-Lenght: "; answer.append(outputSize.str());
+			outputSize << output.size();
+			std::string answer = "HTTP/1.1 200 OK\r\nServer: webserv\r\n" + contentType;
+			answer += "\r\nContent-Length: "; answer.append(outputSize.str());
+			// if (conn.headers.find("X-Secret") != conn.headers.npos)
+			// 	answer += "\r\nX-Secret-Header-For-Test: 1";
 			answer += "\r\nConnection: close\r\n\r\n";
+			if (conn.headers.find("X-Secret") != conn.headers.npos)
+				answer += "X-Secret-Header-For-Test";
 			std::cout << "answer header\n" + answer << std::endl;
-			answer += output + "\r\n";
+			answer += output;
 			send(conn.fd, answer.c_str(), answer.size(), 0);
 			// std::cout << "SENT RESPONSE" << std::endl; std::cout << answer << std::endl;
 			return 1;

@@ -131,6 +131,7 @@ typedef struct	s_connInfo
 {
 	int			fd;
 	std::string	buffer;
+	std::string	headers;
 	t_config	config;
 	int			chunk_size;
 	t_request	request;
