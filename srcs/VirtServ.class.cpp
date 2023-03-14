@@ -227,15 +227,15 @@ int			VirtServ::handleClient(int fd)
 	if (it == _connections.end())
 		return (0);
 
-	char buffer[1024] = {0};
+	unsigned char buffer[1024] = {0};
 	if (it->request.method == "")
 	{	
 		int dataRead;
-		dataRead = recv(fd, buffer, 1, 0);
-		if (dataRead <= 0) { _connections.erase(it); perror("recv"); return 1; }
-		it->buffer.append(buffer);
+		dataRead = recv(fd, buffer, sizeof buffer, 0);
+		for (int i = 0; i < dataRead; i++)
+			it->buffer.push_back(buffer[i]);
 		if (it->buffer.find("\r\n\r\n") == it->buffer.npos) return 0;
-		
+
 		it->body = it->buffer.substr(it->buffer.find("\r\n\r\n") + 4, it->buffer.npos);
 		it->buffer = it->buffer.substr(0, it->buffer.find("\r\n\r\n") + 4);
 
@@ -258,6 +258,35 @@ int			VirtServ::handleClient(int fd)
 			return (1);
 		}
 		it->headers = it->buffer;
+		if (it->body.size() > 0) {
+			it->chunk_size = strtoul(it->body.c_str(), NULL, 16);
+			// if (it->chunk_size == 0) {
+			// 	printf("CHUNK SIZE 0\n");
+			// 	if (it->body.find("\r\n\r\n") != it->body.npos) {
+			// 		char chunk[4];
+			// 		recv(it->fd, chunk, sizeof chunk, MSG_DONTWAIT);
+			// 	}
+			// 	printf("DOPO RECV\n");
+			// 	it->chunk_size = -1;
+			// }
+			if (it->chunk_size > 0 && it->body.find("\r\n") == it->body.npos) {
+				it->body = it->body.substr(it->body.find_first_of("\r\n"));
+				char buffer[1] = {0};
+				while (1) {
+					recv(it->fd, buffer, sizeof buffer, 0);
+					it->body.append(buffer);
+					if (it->body.find("\r\n") != it->body.npos) {
+						it->body.clear();
+						break ;
+					}
+					memset(buffer, 0, sizeof buffer);
+				}
+			}
+			else if (it->chunk_size > 0) {
+				it->body = it->body.substr(it->body.find("\r\n") + 2);
+				it->chunk_size = it->chunk_size - it->body.size();
+			}
+		}
         it->buffer.clear();
 	}
 
@@ -296,9 +325,7 @@ int			VirtServ::readRequest(t_connInfo & conn, std::string req)
 		conn.request.path = req.substr(req.find_first_of("/"));
 		conn.request.path = conn.request.path.substr(0, conn.request.path.find_first_of(" "));
 	}
-	
-	// std::cout << "////////// REQ //////////" << std::endl;
-	// std::cout << req << std::endl;
+
 	int i;
 	for (i = 0; i < 5; i++)
 	{
@@ -821,12 +848,10 @@ void		VirtServ::answerAutoindex(std::string fullPath, DIR *directory, t_connInfo
 	std::string tmpString;
 	std::stringstream output;
 	std::string name;
-	static int print = 0;
 
 	store = fill_dirent(directory, fullPath);
 	conn.response.line = "HTTP/1.1 200 OK";
 	conn.response.body = "<html>\n<head><title>Index of " + conn.request.line.substr(0, conn.request.line.find_first_of(" ")) + "</title></head>\n<body>\n<h1>Index of " + conn.request.line.substr(0, conn.request.line.find_first_of(" ")) + "</h1><hr><pre>";
-	// int i = 0;
 	while (store.size() > 0)
 	{
 		name = std::string((store.top())->d_name);
@@ -854,18 +879,22 @@ void		VirtServ::answerAutoindex(std::string fullPath, DIR *directory, t_connInfo
 	conn.response.body += "</pre><hr></body>\n</html>";
 	convert << conn.response.body.length();
 	tmpString = convert.str();
-	output << conn.response.line << "\r" << std::endl;
+	output << conn.response.line << "\r\n";
 
-	findKey(conn.response.headers, "Content-Length")->second = tmpString;
-	findKey(conn.response.headers, "Connection")->second = "close";
-	findKey(conn.response.headers, "Date")->second = getDateTime();
-	findKey(conn.response.headers, "Content-Type")->second = "text/html";
+	// findKey(conn.response.headers, "Content-Length")->second = tmpString;
+	// findKey(conn.response.headers, "Connection")->second = "close";
+	// findKey(conn.response.headers, "Date")->second = getDateTime();
+	// findKey(conn.response.headers, "Content-Type")->second = "text/html";
 
-	for (std::vector<std::pair<std::string, std::string> >::iterator iter = conn.response.headers.begin(); iter != conn.response.headers.end(); iter++)
-	{
-		if ((*iter).second.length())
-			output << (*iter).first << ": " << (*iter).second << "\r" << std::endl;
-	}
+	// for (std::vector<std::pair<std::string, std::string> >::iterator iter = conn.response.headers.begin(); iter != conn.response.headers.end(); iter++)
+	// {
+	// 	if ((*iter).second.length())
+	// 		output << (*iter).first << ": " << (*iter).second << "\r" << std::endl;
+	// }
+
+	output << "Content-Length: " + tmpString << "\r\n";
+	output << "Connection: close\r\nDate: " + getDateTime();
+	output << "\r\nContent-Type: text/html\r\n";
 
 	output << "\r\n"
 		   << conn.response.body;
@@ -875,9 +904,11 @@ void		VirtServ::answerAutoindex(std::string fullPath, DIR *directory, t_connInfo
 
 	// std::cout << "SENT RESPONSE" << std::endl;
 	// std::cout << tmpString << std::endl;
-	std::cout << print++ << std::endl;
 	// closedir(directory);
 	// delete[] (store);
+
+	static int print = 0;
+	std::cout << print++ << std::endl;
 }
 
 /*
@@ -1234,7 +1265,7 @@ bool		VirtServ::chunkEncoding(t_connInfo & conn)
 		unsigned char buffer[conn.chunk_size];
 		while (totalRead < conn.chunk_size) {
 			if ((dataRead = recv(conn.fd, buffer + totalRead, conn.chunk_size - totalRead, MSG_DONTWAIT)) < 0)
-				usleep(1000);
+				usleep(100);
 			if (dataRead > 0)
 				totalRead += dataRead;
 		}
@@ -1245,7 +1276,7 @@ bool		VirtServ::chunkEncoding(t_connInfo & conn)
 	}
 	else if (conn.chunk_size == 0) {
 		char chunk[4];
-		recv(conn.fd, chunk, sizeof chunk, 0);
+		recv(conn.fd, chunk, sizeof chunk, MSG_DONTWAIT);
 		conn.chunk_size = -1;
 		return 1;
 	}
@@ -1257,6 +1288,7 @@ int			VirtServ::chunkEncodingCleaning(t_connInfo & conn)
 	int dataRead = 0;
 	int totalRead = 0;
 
+	printf("CHUNK ENCODING CLEANING %d\n", conn.chunk_size);
 	if (conn.chunk_size < 0) {
 		char buffer[2048] = {0};
 		dataRead = recv(conn.fd, buffer, 1, 0);

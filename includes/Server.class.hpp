@@ -34,7 +34,9 @@ class Server
 
 		// Poll Functions
 		void 				add_to_pfds(struct pollfd *pfds[], int newfd, int *fd_count, int *fd_size);
+		void				set_fd(struct pollfd *pfds[], int newfd);
 		void 				del_from_pfds(struct pollfd pfds[], int i, int *fd_count);
+		void				rm_fd(struct pollfd *pfds[], int fd);
 
 		// Listening Loop
 		bool				startListen();

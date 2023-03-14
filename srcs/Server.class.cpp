@@ -92,7 +92,6 @@ bool    Server::startListen()
 						}
 					} else {
 						if (it->handleClient(_pfds[i].fd) == 1) {
-							// std::cout << "DELETING FD FROM PFDS\n";
 							close(_pfds[i].fd);
 							del_from_pfds(_pfds, i, &fd_count);
 						}
