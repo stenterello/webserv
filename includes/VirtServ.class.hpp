@@ -65,6 +65,7 @@ class VirtServ
 		int						chunkEncodingCleaning(t_connInfo & conn);
 		
 		char*					recv_timeout(t_connInfo & info); // recv with gettimeofday prototype
+		bool					sendAll(int socket, const char *buf, size_t *len);
 };
 
 #endif

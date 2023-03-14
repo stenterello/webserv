@@ -61,9 +61,10 @@ std::string		Cgi::executeCgi(const std::string & script)
     char    **env = this->getEnv();
     std::string _retBody;
 
-    int i = 0;
-    while (env[i])
-        printf("%s\n", env[i++]);
+    // UNCOMMENT TO PRINT ENV
+    // int i = 0;
+    // while (env[i])
+    //     printf("%s\n", env[i++]);
         
     // use tmpFile() instead of pipe() to handle big amount of data
     FILE*   in = tmpfile();
@@ -102,7 +103,6 @@ std::string		Cgi::executeCgi(const std::string & script)
                 _retBody.push_back(buffer[i]);
             memset(buffer, 0, sizeof buffer);
         }
-        std::cout << "BODY\n" + _retBody << std::endl; 
 	}
 	fclose(in);
 	fclose(out);

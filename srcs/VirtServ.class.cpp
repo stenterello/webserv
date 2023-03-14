@@ -489,37 +489,34 @@ DIR*		VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, t_connInf
 int			VirtServ::launchCGI(t_connInfo & conn)
 {
 	std::string	output;
-	unsigned char buffer[1024];
-	size_t dataRead = 0;
-	std::string code;
 
-	conn.body.clear();
-	while (1) {
-		if ((dataRead = recv(conn.fd, buffer, sizeof buffer, MSG_DONTWAIT)) < 0)
-			usleep(1000);
-		else {
-			if (dataRead > 0) {
-				for (size_t i = 0; i < dataRead; i++)
-				conn.body.push_back(buffer[i]);
+	if (findKey(conn.request.headers, "Transfer-Encoding")->second == "chunked") {
+		if (chunkEncoding(conn) == 1) {
+			std::string code;
+			std::string contentType;
+			Cgi	cgi(conn, conn.config.port);
+			output = cgi.executeCgi("fake_site/cgi_tester");
+			if (output.find("Status: ") != output.npos) {
+				code = output.substr(output.find("Status: ") + 8, output.npos);
+				code = code.substr(0, code.find_first_of("\n"));
 			}
-			if (dataRead < sizeof buffer)
-				break ;
+			if (output.find("Content-Type: ") != output.npos) {
+				contentType = output.substr(output.find("Content-Type ") + 17, output.npos);
+				contentType = contentType.substr(0, contentType.find_first_of(";"));
+			}
+			output = output.substr(output.find("\r\n\r\n") + 2, output.npos);
+			std::stringstream outputSize;
+			outputSize << output.size() - 2;
+			std::string answer = "HTTP/1.1 200 OK\r\nServer: webserv\r\n";
+			answer += "Content-Lenght: "; answer.append(outputSize.str());
+			answer += "\r\nConnection: close\r\n\r\n";
+			std::cout << "answer header\n" + answer << std::endl;
+			answer += output + "\r\n";
+			send(conn.fd, answer.c_str(), answer.size(), 0);
+			// std::cout << "SENT RESPONSE" << std::endl; std::cout << answer << std::endl;
+			return 1;
 		}
 	}
-	// std::cout << "BODY\n" + conn.body << std::endl;
-
-	if (!fork()) {
-		Cgi	cgi(conn, conn.config.port);
-		output = cgi.executeCgi("fake_site/cgi_tester");
-		if (output.find("Status: ") != output.npos) {
-			code = output.substr(output.find("Status: ") + 8, output.npos);
-			code = code.substr(0, code.find_first_of("\n"));
-		}
-		conn.body = output;
-		defaultAnswerError(std::atoi(code.c_str()), conn);
-	}
-	else
-		waitpid(-1, 0, 0);
 	return 0;
 }
 
@@ -1113,6 +1110,26 @@ int			VirtServ::execPut(t_connInfo & conn)
 	}
 	else if (findKey(conn.request.headers, "Transfer-Encoding")->second == "chunked") {
 		if (chunkEncoding(conn) == 1) {
+			std::string filename = conn.config.root;
+			if (*(filename.end() - 1) != '/')
+				filename.append("/");
+			if (conn.config.root != _config.root)
+			{
+				std::string	path = conn.request.line.substr(conn.request.line.find_first_of(" \t"));
+				path = path.substr(path.find_first_not_of(" \t"));
+				path = path.substr(0, path.find_first_of(" ") - 1);
+				path = path.substr(conn.location->location.length());
+				if (path.at(0) == '/')
+					path = path.substr(1);
+				filename.append(path);
+			}
+			else
+				filename.append(conn.request.line.substr(1, conn.request.line.find_first_of(" ") - 1));
+			FILE* ofs = fopen(filename.c_str(), "wb+");
+			for (size_t i = 0; i < conn.body.size(); i++)
+				fwrite(&conn.body.at(i), 1, sizeof(char), ofs);
+			fclose(ofs);
+			conn.body.clear();
 			defaultAnswerError(201,conn);
 			return 1;
 		}
@@ -1123,13 +1140,17 @@ int			VirtServ::execPut(t_connInfo & conn)
 
 int			VirtServ::execPost(t_connInfo & conn)
 {
-	std::cout << "------EXEC POST------\n";
-	std::cout << "REQUEST LINE " + conn.request.line << std::endl;
+	// std::cout << "------EXEC POST------\n";
+
 	if (conn.request.line.find(".bla HTTP/") != std::string::npos) {
 		std::string filename = conn.request.line.substr(0, conn.request.line.find_first_of(" "));
 		// filename = filename.substr(filename.find_last_of("/") + 1, filename.size());
-		launchCGI(conn);
-		return 1;
+		if (launchCGI(conn) == 1)
+		{
+			// defaultAnswerError(200, conn);
+			return 1;
+		}
+		return 0;
 	}
 	if (conn.config.allowedMethods.size() && std::find(conn.config.allowedMethods.begin(), conn.config.allowedMethods.end(), "POST") == conn.config.allowedMethods.end())
 	{
@@ -1150,25 +1171,9 @@ int			VirtServ::execPost(t_connInfo & conn)
 
 bool		VirtServ::chunkEncoding(t_connInfo & conn)
 {
-	FILE *ofs = NULL;
 	int dataRead = 0;
 	int totalRead = 0;
 
-	std::string filename = conn.config.root;
-	if (*(filename.end() - 1) != '/')
-		filename.append("/");
-	if (conn.config.root != _config.root)
-	{
-		std::string	path = conn.request.line.substr(conn.request.line.find_first_of(" \t"));
-		path = path.substr(path.find_first_not_of(" \t"));
-		path = path.substr(0, path.find_first_of(" ") - 1);
-		path = path.substr(conn.location->location.length());
-		if (path.at(0) == '/')
-			path = path.substr(1);
-		filename.append(path);
-	}
-	else
-		filename.append(conn.request.line.substr(1, conn.request.line.find_first_of(" ") - 1));
 	if (conn.chunk_size < 0) {
 		unsigned char buffer = 0;
 		dataRead = recv(conn.fd, &buffer, 1, 0);
@@ -1186,9 +1191,8 @@ bool		VirtServ::chunkEncoding(t_connInfo & conn)
 	else if (conn.chunk_size > 0)
 	{
 		unsigned char buffer[conn.chunk_size];
-		buffer[0] = 0;
 		while (totalRead < conn.chunk_size) {
-			if ((dataRead = recv(conn.fd, buffer, conn.chunk_size - totalRead, MSG_DONTWAIT)) < 0)
+			if ((dataRead = recv(conn.fd, buffer + totalRead, conn.chunk_size - totalRead, MSG_DONTWAIT)) < 0)
 				usleep(1000);
 			if (dataRead > 0)
 				totalRead += dataRead;
@@ -1202,11 +1206,6 @@ bool		VirtServ::chunkEncoding(t_connInfo & conn)
 		char chunk[4];
 		recv(conn.fd, chunk, sizeof chunk, 0);
 		conn.chunk_size = -1;
-		ofs = fopen(filename.c_str(), "wb+");
-		for (size_t i = 0; i < conn.body.size(); i++)
-			fwrite(&conn.body.at(i), 1, sizeof(char), ofs);
-		fclose(ofs);
-		conn.body.clear();
 		return 1;
 	}
 	return 0;
@@ -1278,4 +1277,24 @@ bool		VirtServ::contentType(t_connInfo & conn)
 	fclose(ofs);
 	conn.body.clear();
 	return 1;
+}
+
+bool VirtServ::sendAll(int socket, const char *buf, size_t *len)
+{
+	size_t total = 0;	  // how many bytes we've sent
+	int bytesleft = *len; // how many we have left to send
+	int n;
+
+	while (total < *len)
+	{
+		n = send(socket, buf + total, bytesleft, 0);
+		if (n == -1)
+			break;
+		total += n;
+		bytesleft -= n;
+	}
+
+	*len = total; // return number actually sent here
+
+	return (n == -1 ? false : true);
 }
