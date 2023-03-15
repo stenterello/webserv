@@ -27,7 +27,7 @@ class VirtServ
 		void								answer(std::string fullPath, struct dirent* dirent, t_connInfo conn);
 		void								answerAutoindex(std::string fullPath, DIR* directory, t_connInfo conn);
 		void								defaultAnswerError(int err, t_connInfo conn);
-		std::stack<struct dirent *>			fill_dirent(DIR* directory, std::string path);
+		std::vector<struct dirent *>			fill_dirent(DIR* directory, std::string path);
 		DIR*								dirAnswer(std::string fullPath, struct dirent* dirent, t_connInfo conn);
 		std::string							getDateTime();
 		std::string							defineFileType(char* filename);

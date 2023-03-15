@@ -46,7 +46,7 @@ void Server::add_to_pfds(struct pollfd *pfds[], int newfd, int *fd_count, int *f
 		*pfds = (struct pollfd *)realloc(*pfds, sizeof(**pfds) * (*fd_size));
 	}
 	(*pfds)[*fd_count].fd = newfd;
-	(*pfds)[*fd_count].events = POLLIN; // Check ready-to-read
+	(*pfds)[*fd_count].events = POLLIN | POLLPRI; // Check ready-to-read
 	(*fd_count)++;
 }
 
@@ -78,13 +78,14 @@ bool    Server::startListen()
 	
 	for(;;) {
 		int poll_count = poll(_pfds, fd_count, -1);
+
 		if (poll_count == -1) {
 			perror("poll");
 			exit(1);
 		}
 		for (int i = 0; i < fd_count; i++) {
-			for (std::vector<VirtServ>::iterator it = _virtServs.begin(); it != _virtServs.end(); it++) {
-				if (_pfds[i].revents & POLLIN) {
+			if (_pfds[i].revents & (POLLIN | POLLPRI | POLLRDNORM)) {
+				for (std::vector<VirtServ>::iterator it = _virtServs.begin(); it != _virtServs.end(); it++) {
 					if (_pfds[i].fd == it->getSocket()) {
 						int tmpfd = it->acceptConnectionAddFd(it->getSocket());
 						if (tmpfd != -1) {

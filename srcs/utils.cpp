@@ -16,7 +16,7 @@ void	die(std::string const err, VirtServ & serv)
 
 void	usage()
 {
-	std::cerr << "Usage\n\t./webserv config_file" << std::endl;
+	std::cerr << "Usage\n\t./webserv conf/config_file" << std::endl;
 	exit(1);
 }
 

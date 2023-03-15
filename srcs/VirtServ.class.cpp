@@ -56,7 +56,7 @@ bool		VirtServ::startServer()
 		return bool_error("setsockopt() error\n");
 	if (bind(_sockfd, (struct sockaddr *)&_sin, sizeof(_sin)) != 0)
 		return bool_error("Bind error");
-	if (listen(_sockfd, 100) == -1)
+	if (listen(_sockfd, 20) == -1)
 		return bool_error("Listen error");
 	return (true);
 }
@@ -81,20 +81,17 @@ int			VirtServ::acceptConnectionAddFd(int sockfd)
 {
 	socklen_t addrlen;
 	struct sockaddr_storage remoteaddr;
-
+	int		tmpfd;
 	addrlen = sizeof remoteaddr;
-	if (_connections.size() == _connections.capacity())
-		_connections.reserve(1);
-	_connections.push_back(t_connInfo(accept(sockfd,
-							 (struct sockaddr *)&remoteaddr,
-							 &addrlen)));
-	if (_connections.back().fd == -1)
+
+	tmpfd = accept(sockfd, (struct sockaddr *)&remoteaddr, &addrlen);
+	if (tmpfd == -1)
 	{
-		_connections.pop_back();
 		perror("accept");
 		return -1;
 	}
-	return (_connections.back().fd);
+	_connections.push_back(t_connInfo(tmpfd));
+	return (tmpfd);
 }
 
 /*
@@ -260,15 +257,6 @@ int			VirtServ::handleClient(int fd)
 		it->headers = it->buffer;
 		if (it->body.size() > 0) {
 			it->chunk_size = strtoul(it->body.c_str(), NULL, 16);
-			// if (it->chunk_size == 0) {
-			// 	printf("CHUNK SIZE 0\n");
-			// 	if (it->body.find("\r\n\r\n") != it->body.npos) {
-			// 		char chunk[4];
-			// 		recv(it->fd, chunk, sizeof chunk, MSG_DONTWAIT);
-			// 	}
-			// 	printf("DOPO RECV\n");
-			// 	it->chunk_size = -1;
-			// }
 			if (it->chunk_size > 0 && it->body.find("\r\n") == it->body.npos) {
 				it->body = it->body.substr(it->body.find_first_of("\r\n"));
 				char buffer[1] = {0};
@@ -287,6 +275,7 @@ int			VirtServ::handleClient(int fd)
 				it->chunk_size = it->chunk_size - it->body.size();
 			}
 		}
+		// std::cout << "------REQUEST------\n" << it->headers << std::endl;
         it->buffer.clear();
 	}
 
@@ -539,8 +528,6 @@ int			VirtServ::launchCGI(t_connInfo & conn)
 			outputSize << output.size();
 			std::string answer = "HTTP/1.1 200 OK\r\nServer: webserv\r\n" + contentType;
 			answer += "\r\nContent-Length: "; answer.append(outputSize.str());
-			// if (conn.headers.find("X-Secret") != conn.headers.npos)
-			// 	answer += "\r\nX-Secret-Header-For-Test: 1";
 			answer += "\r\nConnection: close\r\n\r\n";
 			std::cout << "answer header\n" + answer << std::endl;
 			answer += output;
@@ -779,42 +766,19 @@ void		VirtServ::defaultAnswerError(int err, t_connInfo conn)
 
 typedef struct dirent s_dirent;
 
-std::stack<struct dirent *>	VirtServ::fill_dirent(DIR *directory, std::string path)
+std::vector<struct dirent *>	VirtServ::fill_dirent(DIR *directory, std::string path)
 {
-	// struct dirent **ret;
-	std::stack<struct dirent *>	ret;
+	std::vector<struct dirent *>	ret;
 	struct dirent *tmp;
-	// int size = 0;
-	// int i = 0;
+
 	(void)path;
 	while ((tmp = readdir(directory)))
 	{
-		ret.push(tmp);
+		if (tmp->d_type == DT_DIR)
+			ret.insert(ret.begin(), tmp);
+		else
+			ret.push_back(tmp);
 	}
-	// while ((tmp = readdir(directory)))
-	// 	size++;
-	// closedir(directory);
-	// directory = opendir(path.c_str());
-	// ret = (struct dirent **)malloc(sizeof(*ret) * size + 1);
-	// int j = 0;
-	// while (i < size)
-	// {
-	// 	tmp = readdir(directory);
-	// 	if (tmp && tmp->d_type == DT_DIR)
-	// 		ret[j++] = tmp;
-	// 	i++;
-	// }
-	// i = 0;
-	// closedir(directory);
-	// directory = opendir(path.c_str());
-	// while (i < size)
-	// {
-	// 	tmp = readdir(directory);
-	// 	if (tmp && tmp->d_type != DT_DIR)
-	// 		ret[j++] = tmp;
-	// 	i++;
-	// }
-	// ret[j] = NULL;
 	return (ret);
 }
 
@@ -843,23 +807,25 @@ std::string VirtServ::getDateTime()
 void		VirtServ::answerAutoindex(std::string fullPath, DIR *directory, t_connInfo conn)
 {
 	std::ostringstream convert;
-	std::stack<struct dirent *> store;
+	std::vector<struct dirent *> store;
 	struct stat attr;
 	std::string tmpString;
 	std::stringstream output;
 	std::string name;
 
+	if ((*fullPath.end() - 1) != '/')
+		fullPath.push_back('/');
 	store = fill_dirent(directory, fullPath);
 	conn.response.line = "HTTP/1.1 200 OK";
 	conn.response.body = "<html>\n<head><title>Index of " + conn.request.line.substr(0, conn.request.line.find_first_of(" ")) + "</title></head>\n<body>\n<h1>Index of " + conn.request.line.substr(0, conn.request.line.find_first_of(" ")) + "</h1><hr><pre>";
 	while (store.size() > 0)
 	{
-		name = std::string((store.top())->d_name);
+		name = std::string((store.front())->d_name);
 		if (std::strncmp(".\0", name.c_str(), 2))
 		{
-			stat((fullPath + (store.top())->d_name).c_str(), &attr);
-			convert << attr.st_size;
-			if (store.top()->d_type == DT_DIR)
+			stat((fullPath + (store.front())->d_name).c_str(), &attr);
+			convert << (size_t)attr.st_size;
+			if (store.front()->d_type == DT_DIR)
 				name += "/";
 			conn.response.body += "<a href=\"" + name + "\">" + name + "</a>";
 			if (std::strncmp("../\0", name.c_str(), 4))
@@ -869,12 +835,12 @@ void		VirtServ::answerAutoindex(std::string fullPath, DIR *directory, t_connInfo
 				conn.response.body.append(52 - static_cast<int>(name.length()), ' ');
 				conn.response.body += tmpString;
 				conn.response.body.append(21 - convert.width(), ' ');
-				conn.response.body += store.top()->d_type == DT_DIR ? "-" : convert.str();
+				conn.response.body += store.front()->d_type == DT_DIR ? "-" : convert.str();
 			}
 			conn.response.body += "\n";
 			convert.str("");
 		}
-		store.pop();
+		store.erase(store.begin());
 	}
 	conn.response.body += "</pre><hr></body>\n</html>";
 	convert << conn.response.body.length();
