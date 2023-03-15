@@ -12,6 +12,7 @@ class VirtServ
 		VirtServ();
 
 		t_config							_config;
+		std::vector<std::pair<std::string, std::string> >	_storeReq; 
 		struct sockaddr_in					_sin;
 		struct sockaddr_in					_client;
 		socklen_t							_size;

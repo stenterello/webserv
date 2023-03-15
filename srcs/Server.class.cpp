@@ -93,7 +93,7 @@ bool    Server::startListen()
 						}
 					} else {
 						if (it->handleClient(_pfds[i].fd) == 1) {
-							close(_pfds[i].fd);
+							// close(_pfds[i].fd);
 							del_from_pfds(_pfds, i, &fd_count);
 						}
 					}

@@ -56,7 +56,7 @@ bool		VirtServ::startServer()
 		return bool_error("setsockopt() error\n");
 	if (bind(_sockfd, (struct sockaddr *)&_sin, sizeof(_sin)) != 0)
 		return bool_error("Bind error");
-	if (listen(_sockfd, 20) == -1)
+	if (listen(_sockfd, 200) == -1)
 		return bool_error("Listen error");
 	return (true);
 }
@@ -224,6 +224,10 @@ int			VirtServ::handleClient(int fd)
 	if (it == _connections.end())
 		return (0);
 
+	struct linger 	l;
+
+	l.l_onoff  = 1;
+	l.l_linger = 0;
 	unsigned char buffer[1024] = {0};
 	if (it->request.method == "")
 	{	
@@ -275,7 +279,7 @@ int			VirtServ::handleClient(int fd)
 				it->chunk_size = it->chunk_size - it->body.size();
 			}
 		}
-		std::cout << "------REQUEST------\n" << it->headers << std::endl;
+		std::cout << "------REQUEST------\n" << it->request.line << std::endl;
         it->buffer.clear();
 	}
 
@@ -285,6 +289,12 @@ int			VirtServ::handleClient(int fd)
 		if (method[i] == it->request.method) {
 			if ((this->*execMethod[i])(*it) == 1) {
 				delete it->location;
+				it->body.clear();
+				it->buffer.clear();
+				it->headers.clear();
+				it->path.clear();
+				setsockopt(it->fd, SOL_SOCKET, SO_LINGER, &l, sizeof(l));
+				close(it->fd);
 				// it->request.method.clear();
 				_connections.erase(it);
 				return 1;
@@ -509,6 +519,7 @@ int			VirtServ::launchCGI(t_connInfo & conn)
 {
 	std::string	output;
 
+	printf("LAUNCHING CGI\n");
 	if (findKey(conn.request.headers, "Transfer-Encoding")->second == "chunked") {
 		if (chunkEncoding(conn) == 1) {
 			std::string code;
@@ -628,7 +639,7 @@ bool		VirtServ::tryGetResource(std::string filename, t_connInfo conn)
 	}
 	else if (conn.config.autoindex)
 	{
-		answerAutoindex(rootPath2, directory, conn.fd);
+		answerAutoindex(rootPath2, directory, conn);
 		closedir(directory);
 		return (true);
 	}
@@ -813,7 +824,6 @@ void		VirtServ::answerAutoindex(std::string fullPath, DIR *directory, t_connInfo
 
 	if ((*fullPath.end() - 1) != '/')
 		fullPath.push_back('/');
-	usleep(2500);
 	store = fill_dirent(directory, fullPath);
 	conn.response.line = "HTTP/1.1 200 OK";
 	conn.response.body = "<html>\n<head><title>Index of " + conn.request.line.substr(0, conn.request.line.find_first_of(" ")) + "</title></head>\n<body>\n<h1>Index of " + conn.request.line.substr(0, conn.request.line.find_first_of(" ")) + "</h1><hr><pre>";
@@ -865,8 +875,10 @@ void		VirtServ::answerAutoindex(std::string fullPath, DIR *directory, t_connInfo
 		   << conn.response.body;
 	tmpString = output.str();
 
+	_storeReq.push_back(std::make_pair(conn.headers, tmpString));
+	usleep(500);
 	send(conn.fd, tmpString.c_str(), tmpString.size(), 0);
-
+	usleep(2500);
 	// std::cout << "SENT RESPONSE" << std::endl;
 	// std::cout << tmpString << std::endl;
 	// closedir(directory);
@@ -1096,7 +1108,21 @@ std::string VirtServ::defineFileType(char *filename)
 	return ("text/plain");
 }
 
-int 		VirtServ::execGet(t_connInfo & conn) { tryFiles(conn); return 1; }
+int 		VirtServ::execGet(t_connInfo & conn)
+{
+	static int print = 0;
+	std::vector<std::pair<std::string, std::string> >::iterator it;
+	for (it = _storeReq.begin(); it != _storeReq.end(); it++) {
+		if (it->first == conn.headers) {
+			conn.request.method.clear();
+			std::cout << print++ << std::endl;
+			send(conn.fd, it->second.c_str(), it->second.size(), 0);
+			return 1;
+		}
+	}
+	
+	tryFiles(conn); conn.request.method.clear(); return 1;
+}
 
 int			VirtServ::execHead(t_connInfo & conn) { tryFiles(conn); return 1; }
 
@@ -1283,7 +1309,7 @@ int			VirtServ::chunkEncodingCleaning(t_connInfo & conn)
 	}
 	else if (conn.chunk_size == 0) {
 		char chunk[4];
-		recv(conn.fd, chunk, sizeof chunk, 0);
+		recv(conn.fd, chunk, sizeof chunk, MSG_DONTWAIT);
 		conn.chunk_size = -1;
 		return 1;
 	}
