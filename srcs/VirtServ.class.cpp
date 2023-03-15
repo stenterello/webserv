@@ -275,7 +275,7 @@ int			VirtServ::handleClient(int fd)
 				it->chunk_size = it->chunk_size - it->body.size();
 			}
 		}
-		// std::cout << "------REQUEST------\n" << it->headers << std::endl;
+		std::cout << "------REQUEST------\n" << it->headers << std::endl;
         it->buffer.clear();
 	}
 
@@ -529,11 +529,9 @@ int			VirtServ::launchCGI(t_connInfo & conn)
 			std::string answer = "HTTP/1.1 200 OK\r\nServer: webserv\r\n" + contentType;
 			answer += "\r\nContent-Length: "; answer.append(outputSize.str());
 			answer += "\r\nConnection: close\r\n\r\n";
-			std::cout << "answer header\n" + answer << std::endl;
 			answer += output;
 			send(conn.fd, answer.c_str(), answer.size(), 0);
 			conn.body.clear();
-			// std::cout << "SENT RESPONSE" << std::endl; std::cout << answer << std::endl;
 			return 1;
 		}
 	}
@@ -770,7 +768,7 @@ std::vector<struct dirent *>	VirtServ::fill_dirent(DIR *directory, std::string p
 {
 	std::vector<struct dirent *>	ret;
 	struct dirent *tmp;
-
+	
 	(void)path;
 	while ((tmp = readdir(directory)))
 	{
@@ -815,6 +813,7 @@ void		VirtServ::answerAutoindex(std::string fullPath, DIR *directory, t_connInfo
 
 	if ((*fullPath.end() - 1) != '/')
 		fullPath.push_back('/');
+	usleep(2500);
 	store = fill_dirent(directory, fullPath);
 	conn.response.line = "HTTP/1.1 200 OK";
 	conn.response.body = "<html>\n<head><title>Index of " + conn.request.line.substr(0, conn.request.line.find_first_of(" ")) + "</title></head>\n<body>\n<h1>Index of " + conn.request.line.substr(0, conn.request.line.find_first_of(" ")) + "</h1><hr><pre>";
