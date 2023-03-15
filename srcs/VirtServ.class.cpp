@@ -16,7 +16,10 @@
 #include <iostream>
 #include <stdio.h>
 #include <unistd.h>
-#define IOV_MAX 1024
+
+#ifdef linux
+	#define IOV_MAX 1024
+#endif
 
 //////// Constructors & Destructor //////////////////////////////
 
@@ -279,7 +282,6 @@ int			VirtServ::handleClient(int fd)
 				it->chunk_size = it->chunk_size - it->body.size();
 			}
 		}
-		std::cout << "------REQUEST------\n" << it->request.line << std::endl;
         it->buffer.clear();
 	}
 
@@ -289,13 +291,8 @@ int			VirtServ::handleClient(int fd)
 		if (method[i] == it->request.method) {
 			if ((this->*execMethod[i])(*it) == 1) {
 				delete it->location;
-				it->body.clear();
-				it->buffer.clear();
-				it->headers.clear();
-				it->path.clear();
 				setsockopt(it->fd, SOL_SOCKET, SO_LINGER, &l, sizeof(l));
 				close(it->fd);
-				// it->request.method.clear();
 				_connections.erase(it);
 				return 1;
 				}
@@ -472,7 +469,6 @@ void		VirtServ::tryFiles(t_connInfo conn)
 
 DIR*		VirtServ::dirAnswer(std::string fullPath, struct dirent *dirent, t_connInfo conn)
 {
-	std::cout << "------DIR ANSWER------\n";
 	DIR *dir;
 
 	if (*fullPath.rbegin() != '/')
@@ -519,7 +515,6 @@ int			VirtServ::launchCGI(t_connInfo & conn)
 {
 	std::string	output;
 
-	printf("LAUNCHING CGI\n");
 	if (findKey(conn.request.headers, "Transfer-Encoding")->second == "chunked") {
 		if (chunkEncoding(conn) == 1) {
 			std::string code;
@@ -856,17 +851,6 @@ void		VirtServ::answerAutoindex(std::string fullPath, DIR *directory, t_connInfo
 	tmpString = convert.str();
 	output << conn.response.line << "\r\n";
 
-	// findKey(conn.response.headers, "Content-Length")->second = tmpString;
-	// findKey(conn.response.headers, "Connection")->second = "close";
-	// findKey(conn.response.headers, "Date")->second = getDateTime();
-	// findKey(conn.response.headers, "Content-Type")->second = "text/html";
-
-	// for (std::vector<std::pair<std::string, std::string> >::iterator iter = conn.response.headers.begin(); iter != conn.response.headers.end(); iter++)
-	// {
-	// 	if ((*iter).second.length())
-	// 		output << (*iter).first << ": " << (*iter).second << "\r" << std::endl;
-	// }
-
 	output << "Content-Length: " + tmpString << "\r\n";
 	output << "Connection: close\r\nDate: " + getDateTime();
 	output << "\r\nContent-Type: text/html\r\n";
@@ -876,13 +860,8 @@ void		VirtServ::answerAutoindex(std::string fullPath, DIR *directory, t_connInfo
 	tmpString = output.str();
 
 	_storeReq.push_back(std::make_pair(conn.headers, tmpString));
-	usleep(500);
+	
 	send(conn.fd, tmpString.c_str(), tmpString.size(), 0);
-	usleep(2500);
-	// std::cout << "SENT RESPONSE" << std::endl;
-	// std::cout << tmpString << std::endl;
-	// closedir(directory);
-	// delete[] (store);
 
 	static int print = 0;
 	std::cout << print++ << std::endl;
@@ -937,10 +916,7 @@ void		VirtServ::answer(std::string fullPath, struct dirent *dirent, t_connInfo c
 	}
 
 	if (conn.request.method != "HEAD")
-	{
-		responseStream << "\r\n"
-					   << conn.response.body;
-	}
+		responseStream << "\r\n" << conn.response.body;
 	else
 		responseStream << "\r\n";
 
@@ -1110,12 +1086,10 @@ std::string VirtServ::defineFileType(char *filename)
 
 int 		VirtServ::execGet(t_connInfo & conn)
 {
-	static int print = 0;
 	std::vector<std::pair<std::string, std::string> >::iterator it;
 	for (it = _storeReq.begin(); it != _storeReq.end(); it++) {
 		if (it->first == conn.headers) {
 			conn.request.method.clear();
-			std::cout << print++ << std::endl;
 			send(conn.fd, it->second.c_str(), it->second.size(), 0);
 			return 1;
 		}
@@ -1124,12 +1098,22 @@ int 		VirtServ::execGet(t_connInfo & conn)
 	tryFiles(conn); conn.request.method.clear(); return 1;
 }
 
-int			VirtServ::execHead(t_connInfo & conn) { tryFiles(conn); return 1; }
+int			VirtServ::execHead(t_connInfo & conn)
+{
+	std::vector<std::pair<std::string, std::string> >::iterator it;
+	for (it = _storeReq.begin(); it != _storeReq.end(); it++) {
+		if (it->first == conn.headers) {
+			conn.request.method.clear();
+			send(conn.fd, it->second.c_str(), it->second.size(), 0);
+			return 1;
+		}
+	}
+
+	tryFiles(conn); conn.request.method.clear(); return 1;
+}
 
 int			VirtServ::execPut(t_connInfo & conn)
-{
-	// std::cout << "------EXEC PUT------\n";
-	
+{	
 	if (conn.config.allowedMethods.size() && std::find(conn.config.allowedMethods.begin(), conn.config.allowedMethods.end(), "POST") == conn.config.allowedMethods.end())
 	{
 		if (chunkEncodingCleaning(conn) == 1) {
@@ -1176,11 +1160,8 @@ int			VirtServ::execPut(t_connInfo & conn)
 
 int			VirtServ::execPost(t_connInfo & conn)
 {
-	// std::cout << "------EXEC POST------\n";
-
 	if (conn.request.line.find(".bla HTTP/") != std::string::npos) {
 		std::string filename = conn.request.line.substr(0, conn.request.line.find_first_of(" "));
-		// filename = filename.substr(filename.find_last_of("/") + 1, filename.size());
 		if (launchCGI(conn) == 1)
 			return 1;
 		return 0;
@@ -1279,7 +1260,6 @@ int			VirtServ::chunkEncodingCleaning(t_connInfo & conn)
 	int dataRead = 0;
 	int totalRead = 0;
 
-	printf("CHUNK ENCODING CLEANING %d\n", conn.chunk_size);
 	if (conn.chunk_size < 0) {
 		char buffer[2048] = {0};
 		dataRead = recv(conn.fd, buffer, 1, 0);
@@ -1341,24 +1321,4 @@ bool		VirtServ::contentType(t_connInfo & conn)
 	fclose(ofs);
 	conn.body.clear();
 	return 1;
-}
-
-bool VirtServ::sendAll(int socket, const char *buf, size_t *len)
-{
-	size_t total = 0;	  // how many bytes we've sent
-	int bytesleft = *len; // how many we have left to send
-	int n;
-
-	while (total < *len)
-	{
-		n = send(socket, buf + total, bytesleft, 0);
-		if (n == -1)
-			break;
-		total += n;
-		bytesleft -= n;
-	}
-
-	*len = total; // return number actually sent here
-
-	return (n == -1 ? false : true);
 }

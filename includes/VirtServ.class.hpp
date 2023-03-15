@@ -11,31 +11,31 @@ class VirtServ
 		typedef std::vector<std::pair<std::string, std::string> >::iterator	iterator;
 		VirtServ();
 
-		t_config							_config;
+		t_config											_config;
 		std::vector<std::pair<std::string, std::string> >	_storeReq; 
-		struct sockaddr_in					_sin;
-		struct sockaddr_in					_client;
-		socklen_t							_size;
-		int									_sockfd;
-		std::vector<t_connInfo>				_connections;
-		bool								startServer();
-		bool								stopServer();
-		t_location*							searchLocationBlock(t_connInfo & info);
-		t_location*							interpretLocationBlock(t_location* location, std::string path);
-		void								insertMethod(t_config & tmpConfig, std::string value);
-		void								tryFiles(t_connInfo conn);
-		bool								tryGetResource(std::string filename, t_connInfo conn);
-		void								answer(std::string fullPath, struct dirent* dirent, t_connInfo conn);
-		void								answerAutoindex(std::string fullPath, DIR* directory, t_connInfo conn);
-		void								defaultAnswerError(int err, t_connInfo conn);
-		std::vector<struct dirent *>			fill_dirent(DIR* directory, std::string path);
-		DIR*								dirAnswer(std::string fullPath, struct dirent* dirent, t_connInfo conn);
-		std::string							getDateTime();
-		std::string							defineFileType(char* filename);
-		void								checkAndRedirect(std::string value, t_connInfo conn);
-		std::vector<t_connInfo>::iterator	findFd(std::vector<t_connInfo>::iterator begin, std::vector<t_connInfo>::iterator end, int fd);
-		t_config							getConfig(t_connInfo & conn);
-		bool								saveFiles(std::string, t_config & ret, t_connInfo & conn);
+		struct sockaddr_in									_sin;
+		struct sockaddr_in									_client;
+		socklen_t											_size;
+		int													_sockfd;
+		std::vector<t_connInfo>								_connections;
+		bool												startServer();
+		bool												stopServer();
+		t_location*											searchLocationBlock(t_connInfo & info);
+		t_location*											interpretLocationBlock(t_location* location, std::string path);
+		void												insertMethod(t_config & tmpConfig, std::string value);
+		void												tryFiles(t_connInfo conn);
+		bool												tryGetResource(std::string filename, t_connInfo conn);
+		void												answer(std::string fullPath, struct dirent* dirent, t_connInfo conn);
+		void												answerAutoindex(std::string fullPath, DIR* directory, t_connInfo conn);
+		void												defaultAnswerError(int err, t_connInfo conn);
+		std::vector<struct dirent *>						fill_dirent(DIR* directory, std::string path);
+		DIR*												dirAnswer(std::string fullPath, struct dirent* dirent, t_connInfo conn);
+		std::string											getDateTime();
+		std::string											defineFileType(char* filename);
+		void												checkAndRedirect(std::string value, t_connInfo conn);
+		std::vector<t_connInfo>::iterator					findFd(std::vector<t_connInfo>::iterator begin, std::vector<t_connInfo>::iterator end, int fd);
+		t_config											getConfig(t_connInfo & conn);
+		bool												saveFiles(std::string, t_config & ret, t_connInfo & conn);
 
 
 	public:
@@ -60,13 +60,11 @@ class VirtServ
 		
 		int 					keepConnectionAlive(int fd);
 		int						launchCGI(t_connInfo & conn);
+
 		// upload functions
 		bool					contentType(t_connInfo & conn);
 		bool					chunkEncoding(t_connInfo & conn);
 		int						chunkEncodingCleaning(t_connInfo & conn);
-		
-		char*					recv_timeout(t_connInfo & info); // recv with gettimeofday prototype
-		bool					sendAll(int socket, const char *buf, size_t *len);
 };
 
 #endif
