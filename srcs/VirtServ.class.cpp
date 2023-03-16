@@ -16,10 +16,7 @@
 #include <iostream>
 #include <stdio.h>
 #include <unistd.h>
-
-#ifdef linux
-	#define IOV_MAX 1024
-#endif
+#define IOV_MAX 1024
 
 //////// Constructors & Destructor //////////////////////////////
 
@@ -520,7 +517,7 @@ int			VirtServ::launchCGI(t_connInfo & conn)
 			std::string code;
 			std::string contentType;
 			Cgi	cgi(conn, conn.config.port);
-			output = cgi.executeCgi("fake_site/cgi_tester", conn.path.c_str());
+			output = cgi.executeCgi("fake_site/ubuntu_cgi_tester", conn.path.c_str());
 			if (output.find("Status: ") != output.npos) {
 				code = output.substr(output.find("Status: ") + 8, output.npos);
 				code = code.substr(0, code.find_first_of("\n"));
@@ -537,6 +534,7 @@ int			VirtServ::launchCGI(t_connInfo & conn)
 			answer += "\r\nConnection: close\r\n\r\n";
 			answer += output;
 			send(conn.fd, answer.c_str(), answer.size(), 0);
+			usleep(2000);
 			conn.body.clear();
 			return 1;
 		}

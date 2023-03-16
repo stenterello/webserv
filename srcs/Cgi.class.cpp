@@ -8,12 +8,9 @@ Cgi::Cgi(t_connInfo & conn, unsigned short port)
     // https://www.ibm.com/docs/en/netcoolomnibus/8.1?topic=scripts-environment-variables-in-cgi-script
 
     this->_body = conn.body;
-    // std::cout << this->_body << std::endl;
 
     std::stringstream ss;
-    // std::stringstream content_lenght;
     ss << port;
-    // content_lenght << this->_body.size();
     _env.push_back(std::make_pair("AUTH_TYPE", ""));
     _env.push_back(std::make_pair("CONTENT_LENGTH", ""));
     _env.push_back(std::make_pair("CONTENT_TYPE", "application/x-www-form-urlencoded"));
@@ -27,7 +24,7 @@ Cgi::Cgi(t_connInfo & conn, unsigned short port)
     _env.push_back(std::make_pair("REMOTE_USER", ""));
     _env.push_back(std::make_pair("REQUEST_METHOD", conn.request.method));
     _env.push_back(std::make_pair("REQUEST_URI", conn.path.c_str()));
-    _env.push_back(std::make_pair("SCRIPT_NAME", "cgi_tester"));
+    _env.push_back(std::make_pair("SCRIPT_NAME", "ubuntu_cgi_tester"));
     _env.push_back(std::make_pair("SERVER_NAME", "http://localhost:12356"));
     _env.push_back(std::make_pair("SERVER_PORT", ss.str()));
     _env.push_back(std::make_pair("SERVER_PROTOCOL", "HTTP/1.1"));
@@ -35,8 +32,6 @@ Cgi::Cgi(t_connInfo & conn, unsigned short port)
     _env.push_back(std::make_pair("REDIRECT_STATUS", "200"));
     if (conn.headers.find("X-Secret") != conn.headers.npos)
         _env.push_back(std::make_pair("HTTP_X_SECRET_HEADER_FOR_TEST", conn.headers.substr(conn.headers.find("X-Secret") + 26, conn.headers.find_first_of("\r\n"))));
-    
-	// this->initEnv(conn);
 }
 
 Cgi::~Cgi() {};
@@ -83,7 +78,6 @@ std::string		Cgi::executeCgi(const std::string & script, const char *path)
     }
     else if (!pid) {
 		char *const args[3] = {strdup(script.c_str()), strdup(path), NULL};
-		// char *const *args = NULL;
         dup2(fd_in, 0);
 		dup2(fd_out, 1);
 		execve(script.c_str(), args, env);

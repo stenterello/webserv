@@ -14,12 +14,9 @@ class Cgi
 		Cgi  	        &operator=(Cgi const & src);
 		std::string		executeCgi(const std::string & script, const char *path);	// executes cgi and returns body
 	private:
-		// void								                initEnv(t_connInfo & conn);
 		char**								                getEnv() const;
 		std::vector<std::pair<std::string, std::string> >	_env; // env to pass to execve
 		std::string							                _body;
-
-
 };
 
 #endif
