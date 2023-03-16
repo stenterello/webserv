@@ -122,7 +122,7 @@ t_config	VirtServ::getConfig(t_connInfo & conn)
 	std::string line;
 	std::string key;
 	std::string value;
-	std::string toCompare[8] = {"root", "autoindex", "index", "error_page", "client_max_body_size", "allowed_methods", "try_files", "return"};
+	std::string toCompare[9] = {"root", "autoindex", "index", "error_page", "client_max_body_size", "allowed_methods", "try_files", "return", "cgi_pass"};
 	int i;
 
 	conn.location = interpretLocationBlock(conn.location, conn.request.path);
@@ -140,7 +140,7 @@ t_config	VirtServ::getConfig(t_connInfo & conn)
 		if (value.find_first_not_of(" \t\n") == std::string::npos)
 			die("Location rule without value. Aborting", *this);
 
-		for (i = 0; i < 8; i++)
+		for (i = 0; i < 9; i++)
 			if (key == toCompare[i])
 				break;
 
@@ -185,8 +185,11 @@ t_config	VirtServ::getConfig(t_connInfo & conn)
 				return (t_config(false));
 			}
 			case 7: { checkAndRedirect(value, conn.fd); return (t_config(false)); }
-			default: die("Unrecognized location rule. Aborting", *this);
+			case 8: { ret.cgi_script = value; break ; }
+			default: die("Unrecognized location rule: \"" + key + "\". Aborting", *this);
 			}
+		if (conn.location->text.find("\n") == conn.location->text.npos)
+			return (ret);
 		conn.location->text = conn.location->text.substr(conn.location->text.find("\n") + 1);
 		conn.location->text = conn.location->text.substr(conn.location->text.find_first_not_of(" \t\n"));
 	}
@@ -517,7 +520,7 @@ int			VirtServ::launchCGI(t_connInfo & conn)
 			std::string code;
 			std::string contentType;
 			Cgi	cgi(conn, conn.config.port);
-			output = cgi.executeCgi("fake_site/ubuntu_cgi_tester", conn.path.c_str());
+			output = cgi.executeCgi(conn.config.cgi_script, conn.path.c_str());
 			if (output.find("Status: ") != output.npos) {
 				code = output.substr(output.find("Status: ") + 8, output.npos);
 				code = code.substr(0, code.find_first_of("\n"));
@@ -540,6 +543,26 @@ int			VirtServ::launchCGI(t_connInfo & conn)
 		}
 	}
 	return 0;
+}
+
+void		VirtServ::correctPath(std::string & filename)
+{
+	std::string	bench;
+
+	for (std::vector<t_location>::iterator	iter = _config.locationRules.begin(); iter != _config.locationRules.end(); iter++)
+	{
+		if (!std::strncmp(filename.c_str(), iter->location.c_str(), iter->location.length()) && iter->location.length() > bench.length()) {
+			bench = iter->location;
+		}
+	}
+	if (bench == "")
+		return ;
+	filename = filename.substr(bench.length());
+	if (filename.at(0) == '/' && filename.length() > 1) {
+		filename = filename.substr(1);
+	} else {
+		filename = "";
+	}
 }
 
 /*
@@ -565,6 +588,8 @@ bool		VirtServ::tryGetResource(std::string filename, t_connInfo conn)
 	std::string	rootPath2;
 	DIR *directory;
 	struct dirent *dirent;
+
+
 
 	conn.config.root.copy(rootPath, conn.config.root.size());
 	rootPath[conn.config.root.size()] = '\0';
@@ -594,6 +619,7 @@ bool		VirtServ::tryGetResource(std::string filename, t_connInfo conn)
 				filename = "";
 		}
 	}
+	correctPath(filename);
 	if (!(directory = opendir(rootPath2.c_str())))
 	{
 		if (errno == EACCES)
@@ -935,14 +961,23 @@ void		VirtServ::answer(std::string fullPath, struct dirent *dirent, t_connInfo c
 	std::cout << responseString << std::endl;
 }
 
+bool		isRegex(std::string path, t_config _config)
+{
+	for (std::vector<t_location>::iterator iter = _config.locationRules.begin(); iter != _config.locationRules.end(); iter++)
+	{
+		if (iter->regex && !std::strncmp(iter->location.c_str(), &(path.c_str())[path.length() - iter->location.length()], iter->location.length()))
+			return (true);
+	}
+	return (false);
+}
+
 t_location*	VirtServ::searchLocationBlock(t_connInfo & info)
 {
 	std::vector<t_location>::iterator iter = _config.locationRules.begin();
 	t_location *ret = NULL;
-	bool regex = false;
+	bool regex;
 
-	if (info.request.path.at(0) == '~')
-		regex = true;
+	regex = isRegex(info.request.path, _config);
 
 	// Exact corrispondence
 	while (iter != _config.locationRules.end() && !regex)
@@ -973,13 +1008,12 @@ t_location*	VirtServ::searchLocationBlock(t_connInfo & info)
 	// Regex
 	if (regex)
 	{
-		info.request.path = info.request.path.substr(info.request.path.find_first_of(" \t"), info.request.path.find_first_not_of(" \t"));
 		iter = _config.locationRules.begin();
 		while (iter != _config.locationRules.end())
 		{
-			if ((*iter).regex && !std::strncmp((*iter).location.c_str(), info.request.path.substr(info.request.path.length() - (*iter).location.length()).c_str(), (*iter).location.length()))
+			if ((*iter).regex && !std::strncmp(iter->location.c_str(), &(info.request.path.c_str())[info.request.path.length() - iter->location.length()], iter->location.length()))
 			{
-				if (ret == NULL || (*iter).location.length() > ret->location.length())
+				if (ret == NULL || !ret->regex || (*iter).location.length() > ret->location.length())
 					ret = &(*iter);
 			}
 			iter++;
@@ -988,7 +1022,7 @@ t_location*	VirtServ::searchLocationBlock(t_connInfo & info)
 
 	if (!ret)
 	{
-		defaultAnswerError(403, info);
+		defaultAnswerError(404, info);
 		return (NULL);
 	}
 	return (ret);
@@ -1158,7 +1192,7 @@ int			VirtServ::execPut(t_connInfo & conn)
 
 int			VirtServ::execPost(t_connInfo & conn)
 {
-	if (conn.request.line.find(".bla HTTP/") != std::string::npos) {
+	if (conn.config.cgi_script != "") {
 		std::string filename = conn.request.line.substr(0, conn.request.line.find_first_of(" "));
 		if (launchCGI(conn) == 1)
 			return 1;

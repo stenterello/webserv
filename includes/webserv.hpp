@@ -54,6 +54,7 @@ typedef struct	s_config
 	std::vector<std::string>	allowedMethods;
 	std::vector<t_location>		locationRules;			// location
 	std::vector<std::string>	files;					// files to try
+	std::string					cgi_script;
 	bool						valid;
 
 	s_config() : port(0)
@@ -62,6 +63,7 @@ typedef struct	s_config
 		host = "0.0.0.0";
 		client_max_body_size = 1048576;
 		valid = true;
+		cgi_script = "";
 	}
 	s_config(bool val) : valid(val) {}
 }				t_config;

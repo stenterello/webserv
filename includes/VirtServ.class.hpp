@@ -36,6 +36,7 @@ class VirtServ
 		std::vector<t_connInfo>::iterator					findFd(std::vector<t_connInfo>::iterator begin, std::vector<t_connInfo>::iterator end, int fd);
 		t_config											getConfig(t_connInfo & conn);
 		bool												saveFiles(std::string, t_config & ret, t_connInfo & conn);
+		void												correctPath(std::string & path);
 
 
 	public:

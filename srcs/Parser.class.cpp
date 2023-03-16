@@ -417,6 +417,7 @@ bool		Parser::parseLocation(std::string & line, t_config & conf)
 
 	// check if there's a regex or exact path case
 	line = line.substr(8).substr(line.find_first_not_of(" \t"));
+	line = line.substr(line.find_first_not_of(" \t"));
 	tmp.regex = false;
 	tmp.exact_path = false;
 	if (line.at(0) == '~')

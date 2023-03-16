@@ -2,6 +2,16 @@
 
 Cgi::Cgi() {};
 
+std::string findValue(std::vector<std::pair<std::string, std::string> > headers, std::string key)
+{
+    for (std::vector<std::pair<std::string, std::string> >::iterator iter = headers.begin(); iter != headers.end(); iter++)
+    {
+        if (!key.compare(iter->first))
+            return (iter->second);
+    }
+    return ("");
+}
+
 Cgi::Cgi(t_connInfo & conn, unsigned short port)
 {
     // https://www.rfc-editor.org/rfc/rfc3875#section-4.1
@@ -18,14 +28,14 @@ Cgi::Cgi(t_connInfo & conn, unsigned short port)
     _env.push_back(std::make_pair("PATH_INFO", conn.path.c_str()));
     _env.push_back(std::make_pair("PATH_TRANSLATED", conn.path.c_str()));
     _env.push_back(std::make_pair("QUERY_STRING", ""));
-    _env.push_back(std::make_pair("REMOTE_ADDR", "localhost:12356"));
+    _env.push_back(std::make_pair("REMOTE_ADDR", findValue(conn.request.headers, "Host")));
     _env.push_back(std::make_pair("REMOTE_HOST", ""));
     _env.push_back(std::make_pair("REMOTE_IDENT", ""));
     _env.push_back(std::make_pair("REMOTE_USER", ""));
     _env.push_back(std::make_pair("REQUEST_METHOD", conn.request.method));
     _env.push_back(std::make_pair("REQUEST_URI", conn.path.c_str()));
-    _env.push_back(std::make_pair("SCRIPT_NAME", "ubuntu_cgi_tester"));
-    _env.push_back(std::make_pair("SERVER_NAME", "http://localhost:12356"));
+    _env.push_back(std::make_pair("SCRIPT_NAME", conn.config.cgi_script.substr(conn.config.cgi_script.find_last_of("/") + 1)));
+    _env.push_back(std::make_pair("SERVER_NAME", "http://" + findValue(conn.request.headers, "Host")));
     _env.push_back(std::make_pair("SERVER_PORT", ss.str()));
     _env.push_back(std::make_pair("SERVER_PROTOCOL", "HTTP/1.1"));
     _env.push_back(std::make_pair("SERVER_SOFTWARE", "Webserv/1.0"));
