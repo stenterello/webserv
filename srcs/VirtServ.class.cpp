@@ -16,7 +16,9 @@
 #include <iostream>
 #include <stdio.h>
 #include <unistd.h>
-#define IOV_MAX 1024
+#ifdef linux
+	#define IOV_MAX 1024
+#endif
 
 //////// Constructors & Destructor //////////////////////////////
 
@@ -537,7 +539,9 @@ int			VirtServ::launchCGI(t_connInfo & conn)
 			answer += "\r\nConnection: close\r\n\r\n";
 			answer += output;
 			send(conn.fd, answer.c_str(), answer.size(), 0);
-			usleep(2000);
+			#ifdef linux
+				usleep(2000);
+			#endif
 			conn.body.clear();
 			return 1;
 		}
