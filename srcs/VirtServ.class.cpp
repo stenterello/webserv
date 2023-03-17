@@ -263,6 +263,7 @@ int			VirtServ::handleClient(int fd)
 			_connections.erase(it);
 			return (1);
 		}
+		std::cout << it->buffer << std::endl;
 		it->headers = it->buffer;
 		if (it->body.size() > 0) {
 			it->chunk_size = strtoul(it->body.c_str(), NULL, 16);
@@ -287,9 +288,9 @@ int			VirtServ::handleClient(int fd)
         it->buffer.clear();
 	}
 
-	int (VirtServ::*execMethod[])(t_connInfo & info) = {&VirtServ::execGet, &VirtServ::execHead, &VirtServ::execPost, &VirtServ::execPut};
-	std::string	method[] = {"GET", "HEAD", "POST", "PUT"};
-	for (int i = 0; i < 4; i++) {
+	int (VirtServ::*execMethod[])(t_connInfo & info) = {&VirtServ::execGet, &VirtServ::execHead, &VirtServ::execPost, &VirtServ::execPut, &VirtServ::execDelete};
+	std::string	method[] = {"GET", "HEAD", "POST", "PUT", "DELETE"};
+	for (int i = 0; i < 5; i++) {
 		if (method[i] == it->request.method) {
 			if ((this->*execMethod[i])(*it) == 1) {
 				delete it->location;
@@ -316,6 +317,14 @@ int			VirtServ::readRequest(t_connInfo & conn, std::string req)
 	conn.request.line = req.substr(req.find_first_of("/"), req.npos);
 	conn.request.line = conn.request.line.substr(0, conn.request.line.find_first_of("\r\n"));
 	conn.path = conn.request.line.substr(0, conn.request.line.find(" "));
+
+	if (conn.path.find("?") != conn.path.npos)
+	{
+		conn.request.arguments = conn.path.substr(conn.path.find("?") + 1);
+		conn.path = conn.path.substr(0, conn.path.find("?"));
+		saveCookie(conn.request.arguments);
+		std::cout << "PATH " << conn.path <<  std::endl;
+	}
 
 	if (req.find_first_of(" \t") != std::string::npos)
 		conn.request.method = req.substr(0, req.find_first_of(" \t"));
@@ -549,7 +558,7 @@ int			VirtServ::launchCGI(t_connInfo & conn)
 	return 0;
 }
 
-void		VirtServ::correctPath(std::string & filename)
+void		VirtServ::correctPath(std::string & filename, t_connInfo & conn)
 {
 	std::string	bench;
 
@@ -559,14 +568,40 @@ void		VirtServ::correctPath(std::string & filename)
 			bench = iter->location;
 		}
 	}
-	if (bench == "")
-		return ;
-	filename = filename.substr(bench.length());
-	if (filename.at(0) == '/' && filename.length() > 1) {
-		filename = filename.substr(1);
-	} else {
-		filename = "";
+	if (bench != "")
+	{
+		filename = filename.substr(bench.length());
+		if (filename.at(0) == '/' && filename.length() > 1) {
+			filename = filename.substr(1);
+		} else {
+			filename = "";
+		}
 	}
+
+	if (filename.find("?") != filename.npos)
+	{
+		conn.request.arguments = filename.substr(filename.find("?") + 1);
+		filename = filename.substr(0, filename.find("?"));
+		saveCookie(conn.request.arguments);
+		std::cout << "PATH " << conn.path <<  std::endl;
+	}
+}
+
+void		VirtServ::saveCookie(std::string arguments)
+{
+	std::string	name;
+	std::string	hash;
+	if (arguments.find("name") != arguments.npos && arguments.find("=") != arguments.npos && arguments.find("=") + 1 != arguments.npos)
+	{
+		name = arguments.substr(arguments.find("=") + 1);
+		std::string	c = "a";
+		while (this->_cookies.size() && this->_cookies.find(c) != this->_cookies.end())
+			c.at(0) = (c.at(0)++);
+		this->_cookies.insert(std::make_pair(c, name));
+	}
+	std::cout << "COOKIES" << std::endl;
+	for (std::map<std::string, std::string>::iterator iter = _cookies.begin(); iter != _cookies.end(); iter++)
+		std::cout << iter->first << ": " << iter->second << std::endl;
 }
 
 /*
@@ -623,7 +658,7 @@ bool		VirtServ::tryGetResource(std::string filename, t_connInfo conn)
 				filename = "";
 		}
 	}
-	correctPath(filename);
+	correctPath(filename, conn);
 	if (!(directory = opendir(rootPath2.c_str())))
 	{
 		if (errno == EACCES)
@@ -1193,6 +1228,85 @@ int			VirtServ::execPut(t_connInfo & conn)
 	return 0;
 }
 
+int			VirtServ::execDelete(t_connInfo & conn)
+{
+	if (conn.config.allowedMethods.size() && std::find(conn.config.allowedMethods.begin(), conn.config.allowedMethods.end(), "POST") == conn.config.allowedMethods.end())
+	{
+		if (chunkEncodingCleaning(conn) == 1) {
+			defaultAnswerError(405, conn);
+			return 1;
+		}
+		return 0;
+	}
+	else if (findKey(conn.request.headers, "Transfer-Encoding")->second == "chunked") {
+		if (chunkEncoding(conn) == 1) {
+			if (conn.body.size() > conn.config.client_max_body_size) {
+				defaultAnswerError(413, conn);
+				return 1;
+			}
+			std::string filename = conn.config.root;
+			if (*(filename.end() - 1) != '/')
+				filename.append("/");
+			if (conn.config.root != _config.root)
+			{
+				std::string	path = conn.request.line.substr(conn.request.line.find_first_of(" \t"));
+				path = path.substr(path.find_first_not_of(" \t"));
+				path = path.substr(0, path.find_first_of(" ") - 1);
+				path = path.substr(conn.location->location.length());
+				if (path.at(0) == '/')
+					path = path.substr(1);
+				filename.append(path);
+			}
+			else
+				filename.append(conn.request.line.substr(1, conn.request.line.find_first_of(" ") - 1));
+			if (filename.at(0) == '/')
+				filename = filename.substr(1);
+			if (access(filename.c_str(), F_OK))
+			{
+
+			}
+			else
+			{
+				remove(filename.c_str());
+				defaultAnswerError(204, conn);
+			}
+			conn.body.clear();
+			return 1;
+		}
+	}
+	else
+	{
+		std::string filename = conn.config.root;
+		if (*(filename.end() - 1) != '/')
+			filename.append("/");
+		if (conn.config.root != _config.root)
+		{
+			std::string	path = conn.request.line.substr(conn.request.line.find_first_of(" \t"));
+			path = path.substr(path.find_first_not_of(" \t"));
+			path = path.substr(0, path.find_first_of(" ") - 1);
+			path = path.substr(conn.location->location.length());
+			if (path.at(0) == '/')
+				path = path.substr(1);
+			filename.append(path);
+		}
+		else
+			filename.append(conn.request.line.substr(1, conn.request.line.find_first_of(" ") - 1));
+		if (conn.request.path.at(0) == '/')
+			conn.request.path = conn.request.path.substr(1);
+		if (access(filename.c_str(), F_OK))
+		{
+			defaultAnswerError(404, conn);
+		}
+		else
+		{
+			remove(filename.c_str());
+			defaultAnswerError(204, conn);
+		}
+		return (1);
+	}
+	return (0);
+}
+
 
 int			VirtServ::execPost(t_connInfo & conn)
 {
@@ -1348,7 +1462,7 @@ bool		VirtServ::contentType(t_connInfo & conn)
 	std::string filename;
 	filename = conn.body.substr(conn.body.find("filename"), std::string::npos);
 	filename = filename.substr(filename.find_first_of("\"") + 1, filename.find_first_of("\n"));
-	filename = _config.root + "/uploads/" + filename.substr(0, filename.find_first_of("\""));
+	filename = _config.root + "/put_test/" + filename.substr(0, filename.find_first_of("\""));
 	FILE *ofs = fopen(filename.c_str(), "wb+");
 	conn.body = conn.body.substr(conn.body.find("\r\n\r\n") + 4, conn.body.npos);
 	conn.body = conn.body.substr(0, conn.body.find(_boundary) - 2);

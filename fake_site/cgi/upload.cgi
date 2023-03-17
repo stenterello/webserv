@@ -2,7 +2,7 @@
 
 use CGI;
 
-$upload_dir = "../uploads";
+$upload_dir = "../put_test";
 
 $query = new CGI;
 
@@ -33,7 +33,7 @@ print <<END_HTML;
 <P>Thanks for uploading your photo!</P>
 <P>Your email address: $email_address</P>
 <P>Your photo:</P>
-<img src="/uploads/$filename" border="0">
+<img src="/put_test/$filename" border="0">
 
 </BODY>
 </HTML>

@@ -8,6 +8,7 @@
 # include <fstream>
 # include <cstring>
 # include <cstdlib>
+# include <cstdio>
 # include <algorithm>
 # include <unistd.h>
 # include <dirent.h>
@@ -73,6 +74,7 @@ typedef struct	s_request
 	std::string											line;
 	std::string											method;
 	std::string											path;
+	std::string											arguments;
 	std::vector<std::pair<std::string, std::string> >	headers;
 	std::string											body;
 

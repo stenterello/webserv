@@ -18,6 +18,7 @@ class VirtServ
 		socklen_t											_size;
 		int													_sockfd;
 		std::vector<t_connInfo>								_connections;
+		std::map<std::string, std::string>					_cookies;
 		bool												startServer();
 		bool												stopServer();
 		t_location*											searchLocationBlock(t_connInfo & info);
@@ -36,7 +37,8 @@ class VirtServ
 		std::vector<t_connInfo>::iterator					findFd(std::vector<t_connInfo>::iterator begin, std::vector<t_connInfo>::iterator end, int fd);
 		t_config											getConfig(t_connInfo & conn);
 		bool												saveFiles(std::string, t_config & ret, t_connInfo & conn);
-		void												correctPath(std::string & path);
+		void												correctPath(std::string & path, t_connInfo & conn);
+		void												saveCookie(std::string arguments);
 
 
 	public:
@@ -58,6 +60,7 @@ class VirtServ
 		int						execPut(t_connInfo & conn);
 		int						execGet(t_connInfo & conn);
 		int						execHead(t_connInfo & conn);
+		int						execDelete(t_connInfo & conn);
 		
 		int 					keepConnectionAlive(int fd);
 		int						launchCGI(t_connInfo & conn);
