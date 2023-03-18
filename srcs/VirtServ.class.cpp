@@ -265,7 +265,7 @@ int			VirtServ::handleClient(int fd)
 		}
 		std::cout << it->buffer << std::endl;
 		it->headers = it->buffer;
-		if (it->body.size() > 0) {
+		if (it->body.size() > 0 && findKey(it->request.headers, "Transfer-Encoding")->second == "chunked") {
 			it->chunk_size = strtoul(it->body.c_str(), NULL, 16);
 			if (it->chunk_size > 0 && it->body.find("\r\n") == it->body.npos) {
 				it->body = it->body.substr(it->body.find_first_of("\r\n"));
@@ -1310,6 +1310,7 @@ int			VirtServ::execDelete(t_connInfo & conn)
 
 int			VirtServ::execPost(t_connInfo & conn)
 {
+	std::cout << "------EXEC POST------\n";
 	if (conn.config.cgi_script != "") {
 		std::string filename = conn.request.line.substr(0, conn.request.line.find_first_of(" "));
 		if (launchCGI(conn) == 1)
@@ -1452,12 +1453,12 @@ bool		VirtServ::contentType(t_connInfo & conn)
 	_boundary = _boundary.substr(_boundary.find_first_of("=") + 1, _boundary.find_last_of("\n") - 1);
 	_boundary.append("--");
 	_boundary.insert(0, "--");
-	unsigned char read[512] = {0};
+	unsigned char read[4096] = {0};
 	int dataRead = 0;
-	dataRead = recv(conn.fd, read, 512, MSG_DONTWAIT);
+	dataRead = recv(conn.fd, read, sizeof read, MSG_DONTWAIT);
 	for (int i = 0; i < dataRead; i++)
 		conn.body.push_back(read[i]);
-	if (dataRead == 512)
+	if (conn.body.find(_boundary) == conn.body.npos)
 		return 0;
 	std::string filename;
 	filename = conn.body.substr(conn.body.find("filename"), std::string::npos);

@@ -4,6 +4,7 @@
 # include <Server.class.hpp>
 # include <Cgi.class.hpp>
 # include <webserv.hpp>
+# include <Cookies.class.hpp>
 
 class VirtServ
 {
