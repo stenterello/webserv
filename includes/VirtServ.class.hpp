@@ -19,7 +19,7 @@ class VirtServ
 		socklen_t											_size;
 		int													_sockfd;
 		std::vector<t_connInfo>								_connections;
-		std::map<std::string, std::string>					_cookies;
+		Cookies												_cookies;
 		bool												startServer();
 		bool												stopServer();
 		t_location*											searchLocationBlock(t_connInfo & info);
@@ -39,7 +39,6 @@ class VirtServ
 		t_config											getConfig(t_connInfo & conn);
 		bool												saveFiles(std::string, t_config & ret, t_connInfo & conn);
 		void												correctPath(std::string & path, t_connInfo & conn);
-		void												saveCookie(std::string arguments);
 
 
 	public:
@@ -48,28 +47,28 @@ class VirtServ
 		~VirtServ();
 
 		// Gets
-		int						getSocket();
-		t_config				getConfig() const;
-		std::vector<int>		getConnfd();
+		t_config											getConfig() const;
+		int													getSocket();
+		std::vector<int>									getConnfd();
 		
 		// Communication Functions
-		int						readRequest(t_connInfo & conn, std::string req);
-		int						acceptConnectionAddFd(int sockfd);
-		int						handleClient(int fd);
+		int													readRequest(t_connInfo & conn, std::string req);
+		int													acceptConnectionAddFd(int sockfd);
+		int													handleClient(int fd);
 
-		int						execPost(t_connInfo & conn);
-		int						execPut(t_connInfo & conn);
-		int						execGet(t_connInfo & conn);
-		int						execHead(t_connInfo & conn);
-		int						execDelete(t_connInfo & conn);
+		int													execPost(t_connInfo & conn);
+		int													execPut(t_connInfo & conn);
+		int													execGet(t_connInfo & conn);
+		int													execHead(t_connInfo & conn);
+		int													execDelete(t_connInfo & conn);
 		
-		int 					keepConnectionAlive(int fd);
-		int						launchCGI(t_connInfo & conn);
+		int 												keepConnectionAlive(int fd);
+		int													launchCGI(t_connInfo & conn);
 
 		// upload functions
-		bool					contentType(t_connInfo & conn);
-		bool					chunkEncoding(t_connInfo & conn);
-		int						chunkEncodingCleaning(t_connInfo & conn);
+		bool												contentType(t_connInfo & conn);
+		bool												chunkEncoding(t_connInfo & conn);
+		int													chunkEncodingCleaning(t_connInfo & conn);
 };
 
 #endif

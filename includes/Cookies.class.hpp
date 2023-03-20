@@ -11,9 +11,23 @@ class Cookies
 		
 	public:
 		Cookies() : _size(0) { };
-		Cookies(const Cookies & cpy);
-		Cookies operator=(const Cookies & rhs) const;
+		Cookies(Cookies const & cpy)
+		{
+			this->_size = cpy.getSize();
+			this->_items = cpy.getItems();
+		}
+		Cookies& operator=(Cookies const & rhs)
+		{
+			if (this == &rhs)
+				return (*this);
+			this->_size = rhs.getSize();
+			this->_items = rhs.getItems();
+			return (*this);
+		}
 		~Cookies() { _items.clear(); };
+
+		size_t								getSize() const { return this->_size; };
+		std::map<std::string, std::string>	getItems() const { return this->_items; };
 		
 		// member functions
 		// unsigned long	hashFunc(std::string str) {

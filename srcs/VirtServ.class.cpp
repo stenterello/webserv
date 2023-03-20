@@ -16,9 +16,9 @@
 #include <iostream>
 #include <stdio.h>
 #include <unistd.h>
-#ifdef linux
+// #ifdef linux
 	#define IOV_MAX 1024
-#endif
+// #endif
 
 //////// Constructors & Destructor //////////////////////////////
 
@@ -318,12 +318,21 @@ int			VirtServ::readRequest(t_connInfo & conn, std::string req)
 	conn.request.line = conn.request.line.substr(0, conn.request.line.find_first_of("\r\n"));
 	conn.path = conn.request.line.substr(0, conn.request.line.find(" "));
 
-	if (conn.path.find("?") != conn.path.npos)
+	if (conn.path.find("registered.html?") != conn.path.npos)
 	{
+		std::string	cookieKey;
+		std::string	cookieValue;
+
 		conn.request.arguments = conn.path.substr(conn.path.find("?") + 1);
 		conn.path = conn.path.substr(0, conn.path.find("?"));
-		saveCookie(conn.request.arguments);
-		std::cout << "PATH " << conn.path <<  std::endl;
+		if (conn.request.arguments.find("=") != conn.request.arguments.npos && *(conn.request.arguments.end() - 1) != '=')
+		{
+			cookieKey = conn.request.arguments.substr(0, conn.request.arguments.find("="));
+			conn.request.arguments = conn.request.arguments.substr(conn.request.arguments.find("=") + 1);
+			cookieValue = conn.request.arguments;
+			_cookies.insert(cookieKey, cookieValue);
+			_cookies.print_table();
+		}
 	}
 
 	if (req.find_first_of(" \t") != std::string::npos)
@@ -578,30 +587,22 @@ void		VirtServ::correctPath(std::string & filename, t_connInfo & conn)
 		}
 	}
 
-	if (filename.find("?") != filename.npos)
+	if (conn.path.find("registered.html?") != conn.path.npos)
 	{
-		conn.request.arguments = filename.substr(filename.find("?") + 1);
-		filename = filename.substr(0, filename.find("?"));
-		saveCookie(conn.request.arguments);
-		std::cout << "PATH " << conn.path <<  std::endl;
-	}
-}
+		std::string	cookieKey;
+		std::string	cookieValue;
 
-void		VirtServ::saveCookie(std::string arguments)
-{
-	std::string	name;
-	std::string	hash;
-	if (arguments.find("name") != arguments.npos && arguments.find("=") != arguments.npos && arguments.find("=") + 1 != arguments.npos)
-	{
-		name = arguments.substr(arguments.find("=") + 1);
-		std::string	c = "a";
-		while (this->_cookies.size() && this->_cookies.find(c) != this->_cookies.end())
-			c.at(0) = (c.at(0)++);
-		this->_cookies.insert(std::make_pair(c, name));
+		conn.request.arguments = conn.path.substr(conn.path.find("?") + 1);
+		conn.path = conn.path.substr(0, conn.path.find("?"));
+		if (conn.request.arguments.find("=") != conn.request.arguments.npos && *(conn.request.arguments.end() - 1) != '=')
+		{
+			cookieKey = conn.request.arguments.substr(0, conn.request.arguments.find("="));
+			conn.request.arguments = conn.request.arguments.substr(conn.request.arguments.find("=") + 1);
+			cookieValue = conn.request.arguments;
+			_cookies.insert(cookieKey, cookieValue);
+			_cookies.print_table();
+		}
 	}
-	std::cout << "COOKIES" << std::endl;
-	for (std::map<std::string, std::string>::iterator iter = _cookies.begin(); iter != _cookies.end(); iter++)
-		std::cout << iter->first << ": " << iter->second << std::endl;
 }
 
 /*
@@ -1076,6 +1077,9 @@ t_location* VirtServ::interpretLocationBlock(t_location *location, std::string p
 	t_location*	ret = new t_location;
 	*ret = *location;
 	std::string::iterator iter = ret->text.begin();
+
+	if (path.find("?") != path.npos)
+		path = path.substr(0, path.find("?"));
 
 	while (ret->text.find("$uri") != std::string::npos)
 	{
