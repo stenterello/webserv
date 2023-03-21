@@ -4,7 +4,6 @@
 # include <Server.class.hpp>
 # include <Cgi.class.hpp>
 # include <webserv.hpp>
-# include <Cookies.class.hpp>
 
 class VirtServ
 {
@@ -19,7 +18,7 @@ class VirtServ
 		socklen_t											_size;
 		int													_sockfd;
 		std::vector<t_connInfo>								_connections;
-		Cookies												_cookies;
+		std::map<std::string, std::string>					_cookies;
 		bool												startServer();
 		bool												stopServer();
 		t_location*											searchLocationBlock(t_connInfo & info);
@@ -39,6 +38,8 @@ class VirtServ
 		t_config											getConfig(t_connInfo & conn);
 		bool												saveFiles(std::string, t_config & ret, t_connInfo & conn);
 		void												correctPath(std::string & path, t_connInfo & conn);
+		std::string											generateCookie(std::string name);
+		void												print_table();
 
 
 	public:

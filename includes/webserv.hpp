@@ -128,24 +128,27 @@ typedef struct	s_response
 		headers.push_back(std::make_pair("Location", ""));
 		headers.push_back(std::make_pair("Connection", ""));
 		headers.push_back(std::make_pair("Allow", ""));
+		headers.push_back(std::make_pair("set-cookie", ""));
 	}
 }				t_response;
 
 typedef struct	s_connInfo
 {
-	int			fd;
-	std::string	buffer;
-	std::string	headers;
-	std::string	path;
-	t_config	config;
-	int			chunk_size;
-	t_request	request;
-	t_response	response;
-	std::string	body;
-	t_location*	location;
+	int									fd;
+	std::string							buffer;
+	std::string							headers;
+	std::string							path;
+	t_config							config;
+	int									chunk_size;
+	t_request							request;
+	t_response							response;
+	std::string							body;
+	t_location*							location;
+	bool								set_cookie;
+	std::pair<std::string, std::string>	cookie;
 	
-	s_connInfo() : chunk_size(-1) {};
-	s_connInfo(int i) : fd(i), chunk_size(-1) {};
+	s_connInfo() : chunk_size(-1), set_cookie(false) {};
+	s_connInfo(int i) : fd(i), chunk_size(-1), set_cookie(false) {};
 }			t_connInfo;
 
 # include <VirtServ.class.hpp>

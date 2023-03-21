@@ -34,7 +34,7 @@ VirtServ::VirtServ(t_config config) : _config(config)
 		die("Server Failed to Start. Aborting... :(");
 }
 
-VirtServ::~VirtServ() { _connections.clear(); }
+VirtServ::~VirtServ() { _connections.clear(); _cookies.clear(); }
 
 //////// Getters & Setters ///////////////////////////////////
 
@@ -320,19 +320,8 @@ int			VirtServ::readRequest(t_connInfo & conn, std::string req)
 
 	if (conn.path.find("registered.html?") != conn.path.npos)
 	{
-		std::string	cookieKey;
-		std::string	cookieValue;
-
 		conn.request.arguments = conn.path.substr(conn.path.find("?") + 1);
 		conn.path = conn.path.substr(0, conn.path.find("?"));
-		if (conn.request.arguments.find("=") != conn.request.arguments.npos && *(conn.request.arguments.end() - 1) != '=')
-		{
-			cookieKey = conn.request.arguments.substr(0, conn.request.arguments.find("="));
-			conn.request.arguments = conn.request.arguments.substr(conn.request.arguments.find("=") + 1);
-			cookieValue = conn.request.arguments;
-			_cookies.insert(cookieKey, cookieValue);
-			_cookies.print_table();
-		}
 	}
 
 	if (req.find_first_of(" \t") != std::string::npos)
@@ -587,20 +576,20 @@ void		VirtServ::correctPath(std::string & filename, t_connInfo & conn)
 		}
 	}
 
-	if (conn.path.find("registered.html?") != conn.path.npos)
+	if (conn.request.arguments.size() > 0)
 	{
 		std::string	cookieKey;
 		std::string	cookieValue;
 
-		conn.request.arguments = conn.path.substr(conn.path.find("?") + 1);
-		conn.path = conn.path.substr(0, conn.path.find("?"));
 		if (conn.request.arguments.find("=") != conn.request.arguments.npos && *(conn.request.arguments.end() - 1) != '=')
 		{
 			cookieKey = conn.request.arguments.substr(0, conn.request.arguments.find("="));
 			conn.request.arguments = conn.request.arguments.substr(conn.request.arguments.find("=") + 1);
 			cookieValue = conn.request.arguments;
-			_cookies.insert(cookieKey, cookieValue);
-			_cookies.print_table();
+			conn.cookie = std::make_pair(cookieKey, cookieValue);
+			_cookies.insert(conn.cookie);
+			print_table();
+			conn.set_cookie = true;
 		}
 	}
 }
@@ -686,7 +675,7 @@ bool		VirtServ::tryGetResource(std::string filename, t_connInfo conn)
 				}
 				else
 				{
-					answer(rootPath2, dirent, conn.fd);
+					answer(rootPath2, dirent, conn);
 					break;
 				}
 			}
@@ -967,6 +956,8 @@ void		VirtServ::answer(std::string fullPath, struct dirent *dirent, t_connInfo c
 		(*iter2).second = "0";
 	findKey(conn.response.headers, "Content-Type")->second = defineFileType(dirent->d_name);
 	findKey(conn.response.headers, "Connection")->second = "close";
+	if (conn.set_cookie)
+		findKey(conn.response.headers, "set-cookie")->second = conn.cookie.first + "=" + conn.cookie.second;
 	conn.response.body = tmpBody;
 
 	responseStream << conn.response.line << "\r" << std::endl;
@@ -1476,4 +1467,25 @@ bool		VirtServ::contentType(t_connInfo & conn)
 	fclose(ofs);
 	conn.body.clear();
 	return 1;
+}
+
+std::string VirtServ::generateCookie(std::string name) {
+	std::string ninjaName[28] = { "ka", "zu", "mi", "te", "ku", "lu","ji", 
+								"ri", "ki", "zu", "me", "ta", "rin", "to", "mo", "no","no", 
+								"ke", "shi", "ari", "chi", "do", "ru", "mei", "na", "fu", "zi" };
+	
+	std::string	ret;
+	for (std::string::iterator it = name.begin(); it != name.end(); it++) {
+		ret.append(ninjaName[tolower(*it) - 'a']);
+	}
+	return (ret);
+}
+
+
+void VirtServ::print_table() {
+	std::cout << "\nHash Table\n----------------\n";
+	for (std::map<std::string, std::string>::iterator it = _cookies.begin(); it != _cookies.end(); it++) {
+		std::cout << it->first << ": " << it->second << std::endl;
+	}
+	std::cout << "\n----------------\n";
 }
