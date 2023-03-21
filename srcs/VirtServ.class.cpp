@@ -946,7 +946,7 @@ void		VirtServ::answer(std::string fullPath, struct dirent *dirent, t_connInfo c
 	tmpBody = stream.str();
 	stream.str("");
 	std::cout << "QUI" << findKey(conn.request.headers, "Cookie")->second << std::endl;
-	if (!std::strncmp(dirent->d_name, "registered.html", std::strlen(dirent->d_name) && findKey(conn.request.headers, "Cookie")->second.find("name=") != findKey(conn.request.headers, "Cookie")->second.npos) && conn.set_cookie == false)
+	if (!std::strncmp(dirent->d_name, "registered.html", std::strlen(dirent->d_name) && findKey(conn.request.headers, "Cookie")->second.find("name=") != findKey(conn.request.headers, "Cookie")->second.npos) && conn.set_cookie == false && findKey(conn.request.headers, "Cookie")->second.find("name=") != findKey(conn.request.headers, "Cookie")->second.npos)
 	{
 		std::string	value;
 		std::string tmpBody2;
@@ -959,6 +959,24 @@ void		VirtServ::answer(std::string fullPath, struct dirent *dirent, t_connInfo c
 		value = value.substr(value.find("=") + 1);
 		tmpBody2 = tmpBody.substr(0, tmpBody.find("greetings") + 11);
 		tmpBody2.append(value);
+		tmpBody2.append(tmpBody.substr(tmpBody.find("greetings") + 11));
+		tmpBody = tmpBody2;
+	}
+	else if (!std::strncmp(dirent->d_name, "registered.html", std::strlen(dirent->d_name)) && conn.set_cookie == true)
+	{
+		std::string tmpBody2;
+
+		tmpBody2 = tmpBody.substr(0, tmpBody.find("greetings") + 11);
+		tmpBody2.append("Cookie is set. Refresh");
+		tmpBody2.append(tmpBody.substr(tmpBody.find("greetings") + 11));
+		tmpBody = tmpBody2;
+	}
+	else if (!std::strncmp(dirent->d_name, "registered.html", std::strlen(dirent->d_name)))
+	{
+		std::string tmpBody2;
+
+		tmpBody2 = tmpBody.substr(0, tmpBody.find("greetings") + 11);
+		tmpBody2.append("sign in at <a href=\"register.html\">register.html</a>");
 		tmpBody2.append(tmpBody.substr(tmpBody.find("greetings") + 11));
 		tmpBody = tmpBody2;
 	}

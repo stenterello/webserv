@@ -106,6 +106,7 @@ typedef struct	s_request
 		this->body = rhs.body;
 		return (*this);
 	};
+	~s_request() { arguments = ""; }
 }				t_request;
 
 typedef struct	s_response
