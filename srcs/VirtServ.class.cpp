@@ -586,7 +586,7 @@ void		VirtServ::correctPath(std::string & filename, t_connInfo & conn)
 			cookieKey = conn.request.arguments.substr(0, conn.request.arguments.find("="));
 			conn.request.arguments = conn.request.arguments.substr(conn.request.arguments.find("=") + 1);
 			cookieValue = conn.request.arguments;
-			conn.cookie = std::make_pair(cookieKey, cookieValue);
+			conn.cookie = std::make_pair(this->generateCookie(cookieValue), cookieValue);
 			_cookies.insert(conn.cookie);
 			print_table();
 			conn.set_cookie = true;
@@ -957,7 +957,7 @@ void		VirtServ::answer(std::string fullPath, struct dirent *dirent, t_connInfo c
 	findKey(conn.response.headers, "Content-Type")->second = defineFileType(dirent->d_name);
 	findKey(conn.response.headers, "Connection")->second = "close";
 	if (conn.set_cookie)
-		findKey(conn.response.headers, "set-cookie")->second = conn.cookie.first + "=" + conn.cookie.second;
+		findKey(conn.response.headers, "Set-Cookie")->second = "name=" + conn.cookie.second;
 	conn.response.body = tmpBody;
 
 	responseStream << conn.response.line << "\r" << std::endl;

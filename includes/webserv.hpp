@@ -95,6 +95,7 @@ typedef struct	s_request
 		headers.push_back(std::make_pair("Content-Type", ""));
 		headers.push_back(std::make_pair("Expect", ""));
 		headers.push_back(std::make_pair("Transfer-Encoding", ""));
+		headers.push_back(std::make_pair("Cookie", ""));
 	};
 	s_request& operator=(s_request const & rhs)
 	{
@@ -128,7 +129,7 @@ typedef struct	s_response
 		headers.push_back(std::make_pair("Location", ""));
 		headers.push_back(std::make_pair("Connection", ""));
 		headers.push_back(std::make_pair("Allow", ""));
-		headers.push_back(std::make_pair("set-cookie", ""));
+		headers.push_back(std::make_pair("Set-Cookie", ""));
 	}
 }				t_response;
 
