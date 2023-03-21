@@ -581,7 +581,7 @@ void		VirtServ::correctPath(std::string & filename, t_connInfo & conn)
 		std::string	cookieKey;
 		std::string	cookieValue;
 
-		if (conn.request.arguments.find("=") != conn.request.arguments.npos && *(conn.request.arguments.end() - 1) != '=')
+		if (conn.request.arguments.find("=") != conn.request.arguments.npos && *(conn.request.arguments.end() - 1) != '=' && findKey(conn.request.headers, "Cookie")->second.find("name") == std::string::npos)
 		{
 			cookieKey = conn.request.arguments.substr(0, conn.request.arguments.find("="));
 			conn.request.arguments = conn.request.arguments.substr(conn.request.arguments.find("=") + 1);
@@ -945,6 +945,23 @@ void		VirtServ::answer(std::string fullPath, struct dirent *dirent, t_connInfo c
 	stream << resource.rdbuf();
 	tmpBody = stream.str();
 	stream.str("");
+	std::cout << "QUI" << findKey(conn.request.headers, "Cookie")->second << std::endl;
+	if (!std::strncmp(dirent->d_name, "registered.html", std::strlen(dirent->d_name) && findKey(conn.request.headers, "Cookie")->second.find("name=") != findKey(conn.request.headers, "Cookie")->second.npos) && conn.set_cookie == false)
+	{
+		std::string	value;
+		std::string tmpBody2;
+
+		value = findKey(conn.request.headers, "Cookie")->second.substr(findKey(conn.request.headers, "Cookie")->second.find("name="));
+		if (value.find_first_of(";") != value.npos)
+			value = value.substr(value.find_first_of(";"));
+		else if (value.find_first_of(" \t") != value.npos)
+			value = value.substr(value.find_first_of(" \t"));
+		value = value.substr(value.find("=") + 1);
+		tmpBody2 = tmpBody.substr(0, tmpBody.find("greetings") + 11);
+		tmpBody2.append(value);
+		tmpBody2.append(tmpBody.substr(tmpBody.find("greetings") + 11));
+		tmpBody = tmpBody2;
+	}
 	std::vector<std::pair<std::string, std::string> >::iterator iter2 = findKey(conn.response.headers, "Content-Length");
 	if (tmpBody.length())
 	{
