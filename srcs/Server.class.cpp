@@ -68,16 +68,12 @@ int	Server::getListener(int fd, int listeners[], int n)
 
 bool    Server::startListen()
 {
-	std::stack<int>	vServSock;
-	int				fd_count = 0;
-	int				fd_size;
-	std::string		requests[1000];
-	unsigned char	buffer[512];
-	int				nRead = 0;
-	int				tmpListerner;
-	socklen_t 				addrlen;
-	struct sockaddr_storage remoteaddr;
-	int						newFd;
+	std::stack<int>									vServSock;
+	int												fd_size, fd_count = 0, nRead = 0, tmpListener, newFd;
+	std::vector<std::pair<std::string, bool> >		requests (1000, std::make_pair("", false));
+	unsigned char									buffer[512];
+	socklen_t 										addrlen;
+	struct sockaddr_storage 						remoteaddr;
 	
 	typedef std::vector<VirtServ>::iterator iterator;
 	for(iterator it = _virtServs.begin(); it < _virtServs.end(); it++) {
@@ -106,14 +102,14 @@ bool    Server::startListen()
 		}
 		for (int i = 0; i < fd_count; i++) {
 			if (_pfds[i].revents & (POLLIN | POLLPRI | POLLRDNORM)) {
-				if ((tmpListerner = getListener(_pfds[i].fd, listeners, nListeners)) != -1) {
+				if ((tmpListener = getListener(_pfds[i].fd, listeners, nListeners)) != -1) {
 					addrlen = sizeof remoteaddr;
-					newFd = accept(tmpListerner, (struct sockaddr *)&remoteaddr, &addrlen);
+					newFd = accept(tmpListener, (struct sockaddr *)&remoteaddr, &addrlen);
 					if (newFd == -1)
 						perror("accept");
 					else {
 						for (std::vector<VirtServ>::iterator it = _virtServs.begin(); it != _virtServs.end(); it++) {
-							if (tmpListerner == it->getSocket()) {
+							if (tmpListener == it->getSocket()) {
 								it->acceptConnectionAddFd(newFd);
 							}
 						}
@@ -121,7 +117,7 @@ bool    Server::startListen()
 					}
 				} else {
 					int clientFd = _pfds[i].fd;
-					if (requests[clientFd].find("\r\n\r\n") == requests[clientFd].npos) {
+					if (requests[clientFd].second == false) {
 						nRead = recv(clientFd, buffer, sizeof buffer, 0);
 						if (nRead <= 0) {
 							if (nRead < 0)
@@ -132,12 +128,14 @@ bool    Server::startListen()
 							del_from_pfds(_pfds, i, &fd_count);
 						}
 						for (int j = 0; j < nRead; j++)
-						requests[clientFd].push_back(buffer[j]);
-					memset(buffer, 0, nRead);
+							requests[clientFd].first.push_back(buffer[j]);
+						memset(buffer, 0, nRead);
+						if (requests[clientFd].first.find("\r\n\r\n") != requests[clientFd].first.npos)
+							requests[clientFd].second = true;
 					}
-					if (requests[clientFd].find("\r\n\r\n") != requests[clientFd].npos) {
+					if (requests[clientFd].second == true){
 						std::string tmp;
-						tmp = requests[clientFd];
+						tmp = requests[clientFd].first;
 						tmp = tmp.substr(tmp.find("Host") + 6);
 						tmp = tmp.substr(tmp.find(":") + 1, tmp.find("\r\n"));
 						std::stringstream ss;
@@ -146,9 +144,10 @@ bool    Server::startListen()
 						ss >> _port;
 						for(iterator it = _virtServs.begin(); it < _virtServs.end(); it++) {
 							if (it->getConfig().port == _port)
-								if (it->handleClient(clientFd, requests[clientFd]) == 1) {
+								if (it->handleClient(clientFd, requests[clientFd].first) == 1) {
 									del_from_pfds(_pfds, i, &fd_count);
-									requests[clientFd].clear();
+									requests[clientFd].first.clear();
+									requests[clientFd].second = false;
 								}
 						}
 					}
