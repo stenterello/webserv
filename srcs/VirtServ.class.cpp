@@ -1,4 +1,4 @@
-#include <Parser.class.hpp>
+ #include <Parser.class.hpp>
 #include <Server.class.hpp>
 #include <VirtServ.class.hpp>
 #include <poll.h>
@@ -81,19 +81,8 @@ bool		VirtServ::stopServer()
 
 int			VirtServ::acceptConnectionAddFd(int sockfd)
 {
-	socklen_t addrlen;
-	struct sockaddr_storage remoteaddr;
-	int		tmpfd;
-	addrlen = sizeof remoteaddr;
-
-	tmpfd = accept(sockfd, (struct sockaddr *)&remoteaddr, &addrlen);
-	if (tmpfd == -1)
-	{
-		perror("accept");
-		return -1;
-	}
-	_connections.push_back(t_connInfo(tmpfd));
-	return (tmpfd);
+	_connections.push_back(t_connInfo(sockfd));
+	return (sockfd);
 }
 
 /*
@@ -223,29 +212,21 @@ bool		VirtServ::saveFiles(std::string value, t_config & ret, t_connInfo & conn)
 	return true;
 }
 
-int			VirtServ::handleClient(int fd)
+int			VirtServ::handleClient(int fd, std::string &request)
 {
 	std::vector<t_connInfo>::iterator it = findFd(_connections.begin(), _connections.end(), fd);
 	if (it == _connections.end())
-		return (0);
+		return 0;
 
 	struct linger 	l;
-
 	l.l_onoff  = 1;
 	l.l_linger = 0;
-	unsigned char buffer[1024] = {0};
 	if (it->request.method == "")
-	{	
-		int dataRead;
-		dataRead = recv(fd, buffer, sizeof buffer, 0);
-		for (int i = 0; i < dataRead; i++)
-			it->buffer.push_back(buffer[i]);
-		if (it->buffer.find("\r\n\r\n") == it->buffer.npos) return 0;
+	{
+		it->body = request.substr(request.find("\r\n\r\n") + 4, request.npos);
+		request = request.substr(0, request.find("\r\n\r\n") + 4);
 
-		it->body = it->buffer.substr(it->buffer.find("\r\n\r\n") + 4, it->buffer.npos);
-		it->buffer = it->buffer.substr(0, it->buffer.find("\r\n\r\n") + 4);
-
-		if (!this->readRequest(*it, it->buffer))
+		if (!this->readRequest(*it, request))
 		{
 			defaultAnswerError(400, *it);
 			_connections.erase(it);
@@ -263,8 +244,8 @@ int			VirtServ::handleClient(int fd)
 			_connections.erase(it);
 			return (1);
 		}
-		std::cout << it->buffer << std::endl;
-		it->headers = it->buffer;
+		it->headers = request;
+		std::cout << it->headers << std::endl;
 		if (it->body.size() > 0 && findKey(it->request.headers, "Transfer-Encoding")->second == "chunked") {
 			it->chunk_size = strtoul(it->body.c_str(), NULL, 16);
 			if (it->chunk_size > 0 && it->body.find("\r\n") == it->body.npos) {
@@ -285,7 +266,7 @@ int			VirtServ::handleClient(int fd)
 				it->chunk_size = it->chunk_size - it->body.size();
 			}
 		}
-        it->buffer.clear();
+		it->buffer.clear();
 	}
 
 	int (VirtServ::*execMethod[])(t_connInfo & info) = {&VirtServ::execGet, &VirtServ::execHead, &VirtServ::execPost, &VirtServ::execPut, &VirtServ::execDelete};
@@ -544,12 +525,11 @@ int			VirtServ::launchCGI(t_connInfo & conn)
 			std::string answer = "HTTP/1.1 200 OK\r\nServer: webserv\r\n" + contentType;
 			answer += "\r\nContent-Length: "; answer.append(outputSize.str());
 			answer += "\r\nConnection: close\r\n\r\n";
+			std::cout << answer << std::endl;
 			answer += output;
-			send(conn.fd, answer.c_str(), answer.size(), 0);
-			#ifdef linux
-				usleep(2000);
-			#endif
 			conn.body.clear();
+			send(conn.fd, answer.c_str(), answer.size(), 0);
+			usleep(50000);
 			return 1;
 		}
 	}
@@ -1340,7 +1320,6 @@ int			VirtServ::execDelete(t_connInfo & conn)
 
 int			VirtServ::execPost(t_connInfo & conn)
 {
-	std::cout << "------EXEC POST------\n";
 	if (conn.config.cgi_script != "") {
 		std::string filename = conn.request.line.substr(0, conn.request.line.find_first_of(" "));
 		if (launchCGI(conn) == 1)
@@ -1523,4 +1502,24 @@ void VirtServ::print_table() {
 		std::cout << it->first << ": " << it->second << std::endl;
 	}
 	std::cout << "\n----------------\n";
+}
+
+bool VirtServ::sendAll(int socket, const char *buf, size_t *len)
+{
+	size_t total = 0;	  // how many bytes we've sent
+	int bytesleft = *len; // how many we have left to send
+	int n;
+
+	while (total < *len)
+	{
+		n = send(socket, buf + total, bytesleft, 0);
+		if (n == -1)
+			break;
+		total += n;
+		bytesleft -= n;
+	}
+
+	*len = total; // return number actually sent here
+
+	return (n == -1 ? false : true);
 }

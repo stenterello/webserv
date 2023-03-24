@@ -56,26 +56,47 @@ void Server::del_from_pfds(struct pollfd pfds[], int i, int *fd_count)
 	(*fd_count)--;
 }
 
+int	Server::getListener(int fd, int listeners[], int n)
+{
+	for (int j = 0; j < n; j++) {
+		if (fd == listeners[j]) {
+			return listeners[j];
+		}
+	}
+	return -1;
+}
+
 bool    Server::startListen()
 {
 	std::stack<int>	vServSock;
 	int				fd_count = 0;
 	int				fd_size;
-
-	for(std::vector<VirtServ>::iterator it = _virtServs.begin(); it < _virtServs.end(); it++) {
+	std::string		requests[1000];
+	unsigned char	buffer[512];
+	int				nRead = 0;
+	int				tmpListerner;
+	socklen_t 				addrlen;
+	struct sockaddr_storage remoteaddr;
+	int						newFd;
+	
+	typedef std::vector<VirtServ>::iterator iterator;
+	for(iterator it = _virtServs.begin(); it < _virtServs.end(); it++) {
 		std::cout << it->getConfig().port << std::endl;
 		vServSock.push(it->getSocket());
 	}
 	fd_size = vServSock.size();
+	int		listeners[fd_size];
+	int		nListeners = fd_size;
 	this->_pfds = (struct pollfd*)malloc(sizeof(*_pfds) * fd_size);
 	
 	for(int i = 0; vServSock.size() > 0; i++) {
+		listeners[i] = vServSock.top();
 		_pfds[i].fd = vServSock.top();
 		_pfds[i].events = POLLIN;
 		vServSock.pop();
 		fd_count++;
 	}
-	
+
 	for(;;) {
 		int poll_count = poll(_pfds, fd_count, -1);
 		
@@ -85,16 +106,50 @@ bool    Server::startListen()
 		}
 		for (int i = 0; i < fd_count; i++) {
 			if (_pfds[i].revents & (POLLIN | POLLPRI | POLLRDNORM)) {
-				for (std::vector<VirtServ>::iterator it = _virtServs.begin(); it != _virtServs.end(); it++) {
-					if (_pfds[i].fd == it->getSocket()) {
-						int tmpfd = it->acceptConnectionAddFd(it->getSocket());
-						if (tmpfd != -1) {
-							this->add_to_pfds(&_pfds, tmpfd, &fd_count, &fd_size);
+				if ((tmpListerner = getListener(_pfds[i].fd, listeners, nListeners)) != -1) {
+					addrlen = sizeof remoteaddr;
+					newFd = accept(tmpListerner, (struct sockaddr *)&remoteaddr, &addrlen);
+					if (newFd == -1)
+						perror("accept");
+					else {
+						for (std::vector<VirtServ>::iterator it = _virtServs.begin(); it != _virtServs.end(); it++) {
+							if (tmpListerner == it->getSocket()) {
+								it->acceptConnectionAddFd(newFd);
+							}
 						}
-					} else {
-						if (it->handleClient(_pfds[i].fd) == 1) {
-							// close(_pfds[i].fd);
+						add_to_pfds(&_pfds, newFd, &fd_count, &fd_size);
+					}
+				} else {
+					int clientFd = _pfds[i].fd;
+					if (requests[clientFd].find("\r\n\r\n") == requests[clientFd].npos) {
+						nRead = recv(clientFd, buffer, sizeof buffer, 0);
+						if (nRead <= 0) {
+							if (nRead < 0)
+								perror ("recv");
+							if (nRead == 0)
+								printf("pollserver: socket %d hung up\n", clientFd);
+							close(clientFd);
 							del_from_pfds(_pfds, i, &fd_count);
+						}
+						for (int j = 0; j < nRead; j++)
+						requests[clientFd].push_back(buffer[j]);
+					memset(buffer, 0, nRead);
+					}
+					if (requests[clientFd].find("\r\n\r\n") != requests[clientFd].npos) {
+						std::string tmp;
+						tmp = requests[clientFd];
+						tmp = tmp.substr(tmp.find("Host") + 6);
+						tmp = tmp.substr(tmp.find(":") + 1, tmp.find("\r\n"));
+						std::stringstream ss;
+						unsigned short _port;
+						ss << tmp;
+						ss >> _port;
+						for(iterator it = _virtServs.begin(); it < _virtServs.end(); it++) {
+							if (it->getConfig().port == _port)
+								if (it->handleClient(clientFd, requests[clientFd]) == 1) {
+									del_from_pfds(_pfds, i, &fd_count);
+									requests[clientFd].clear();
+								}
 						}
 					}
 				}
