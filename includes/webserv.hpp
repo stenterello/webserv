@@ -66,6 +66,39 @@ typedef struct	s_config
 		valid = true;
 		cgi_script = "";
 	}
+	s_config(s_config const & src)
+	{
+		port = src.port;
+		server_name = src.server_name;
+		autoindex = src.autoindex;
+		index = src.index;
+		errorPages = src.errorPages;
+		allowedMethods = src.allowedMethods;
+		files = src.files;
+		root = src.root;
+		host = src.host;
+		client_max_body_size = src.client_max_body_size;
+		valid = src.valid;
+		cgi_script = src.cgi_script;
+		locationRules = src.locationRules;
+	}
+	s_config&	operator=(s_config const & rhs)
+	{
+		port = rhs.port;
+		server_name = rhs.server_name;
+		autoindex = rhs.autoindex;
+		index = rhs.index;
+		errorPages = rhs.errorPages;
+		allowedMethods = rhs.allowedMethods;
+		files = rhs.files;
+		root = rhs.root;
+		host = rhs.host;
+		client_max_body_size = rhs.client_max_body_size;
+		valid = rhs.valid;
+		cgi_script = rhs.cgi_script;
+		locationRules = rhs.locationRules;
+		return (*this);
+	}
 	s_config(bool val) : valid(val) {}
 }				t_config;
 

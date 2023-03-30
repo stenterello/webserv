@@ -1,4 +1,4 @@
- #include <Parser.class.hpp>
+#include <Parser.class.hpp>
 #include <Server.class.hpp>
 #include <VirtServ.class.hpp>
 #include <poll.h>
@@ -22,13 +22,15 @@
 
 //////// Constructors & Destructor //////////////////////////////
 
-VirtServ::VirtServ(t_config config) : _config(config)
+VirtServ::VirtServ(t_config config)
 {
+	_config = NULL;
+	_configs.push_back(config);
 	memset(&_sin, '\0', sizeof(_sin));
 	memset(&_client, '\0', sizeof(_client));
 	this->_sin.sin_family = AF_INET;
-	this->_sin.sin_addr.s_addr = inet_addr(_config.host.c_str());
-	this->_sin.sin_port = htons(_config.port);
+	this->_sin.sin_addr.s_addr = inet_addr((*(_configs.begin())).host.c_str());
+	this->_sin.sin_port = htons((*(_configs.begin())).port);
 
 	if (!this->startServer())
 		die("Server Failed to Start. Aborting... :(");
@@ -39,7 +41,21 @@ VirtServ::~VirtServ() { _connections.clear(); _cookies.clear(); }
 //////// Getters & Setters ///////////////////////////////////
 
 int			VirtServ::getSocket() { return (_sockfd); }
-t_config	VirtServ::getConfig() const { return _config; }
+t_config*	VirtServ::getConfig()
+{
+	t_config*	ptr;
+	if (_config)
+		return (_config);
+	ptr = (&(*_configs.begin()));
+	return (ptr);
+}
+t_config*	VirtServ::getConfig(int i)
+{
+	t_config*	ptr;
+	ptr = (&(*(_configs.begin() + i)));
+	return (ptr);
+}
+int			VirtServ::getConfigSize() { return (_configs.size()); }
 
 //////// Main Functions //////////////////////////////////////
 
@@ -57,10 +73,15 @@ bool		VirtServ::startServer()
 	if (setsockopt(_sockfd, SOL_SOCKET, SO_REUSEADDR, (const char *)&i, sizeof(i)) < 0)
 		return bool_error("setsockopt() error\n");
 	if (bind(_sockfd, (struct sockaddr *)&_sin, sizeof(_sin)) != 0)
-		return bool_error("Bind error");
+		return bool_error("Bind error\n");
 	if (listen(_sockfd, 200) == -1)
-		return bool_error("Listen error");
+		return bool_error("Listen error\n");
 	return (true);
+}
+
+void		VirtServ::addConfig(t_config config)
+{
+	_configs.push_back(config);
 }
 
 /*
@@ -81,8 +102,19 @@ bool		VirtServ::stopServer()
 
 int			VirtServ::acceptConnectionAddFd(int sockfd)
 {
-	_connections.push_back(t_connInfo(sockfd));
-	return (sockfd);
+	socklen_t addrlen;
+	struct sockaddr_storage remoteaddr;
+	int		tmpfd;
+	addrlen = sizeof remoteaddr;
+
+	tmpfd = accept(sockfd, (struct sockaddr *)&remoteaddr, &addrlen);
+	if (tmpfd == -1)
+	{
+		perror("accept");
+		return -1;
+	}
+	_connections.push_back(t_connInfo(tmpfd));
+	return (tmpfd);
 }
 
 /*
@@ -109,7 +141,8 @@ connIter	VirtServ::findFd(std::vector<t_connInfo>::iterator begin, std::vector<t
 
 t_config	VirtServ::getConfig(t_connInfo & conn)
 {
-	t_config	ret(_config);
+	t_config	ret;
+	ret = *(chooseConfigurationBlock(conn));
 	std::string line;
 	std::string key;
 	std::string value;
@@ -212,21 +245,29 @@ bool		VirtServ::saveFiles(std::string value, t_config & ret, t_connInfo & conn)
 	return true;
 }
 
-int			VirtServ::handleClient(int fd, std::string &request)
+int			VirtServ::handleClient(int fd)
 {
 	std::vector<t_connInfo>::iterator it = findFd(_connections.begin(), _connections.end(), fd);
 	if (it == _connections.end())
-		return 0;
+		return (0);
 
 	struct linger 	l;
+
 	l.l_onoff  = 1;
 	l.l_linger = 0;
+	unsigned char buffer[1024] = {0};
 	if (it->request.method == "")
-	{
-		it->body = request.substr(request.find("\r\n\r\n") + 4, request.npos);
-		request = request.substr(0, request.find("\r\n\r\n") + 4);
+	{	
+		int dataRead;
+		dataRead = recv(fd, buffer, sizeof buffer, 0);
+		for (int i = 0; i < dataRead; i++)
+			it->buffer.push_back(buffer[i]);
+		if (it->buffer.find("\r\n\r\n") == it->buffer.npos) return 0;
 
-		if (!this->readRequest(*it, request))
+		it->body = it->buffer.substr(it->buffer.find("\r\n\r\n") + 4, it->buffer.npos);
+		it->buffer = it->buffer.substr(0, it->buffer.find("\r\n\r\n") + 4);
+
+		if (!this->readRequest(*it, it->buffer))
 		{
 			defaultAnswerError(400, *it);
 			_connections.erase(it);
@@ -244,8 +285,8 @@ int			VirtServ::handleClient(int fd, std::string &request)
 			_connections.erase(it);
 			return (1);
 		}
-		it->headers = request;
-		std::cout << it->headers << std::endl;
+		std::cout << it->buffer << std::endl;
+		it->headers = it->buffer;
 		if (it->body.size() > 0 && findKey(it->request.headers, "Transfer-Encoding")->second == "chunked") {
 			it->chunk_size = strtoul(it->body.c_str(), NULL, 16);
 			if (it->chunk_size > 0 && it->body.find("\r\n") == it->body.npos) {
@@ -266,7 +307,7 @@ int			VirtServ::handleClient(int fd, std::string &request)
 				it->chunk_size = it->chunk_size - it->body.size();
 			}
 		}
-		it->buffer.clear();
+        it->buffer.clear();
 	}
 
 	int (VirtServ::*execMethod[])(t_connInfo & info) = {&VirtServ::execGet, &VirtServ::execHead, &VirtServ::execPost, &VirtServ::execPut, &VirtServ::execDelete};
@@ -411,28 +452,35 @@ void		VirtServ::checkAndRedirect(std::string value, t_connInfo conn)
 	Parsing del location block:> modifica dei metodi permessi.
 */
 
-void		VirtServ::insertMethod(t_config &tmpConfig, std::string value)
+void		VirtServ::insertMethod(t_config & tmpConfig, std::string value)
 {
-	std::string methods[4] = {"GET", "POST", "DELETE", "PUT"};
+	std::string methods[5] = {"GET", "POST", "DELETE", "PUT", "HEAD"};
 	std::string tmp;
 	int i;
 
 	tmpConfig.allowedMethods.clear();
-	while (value.find_first_of(" \t\n") != std::string::npos)
+	if (value.find_first_of(" \t\n") != std::string::npos)
 	{
-		tmp = value.substr(0, value.find_first_of(" \t\n"));
-		tmpConfig.allowedMethods.push_back(tmp);
-		value = value.substr(value.find_first_of(" \t\n"));
-		value = value.substr(value.find_first_not_of(" \t\n"));
+		while (value.find_first_of(" \t\n") != std::string::npos)
+		{
+			tmp = value.substr(0, value.find_first_of(" \t\n"));
+			tmpConfig.allowedMethods.push_back(tmp);
+			value = value.substr(value.find_first_of(" \t\n"));
+			value = value.substr(value.find_first_not_of(" \t\n"));
+		}
+	}
+	else if (value.size())
+	{
+		tmpConfig.allowedMethods.push_back(value);
 	}
 	for (std::vector<std::string>::iterator iter = tmpConfig.allowedMethods.begin(); iter != tmpConfig.allowedMethods.end(); iter++)
 	{
-		for (i = 0; i < 4; i++)
+		for (i = 0; i < 5; i++)
 		{
 			if (*iter == methods[i])
 				break;
 		}
-		if (i == 4)
+		if (i == 5)
 			die("Method not recognized in location block. Aborting");
 	}
 }
@@ -525,11 +573,12 @@ int			VirtServ::launchCGI(t_connInfo & conn)
 			std::string answer = "HTTP/1.1 200 OK\r\nServer: webserv\r\n" + contentType;
 			answer += "\r\nContent-Length: "; answer.append(outputSize.str());
 			answer += "\r\nConnection: close\r\n\r\n";
-			std::cout << answer << std::endl;
 			answer += output;
-			conn.body.clear();
 			send(conn.fd, answer.c_str(), answer.size(), 0);
-			usleep(50000);
+			#ifdef linux
+				usleep(2000);
+			#endif
+			conn.body.clear();
 			return 1;
 		}
 	}
@@ -540,7 +589,7 @@ void		VirtServ::correctPath(std::string & filename, t_connInfo & conn)
 {
 	std::string	bench;
 
-	for (std::vector<t_location>::iterator	iter = _config.locationRules.begin(); iter != _config.locationRules.end(); iter++)
+	for (std::vector<t_location>::iterator	iter = _config->locationRules.begin(); iter != _config->locationRules.end(); iter++)
 	{
 		if (!std::strncmp(filename.c_str(), iter->location.c_str(), iter->location.length()) && iter->location.length() > bench.length()) {
 			bench = iter->location;
@@ -615,6 +664,8 @@ bool		VirtServ::tryGetResource(std::string filename, t_connInfo conn)
 			filename = filename.substr(1);
 		else if (*filename.begin() == '/')
 			filename = "";
+		else if (filename.size() == 0)
+			filename = "/";
 		if (filename.find('/') != std::string::npos)
 		{
 			if (*rootPath2.rbegin() != '/')
@@ -705,9 +756,9 @@ void		VirtServ::defaultAnswerError(int err, t_connInfo conn)
 		{
 			if (!std::strncmp(convert.str().c_str(), (*it).c_str(), 3))
 			{
-				if (*(_config.root.end() - 1) != '/')
-					_config.root.push_back('/');
-				file.open((_config.root + *it).c_str());
+				if (*(_config->root.end() - 1) != '/')
+					_config->root.push_back('/');
+				file.open((_config->root + *it).c_str());
 				if (!file)
 				{
 					file.close();
@@ -926,7 +977,7 @@ void		VirtServ::answer(std::string fullPath, struct dirent *dirent, t_connInfo c
 	tmpBody = stream.str();
 	stream.str("");
 	std::cout << "QUI" << findKey(conn.request.headers, "Cookie")->second << std::endl;
-	if (!std::strncmp(dirent->d_name, "registered.html", std::strlen(dirent->d_name) && findKey(conn.request.headers, "Cookie")->second.find("name=") != findKey(conn.request.headers, "Cookie")->second.npos) && conn.set_cookie == false && findKey(conn.request.headers, "Cookie")->second.find("name=") != findKey(conn.request.headers, "Cookie")->second.npos)
+	if (!std::strncmp(dirent->d_name, "registered.html", std::strlen(dirent->d_name)) && findKey(conn.request.headers, "Cookie")->second.find("name=") != findKey(conn.request.headers, "Cookie")->second.npos && conn.set_cookie == false && findKey(conn.request.headers, "Cookie")->second.find("name=") != findKey(conn.request.headers, "Cookie")->second.npos)
 	{
 		std::string	value;
 		std::string tmpBody2;
@@ -1007,9 +1058,9 @@ void		VirtServ::answer(std::string fullPath, struct dirent *dirent, t_connInfo c
 	std::cout << responseString << std::endl;
 }
 
-bool		isRegex(std::string path, t_config _config)
+bool		isRegex(std::string path, t_config* _config)
 {
-	for (std::vector<t_location>::iterator iter = _config.locationRules.begin(); iter != _config.locationRules.end(); iter++)
+	for (std::vector<t_location>::iterator iter = _config->locationRules.begin(); iter != _config->locationRules.end(); iter++)
 	{
 		if (iter->regex && !std::strncmp(iter->location.c_str(), &(path.c_str())[path.length() - iter->location.length()], iter->location.length()))
 			return (true);
@@ -1017,16 +1068,39 @@ bool		isRegex(std::string path, t_config _config)
 	return (false);
 }
 
+t_config*	VirtServ::chooseConfigurationBlock(t_connInfo & info)
+{
+	std::string	serverName = findKey(info.request.headers, "Host")->second;
+
+
+	if (serverName.find(":") != serverName.npos)
+		serverName = serverName.substr(0, serverName.find(":"));
+
+	if (!std::strncmp(serverName.c_str(), "localhost", 9) || serverName.find("localhost") != serverName.npos)
+		return (&(*(_configs.begin())));
+		
+	for (std::vector<t_config>::iterator iter = _configs.begin(); iter != _configs.end(); iter++)
+	{
+		for (std::vector<std::string>::iterator serverNameIt = iter->server_name.begin(); serverNameIt != iter->server_name.end(); serverNameIt++)
+		{
+			if (!serverName.compare(*serverNameIt))
+				return (&(*iter));
+		}
+	}
+	return (&(*(_configs.begin())));
+}
+
 t_location*	VirtServ::searchLocationBlock(t_connInfo & info)
 {
-	std::vector<t_location>::iterator iter = _config.locationRules.begin();
+	_config = chooseConfigurationBlock(info);
+	std::vector<t_location>::iterator iter = _config->locationRules.begin();
 	t_location *ret = NULL;
 	bool regex;
 
 	regex = isRegex(info.request.path, _config);
 
 	// Exact corrispondence
-	while (iter != _config.locationRules.end() && !regex)
+	while (iter != _config->locationRules.end() && !regex)
 	{
 		if (!std::strncmp(info.request.path.c_str(), (*iter).location.c_str(), (*iter).location.length()) && !(*iter).regex)
 		{
@@ -1039,8 +1113,8 @@ t_location*	VirtServ::searchLocationBlock(t_connInfo & info)
 	// Prefix
 	if (ret == NULL && !regex)
 	{
-		iter = _config.locationRules.begin();
-		while (iter != _config.locationRules.end())
+		iter = _config->locationRules.begin();
+		while (iter != _config->locationRules.end())
 		{
 			if (!std::strncmp(info.request.path.c_str(), (*iter).location.c_str(), info.request.path.length()) && !(*iter).regex)
 			{
@@ -1054,8 +1128,8 @@ t_location*	VirtServ::searchLocationBlock(t_connInfo & info)
 	// Regex
 	if (regex)
 	{
-		iter = _config.locationRules.begin();
-		while (iter != _config.locationRules.end())
+		iter = _config->locationRules.begin();
+		while (iter != _config->locationRules.end())
 		{
 			if ((*iter).regex && !std::strncmp(iter->location.c_str(), &(info.request.path.c_str())[info.request.path.length() - iter->location.length()], iter->location.length()))
 			{
@@ -1195,7 +1269,7 @@ int			VirtServ::execHead(t_connInfo & conn)
 
 int			VirtServ::execPut(t_connInfo & conn)
 {	
-	if (conn.config.allowedMethods.size() && std::find(conn.config.allowedMethods.begin(), conn.config.allowedMethods.end(), "POST") == conn.config.allowedMethods.end())
+	if (conn.config.allowedMethods.size() && std::find(conn.config.allowedMethods.begin(), conn.config.allowedMethods.end(), "PUT") == conn.config.allowedMethods.end())
 	{
 		if (chunkEncodingCleaning(conn) == 1) {
 			defaultAnswerError(405, conn);
@@ -1214,7 +1288,7 @@ int			VirtServ::execPut(t_connInfo & conn)
 			std::string filename = conn.config.root;
 			if (*(filename.end() - 1) != '/')
 				filename.append("/");
-			if (conn.config.root != _config.root)
+			if (conn.config.root != _config->root)
 			{
 				std::string	path = conn.request.line.substr(conn.request.line.find_first_of(" \t"));
 				path = path.substr(path.find_first_not_of(" \t"));
@@ -1257,7 +1331,7 @@ int			VirtServ::execDelete(t_connInfo & conn)
 			std::string filename = conn.config.root;
 			if (*(filename.end() - 1) != '/')
 				filename.append("/");
-			if (conn.config.root != _config.root)
+			if (conn.config.root != _config->root)
 			{
 				std::string	path = conn.request.line.substr(conn.request.line.find_first_of(" \t"));
 				path = path.substr(path.find_first_not_of(" \t"));
@@ -1289,7 +1363,7 @@ int			VirtServ::execDelete(t_connInfo & conn)
 		std::string filename = conn.config.root;
 		if (*(filename.end() - 1) != '/')
 			filename.append("/");
-		if (conn.config.root != _config.root)
+		if (conn.config.root != _config->root)
 		{
 			std::string	path = conn.request.line.substr(conn.request.line.find_first_of(" \t"));
 			path = path.substr(path.find_first_not_of(" \t"));
@@ -1320,6 +1394,7 @@ int			VirtServ::execDelete(t_connInfo & conn)
 
 int			VirtServ::execPost(t_connInfo & conn)
 {
+	std::cout << "------EXEC POST------\n";
 	if (conn.config.cgi_script != "") {
 		std::string filename = conn.request.line.substr(0, conn.request.line.find_first_of(" "));
 		if (launchCGI(conn) == 1)
@@ -1343,7 +1418,7 @@ int			VirtServ::execPost(t_connInfo & conn)
 			std::string filename = conn.config.root;
 			if (*(filename.end() - 1) != '/')
 				filename.append("/");
-			if (conn.config.root != _config.root)
+			if (conn.config.root != _config->root)
 			{
 				std::string	path = conn.request.line.substr(conn.request.line.find_first_of(" \t"));
 				path = path.substr(path.find_first_not_of(" \t"));
@@ -1472,7 +1547,7 @@ bool		VirtServ::contentType(t_connInfo & conn)
 	std::string filename;
 	filename = conn.body.substr(conn.body.find("filename"), std::string::npos);
 	filename = filename.substr(filename.find_first_of("\"") + 1, filename.find_first_of("\n"));
-	filename = _config.root + "/put_test/" + filename.substr(0, filename.find_first_of("\""));
+	filename = _config->root + "/put_test/" + filename.substr(0, filename.find_first_of("\""));
 	FILE *ofs = fopen(filename.c_str(), "wb+");
 	conn.body = conn.body.substr(conn.body.find("\r\n\r\n") + 4, conn.body.npos);
 	conn.body = conn.body.substr(0, conn.body.find(_boundary) - 2);
@@ -1502,24 +1577,4 @@ void VirtServ::print_table() {
 		std::cout << it->first << ": " << it->second << std::endl;
 	}
 	std::cout << "\n----------------\n";
-}
-
-bool VirtServ::sendAll(int socket, const char *buf, size_t *len)
-{
-	size_t total = 0;	  // how many bytes we've sent
-	int bytesleft = *len; // how many we have left to send
-	int n;
-
-	while (total < *len)
-	{
-		n = send(socket, buf + total, bytesleft, 0);
-		if (n == -1)
-			break;
-		total += n;
-		bytesleft -= n;
-	}
-
-	*len = total; // return number actually sent here
-
-	return (n == -1 ? false : true);
 }

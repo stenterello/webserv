@@ -37,7 +37,6 @@ class Server
 		void				set_fd(struct pollfd *pfds[], int newfd);
 		void 				del_from_pfds(struct pollfd pfds[], int i, int *fd_count);
 		void				rm_fd(struct pollfd *pfds[], int fd);
-		int					getListener(int fd, int listeners[], int n);
 
 		// Listening Loop
 		bool				startListen();

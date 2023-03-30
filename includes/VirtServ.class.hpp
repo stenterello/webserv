@@ -11,7 +11,8 @@ class VirtServ
 		typedef std::vector<std::pair<std::string, std::string> >::iterator	iterator;
 		VirtServ();
 
-		t_config											_config;
+		std::vector<t_config>								_configs;
+		t_config*											_config;
 		std::vector<std::pair<std::string, std::string> >	_storeReq; 
 		struct sockaddr_in									_sin;
 		struct sockaddr_in									_client;
@@ -48,14 +49,20 @@ class VirtServ
 		~VirtServ();
 
 		// Gets
-		t_config											getConfig() const;
+		t_config*											getConfig();
+		t_config*											getConfig(int i);
+		int													getConfigSize();
 		int													getSocket();
 		std::vector<int>									getConnfd();
+
+		void												addConfig(t_config config);
+		t_config*											chooseConfigurationBlock(t_connInfo & info);
+
 		
 		// Communication Functions
 		int													readRequest(t_connInfo & conn, std::string req);
 		int													acceptConnectionAddFd(int sockfd);
-		int													handleClient(int fd, std::string &request);
+		int													handleClient(int fd);
 
 		int													execPost(t_connInfo & conn);
 		int													execPut(t_connInfo & conn);
@@ -63,7 +70,6 @@ class VirtServ
 		int													execHead(t_connInfo & conn);
 		int													execDelete(t_connInfo & conn);
 		
-		bool												sendAll(int socket, const char *buf, size_t *len);
 		int 												keepConnectionAlive(int fd);
 		int													launchCGI(t_connInfo & conn);
 
