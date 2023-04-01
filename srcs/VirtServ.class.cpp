@@ -319,9 +319,9 @@ int			VirtServ::handleClient(int fd)
 				close(it->fd);
 				_connections.erase(it);
 				return 1;
-				}
 			}
 		}
+	}
 	return (0);
 }
 
