@@ -40,7 +40,6 @@ class VirtServ
 		bool												saveFiles(std::string, t_config & ret, t_connInfo & conn);
 		void												correctPath(std::string & path, t_connInfo & conn);
 		std::string											generateCookie(std::string name);
-		void												print_table();
 
 
 	public:

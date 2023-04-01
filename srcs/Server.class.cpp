@@ -27,11 +27,9 @@ Server::Server(const char* filename) : _filename(filename == NULL ? "default.con
 	_virtServs.reserve(30);
 	Parser(_filename, _config);
 	std::vector<t_config>::iterator		iterConfig = _config.begin();
-	int i = 0;
 
 	while (iterConfig != _config.end())
 	{
-		std::cout << i++ << std::endl;
 		virtServ = portIsOpen(_virtServs, *iterConfig);
 		if (virtServ)
 			virtServ->addConfig(*iterConfig);
@@ -84,9 +82,6 @@ bool    Server::startListen()
 	int				fd_size;
 
 	for(std::vector<VirtServ>::iterator it = _virtServs.begin(); it < _virtServs.end(); it++) {
-		for (int i = 0; i < it->getConfigSize(); i++) {
-			std::cout << it->getConfig(i)->port << std::endl;
-		}
 		vServSock.push(it->getSocket());
 	}
 	fd_size = vServSock.size();

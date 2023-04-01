@@ -120,6 +120,5 @@ std::string		Cgi::executeCgi(const std::string & script, const char *path)
     for (size_t i = 0; env[i]; i++)
 		delete[] env[i];
 	delete[] env;
-    // std::cout << "RET_BODY\n" + _retBody << std::endl;
     return (_retBody);
 }

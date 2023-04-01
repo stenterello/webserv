@@ -285,7 +285,6 @@ int			VirtServ::handleClient(int fd)
 			_connections.erase(it);
 			return (1);
 		}
-		std::cout << it->buffer << std::endl;
 		it->headers = it->buffer;
 		if (it->body.size() > 0 && findKey(it->request.headers, "Transfer-Encoding")->second == "chunked") {
 			it->chunk_size = strtoul(it->body.c_str(), NULL, 16);
@@ -388,13 +387,6 @@ int			VirtServ::readRequest(t_connInfo & conn, std::string req)
 
 	if (findKey(conn.request.headers, "Expect") != conn.request.headers.end())
 		return (1);
-	std::vector<std::pair<std::string, std::string> >::iterator iter = conn.request.headers.begin();
-	while (iter != conn.request.headers.end())
-	{
-		std::cout << (*iter).first << ": " << (*iter).second << std::endl;
-		iter++;
-	}
-	std::cout << conn.request.body << std::endl;
 	return (1);
 }
 
@@ -617,7 +609,6 @@ void		VirtServ::correctPath(std::string & filename, t_connInfo & conn)
 			cookieValue = conn.request.arguments;
 			conn.cookie = std::make_pair(this->generateCookie(cookieValue), cookieValue);
 			_cookies.insert(conn.cookie);
-			print_table();
 			conn.set_cookie = true;
 		}
 	}
@@ -640,7 +631,6 @@ void		VirtServ::correctPath(std::string & filename, t_connInfo & conn)
 
 bool		VirtServ::tryGetResource(std::string filename, t_connInfo conn)
 {
-	// std::cout << "------TRY GET RESOURCE------\n";
 	std::string fullPath = conn.config.root;
 	char rootPath[conn.config.root.size()];
 	std::string	rootPath2;
@@ -844,8 +834,6 @@ void		VirtServ::defaultAnswerError(int err, t_connInfo conn)
 	else
 		tmpString += "\r\n";
 	send(conn.fd, tmpString.c_str(), tmpString.size(), 0);
-	std::cout << "SENT RESPONSE" << std::endl;
-	std::cout << tmpString << std::endl;
 }
 
 /*
@@ -946,9 +934,6 @@ void		VirtServ::answerAutoindex(std::string fullPath, DIR *directory, t_connInfo
 	_storeReq.push_back(std::make_pair(conn.headers, tmpString));
 	
 	send(conn.fd, tmpString.c_str(), tmpString.size(), 0);
-
-	static int print = 0;
-	std::cout << print++ << std::endl;
 }
 
 /*
@@ -957,7 +942,6 @@ void		VirtServ::answerAutoindex(std::string fullPath, DIR *directory, t_connInfo
 
 void		VirtServ::answer(std::string fullPath, struct dirent *dirent, t_connInfo conn)
 {
-	std::cout << "------ANSWER------\n";
 	std::stringstream stream;
 	std::string tmpString;
 	std::string tmpBody;
@@ -976,7 +960,6 @@ void		VirtServ::answer(std::string fullPath, struct dirent *dirent, t_connInfo c
 	stream << resource.rdbuf();
 	tmpBody = stream.str();
 	stream.str("");
-	std::cout << "QUI" << findKey(conn.request.headers, "Cookie")->second << std::endl;
 	if (!std::strncmp(dirent->d_name, "registered.html", std::strlen(dirent->d_name)) && findKey(conn.request.headers, "Cookie")->second.find("name=") != findKey(conn.request.headers, "Cookie")->second.npos && conn.set_cookie == false && findKey(conn.request.headers, "Cookie")->second.find("name=") != findKey(conn.request.headers, "Cookie")->second.npos)
 	{
 		std::string	value;
@@ -1054,8 +1037,6 @@ void		VirtServ::answer(std::string fullPath, struct dirent *dirent, t_connInfo c
 	}
 	else
 		send(conn.fd, responseString.c_str(), responseString.size(), 0);
-	std::cout << "SENT RESPONSE" << std::endl;
-	std::cout << responseString << std::endl;
 }
 
 bool		isRegex(std::string path, t_config* _config)
@@ -1394,7 +1375,6 @@ int			VirtServ::execDelete(t_connInfo & conn)
 
 int			VirtServ::execPost(t_connInfo & conn)
 {
-	std::cout << "------EXEC POST------\n";
 	if (conn.config.cgi_script != "") {
 		std::string filename = conn.request.line.substr(0, conn.request.line.find_first_of(" "));
 		if (launchCGI(conn) == 1)
@@ -1570,11 +1550,3 @@ std::string VirtServ::generateCookie(std::string name) {
 	return (ret);
 }
 
-
-void VirtServ::print_table() {
-	std::cout << "\nHash Table\n----------------\n";
-	for (std::map<std::string, std::string>::iterator it = _cookies.begin(); it != _cookies.end(); it++) {
-		std::cout << it->first << ": " << it->second << std::endl;
-	}
-	std::cout << "\n----------------\n";
-}

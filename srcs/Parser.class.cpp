@@ -516,9 +516,6 @@ void		Parser::defineConfig(std::ifstream & configFile, std::vector<t_config> & c
 	// Delete all comments
 	text = deleteComments(text);
 
-	// std::cout << "Test output [ after deleting comments ]" << std::endl;
-	// std::cout << text << std::endl;
-
 	// Divide text in location blocks string and check that nothing is outside
 	divideAndCheck(text, serverBlocks);
 
