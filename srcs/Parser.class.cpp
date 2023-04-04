@@ -494,8 +494,6 @@ t_config		Parser::elaborateServerBlock(std::string serverBlock)
 
 	if (!serverBlock.empty())
 		serverBlock = serverBlock.replace(serverBlock.begin() + start, serverBlock.begin() + start + tmpString.length(), "");
-	// if (serverBlock.find_first_not_of(" \n\t") != std::string::npos)
-	// 	die("Anything outside server block is not accepted. Aborting");
 
 	if (ret.port == 0 || ret.root == "")
 		die("Server must listen to a port and be rooted in a path. Aborting");

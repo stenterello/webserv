@@ -255,17 +255,12 @@ int			VirtServ::handleClient(int fd)
 
 	l.l_onoff  = 1;
 	l.l_linger = 0;
-	unsigned char buffer[1024] = {0};
+	unsigned char buffer;
 	if (it->request.method == "")
 	{	
-		int dataRead;
-		dataRead = recv(fd, buffer, sizeof buffer, 0);
-		for (int i = 0; i < dataRead; i++)
-			it->buffer.push_back(buffer[i]);
+		recv(fd, &buffer, sizeof(unsigned char), 0);
+		it->buffer.push_back(buffer);
 		if (it->buffer.find("\r\n\r\n") == it->buffer.npos) return 0;
-
-		it->body = it->buffer.substr(it->buffer.find("\r\n\r\n") + 4, it->buffer.npos);
-		it->buffer = it->buffer.substr(0, it->buffer.find("\r\n\r\n") + 4);
 
 		if (!this->readRequest(*it, it->buffer))
 		{
@@ -285,43 +280,24 @@ int			VirtServ::handleClient(int fd)
 			_connections.erase(it);
 			return (1);
 		}
-		it->headers = it->buffer;
-		if (it->body.size() > 0 && findKey(it->request.headers, "Transfer-Encoding")->second == "chunked") {
-			it->chunk_size = strtoul(it->body.c_str(), NULL, 16);
-			if (it->chunk_size > 0 && it->body.find("\r\n") == it->body.npos) {
-				it->body = it->body.substr(it->body.find_first_of("\r\n"));
-				char buffer[1] = {0};
-				while (1) {
-					recv(it->fd, buffer, sizeof buffer, 0);
-					it->body.append(buffer);
-					if (it->body.find("\r\n") != it->body.npos) {
-						it->body.clear();
-						break ;
-					}
-					memset(buffer, 0, sizeof buffer);
-				}
-			}
-			else if (it->chunk_size > 0) {
-				it->body = it->body.substr(it->body.find("\r\n") + 2);
-				it->chunk_size = it->chunk_size - it->body.size();
-			}
-		}
+		it->headers = it->buffer;		
         it->buffer.clear();
 	}
 
 	int (VirtServ::*execMethod[])(t_connInfo & info) = {&VirtServ::execGet, &VirtServ::execHead, &VirtServ::execPost, &VirtServ::execPut, &VirtServ::execDelete};
-	std::string	method[] = {"GET", "HEAD", "POST", "PUT", "DELETE"};
+	std::string	method[] = { "GET", "HEAD", "POST", "PUT", "DELETE" };
 	for (int i = 0; i < 5; i++) {
 		if (method[i] == it->request.method) {
 			if ((this->*execMethod[i])(*it) == 1) {
+				usleep(200);
 				delete it->location;
 				setsockopt(it->fd, SOL_SOCKET, SO_LINGER, &l, sizeof(l));
 				close(it->fd);
 				_connections.erase(it);
 				return 1;
+				}
 			}
 		}
-	}
 	return (0);
 }
 
@@ -333,7 +309,7 @@ int			VirtServ::readRequest(t_connInfo & conn, std::string req)
 {
 	std::string key;
 	std::vector<std::pair<std::string, std::string> >::iterator header;
-	std::string comp[] = {"GET", "POST", "DELETE", "PUT", "HEAD"};
+	std::string comp[] = { "GET", "POST", "DELETE", "PUT", "HEAD" };
 
 	conn.request.line = req.substr(req.find_first_of("/"), req.npos);
 	conn.request.line = conn.request.line.substr(0, conn.request.line.find_first_of("\r\n"));
@@ -460,6 +436,8 @@ void		VirtServ::insertMethod(t_config & tmpConfig, std::string value)
 			value = value.substr(value.find_first_of(" \t\n"));
 			value = value.substr(value.find_first_not_of(" \t\n"));
 		}
+		if (value.size())
+			tmpConfig.allowedMethods.push_back(value);
 	}
 	else if (value.size())
 	{
@@ -562,16 +540,27 @@ int			VirtServ::launchCGI(t_connInfo & conn)
 			output = output.substr(output.find("\r\n\r\n") + 4, output.npos);
 			std::stringstream outputSize;
 			outputSize << output.size();
-			std::string answer = "HTTP/1.1 200 OK\r\nServer: webserv\r\n" + contentType;
-			answer += "\r\nContent-Length: "; answer.append(outputSize.str());
-			answer += "\r\nConnection: close\r\n\r\n";
-			answer += output;
-			send(conn.fd, answer.c_str(), answer.size(), 0);
-			#ifdef linux
-				usleep(2000);
-			#endif
-			conn.body.clear();
-			return 1;
+			std::string _answer = "HTTP/1.1 200 OK\r\nServer: webserv\r\n" + contentType;
+			_answer += "Date: " + getDateTime();
+			_answer += "\r\nContent-Length: "; _answer.append(outputSize.str());
+			_answer += "\r\nConnection: close\r\n\r\n";
+			_answer += output;
+			size_t size = _answer.size();
+			unsigned char *answer = (unsigned char *)malloc(sizeof(unsigned char) * size);
+			memcpy(answer, _answer.c_str(), size);
+			unsigned char *tmp = answer;
+			while (1) {
+				if (size <= 0x8000) {
+					send(conn.fd, answer, size, 0);
+					free(tmp);
+					while (recv(conn.fd, NULL, 0, 0) < 0)
+						usleep(50);
+					return 1;
+				}
+				send(conn.fd, answer, 0x8000, 0);
+				answer += 0x8000;
+				size -= 0x8000;
+			}
 		}
 	}
 	return 0;
@@ -906,8 +895,6 @@ void		VirtServ::answerAutoindex(std::string fullPath, DIR *directory, t_connInfo
 			conn.response.body += "<a href=\"" + name + "\">" + name + "</a>";
 			if (std::strncmp("../\0", name.c_str(), 4))
 			{
-				// questa a volte manda errore
-				// tmpString = std::string(ctime(&attr.st_mtime)).substr(0, std::string(ctime(&attr.st_mtime)).length() - 1);
 				conn.response.body.append(52 - static_cast<int>(name.length()), ' ');
 				conn.response.body += tmpString;
 				conn.response.body.append(21 - convert.width(), ' ');
@@ -1192,7 +1179,7 @@ std::string VirtServ::defineFileType(char *filename)
 	{
 		switch (i) {
 			case 0: return ("image/gif");
-			case 1: //??????????????????????????
+			case 1: return ("image/jpeg");
 			case 2: return ("image/jpeg");
 			case 3: return ("image/png");
 			case 4: return ("image/tiff");
@@ -1295,13 +1282,18 @@ int			VirtServ::execPut(t_connInfo & conn)
 
 int			VirtServ::execDelete(t_connInfo & conn)
 {
-	if (conn.config.allowedMethods.size() && std::find(conn.config.allowedMethods.begin(), conn.config.allowedMethods.end(), "POST") == conn.config.allowedMethods.end())
+	if (conn.config.allowedMethods.size() && std::find(conn.config.allowedMethods.begin(), conn.config.allowedMethods.end(), "DELETE") == conn.config.allowedMethods.end() && findKey(conn.request.headers, "Transfer-Encoding")->second == "chunked")
 	{
 		if (chunkEncodingCleaning(conn) == 1) {
 			defaultAnswerError(405, conn);
 			return 1;
 		}
 		return 0;
+	}
+	else if (conn.config.allowedMethods.size() && std::find(conn.config.allowedMethods.begin(), conn.config.allowedMethods.end(), "DELETE") == conn.config.allowedMethods.end())
+	{
+		defaultAnswerError(405, conn);
+		return 1;
 	}
 	else if (findKey(conn.request.headers, "Transfer-Encoding")->second == "chunked") {
 		if (chunkEncoding(conn) == 1) {
@@ -1327,9 +1319,7 @@ int			VirtServ::execDelete(t_connInfo & conn)
 			if (filename.at(0) == '/')
 				filename = filename.substr(1);
 			if (access(filename.c_str(), F_OK))
-			{
-
-			}
+				defaultAnswerError(404, conn);
 			else
 			{
 				remove(filename.c_str());
@@ -1359,9 +1349,7 @@ int			VirtServ::execDelete(t_connInfo & conn)
 		if (conn.request.path.at(0) == '/')
 			conn.request.path = conn.request.path.substr(1);
 		if (access(filename.c_str(), F_OK))
-		{
 			defaultAnswerError(404, conn);
-		}
 		else
 		{
 			remove(filename.c_str());
@@ -1452,7 +1440,7 @@ bool		VirtServ::chunkEncoding(t_connInfo & conn)
 		unsigned char buffer[conn.chunk_size];
 		while (totalRead < conn.chunk_size) {
 			if ((dataRead = recv(conn.fd, buffer + totalRead, conn.chunk_size - totalRead, MSG_DONTWAIT)) < 0)
-				usleep(100);
+				usleep(1000);
 			if (dataRead > 0)
 				totalRead += dataRead;
 		}
@@ -1549,4 +1537,3 @@ std::string VirtServ::generateCookie(std::string name) {
 	}
 	return (ret);
 }
-

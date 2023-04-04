@@ -97,7 +97,6 @@ std::string		Cgi::executeCgi(const std::string & script, const char *path)
     }
     else {
 		waitpid(-1, NULL, 0);
-        usleep(300000);
 
         lseek(fd_out, 0, SEEK_SET);
 
