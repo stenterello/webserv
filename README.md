@@ -1,6 +1,6 @@
 # webserv
 
-This project required us to handle HTTP requests, parse and interpret configuration files, and serve static content to clients. We have collaborated closely with the talented @FraCipolla to create a robust and efficient web server.
+This project required us to handle HTTP requests, parse and interpret configuration files, and serve static content to clients. We have collaborated closely with the talented @mcipolla to create a robust and efficient web server.
 
 Our Webserv implementation goes beyond the mandatory requirements, exceeding all tests. We have implemented various features, including:
 
